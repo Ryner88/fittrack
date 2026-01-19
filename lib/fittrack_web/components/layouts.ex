@@ -35,35 +35,75 @@ defmodule FittrackWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <header class="navbar px-4 sm:px-6 lg:px-8">
-      <div class="flex-1">
-        <a href="/" class="flex-1 flex w-fit items-center gap-2">
-          <img src="/images/logo.svg" width="36" />
-          <span class="text-sm font-semibold">v{Application.spec(:phoenix, :vsn)}</span>
-        </a>
-      </div>
-      <div class="flex-none">
-        <ul class="flex flex-column px-1 space-x-4 items-center">
-          <li>
-            <a href="https://phoenixframework.org/" class="btn btn-ghost">Website</a>
-          </li>
-          <li>
-            <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost">GitHub</a>
-          </li>
-          <li>
-            <.theme_toggle />
-          </li>
-          <li>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary">
-              Get Started <span aria-hidden="true">&rarr;</span>
-            </a>
-          </li>
-        </ul>
+    <header class="border-b border-base-200 bg-base-100/80 backdrop-blur">
+      <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+        <div class="flex items-center gap-3">
+          <.link navigate={~p"/"} class="flex items-center gap-3 text-base-content">
+            <img src="/images/logo.svg" width="36" alt="Fittrack logo" />
+            <div>
+              <p class="text-sm font-semibold">Fittrack</p>
+              <p class="text-xs text-base-content/60">Training tracker</p>
+            </div>
+          </.link>
+        </div>
+
+        <nav class="hidden items-center gap-2 text-sm font-semibold text-base-content md:flex">
+          <%= if @current_scope && @current_scope.user do %>
+            <.link
+              navigate={~p"/exercises"}
+              class="rounded-full px-3 py-2 transition hover:bg-base-200"
+            >
+              Exercises
+            </.link>
+            <.link
+              navigate={~p"/sessions"}
+              class="rounded-full px-3 py-2 transition hover:bg-base-200"
+            >
+              Sessions
+            </.link>
+          <% else %>
+            <.link
+              navigate={~p"/"}
+              class="rounded-full px-3 py-2 transition hover:bg-base-200"
+            >
+              Home
+            </.link>
+          <% end %>
+        </nav>
+
+        <div class="flex items-center gap-3">
+          <%= if @current_scope && @current_scope.user do %>
+            <span class="hidden text-xs text-base-content/60 sm:inline">
+              {@current_scope.user.email}
+            </span>
+            <.link
+              href={~p"/users/log-out"}
+              method="delete"
+              class="inline-flex items-center justify-center rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary"
+            >
+              Log out
+            </.link>
+          <% else %>
+            <.link
+              navigate={~p"/users/log-in"}
+              class="inline-flex items-center justify-center rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary"
+            >
+              Log in
+            </.link>
+            <.link
+              navigate={~p"/users/register"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              Create account
+            </.link>
+          <% end %>
+          <.theme_toggle />
+        </div>
       </div>
     </header>
 
-    <main class="px-4 py-20 sm:px-6 lg:px-8">
-      <div class="mx-auto max-w-2xl space-y-4">
+    <main class="px-4 py-10 sm:px-6 lg:px-8">
+      <div class="mx-auto w-full max-w-6xl">
         {render_slot(@inner_block)}
       </div>
     </main>

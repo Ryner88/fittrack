@@ -6,9 +6,9 @@ defmodule FittrackWeb.ExerciseLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <.header>
-        Exercise {@exercise.id}
+        Exercise {@exercise.name}
         <:subtitle>This is a exercise record from your database.</:subtitle>
         <:actions>
           <.button navigate={~p"/exercises"}>
@@ -35,6 +35,6 @@ defmodule FittrackWeb.ExerciseLive.Show do
     {:ok,
      socket
      |> assign(:page_title, "Show Exercise")
-     |> assign(:exercise, Training.get_exercise!(id))}
+     |> assign(:exercise, Training.get_exercise!(socket.assigns.current_scope, id))}
   end
 end

@@ -7,7 +7,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <.header>
         {@page_title}
         <:subtitle>Use this form to manage exercise records in your database.</:subtitle>
@@ -17,7 +17,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
         <.input field={@form[:name]} type="text" label="Name" />
         <.input field={@form[:primary_muscle]} type="text" label="Primary muscle" />
         <.input field={@form[:equipment]} type="text" label="Equipment" />
-        <.input field={@form[:notes]} type="textarea" label="Notes" />
+        <.input field={@form[:notes]} type="textarea" label="Notes (optional)" />
         <footer>
           <.button phx-disable-with="Saving..." variant="primary">Save Exercise</.button>
           <.button navigate={return_path(@return_to, @exercise)}>Cancel</.button>
@@ -39,7 +39,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
   defp return_to(_), do: "index"
 
   defp apply_action(socket, :edit, %{"id" => id}) do
-    exercise = Training.get_exercise!(id)
+    exercise = Training.get_exercise!(socket.assigns.current_scope, id)
 
     socket
     |> assign(:page_title, "Edit Exercise")
@@ -67,7 +67,11 @@ defmodule FittrackWeb.ExerciseLive.Form do
   end
 
   defp save_exercise(socket, :edit, exercise_params) do
-    case Training.update_exercise(socket.assigns.exercise, exercise_params) do
+    case Training.update_exercise(
+           socket.assigns.current_scope,
+           socket.assigns.exercise,
+           exercise_params
+         ) do
       {:ok, exercise} ->
         {:noreply,
          socket
@@ -80,7 +84,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
   end
 
   defp save_exercise(socket, :new, exercise_params) do
-    case Training.create_exercise(exercise_params) do
+    case Training.create_exercise(socket.assigns.current_scope, exercise_params) do
       {:ok, exercise} ->
         {:noreply,
          socket
