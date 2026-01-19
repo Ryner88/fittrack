@@ -49,6 +49,9 @@ defmodule FittrackWeb.Router do
       live "/exercises/new", ExerciseLive.Index, :new
       live "/exercises/:id/edit", ExerciseLive.Index, :edit
       live "/exercises/:id", ExerciseLive.Show, :show
+      live "/sessions", WorkoutSessionLive.Index, :index
+      live "/sessions/new", WorkoutSessionLive.New, :new
+      live "/sessions/:id", WorkoutSessionLive.Show, :show
     end
 
     post "/users/update-password", UserSessionController, :update_password
