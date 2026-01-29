@@ -79,7 +79,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
          |> push_navigate(to: return_path(socket.assigns.return_to, exercise))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
+        {:noreply, assign(socket, form: to_form(changeset, action: :update))}
     end
   end
 
@@ -92,7 +92,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
          |> push_navigate(to: return_path(socket.assigns.return_to, exercise))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
+        {:noreply, assign(socket, form: to_form(changeset, action: :insert))}
     end
   end
 

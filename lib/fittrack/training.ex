@@ -14,7 +14,9 @@ defmodule Fittrack.Training do
   @doc """
   Returns the list of exercises for the current user.
   """
-  def list_exercises(%Scope{user: user}, opts \\ %{}) do
+  def list_exercises(scope, opts \\ %{})
+
+  def list_exercises(%Scope{user: user}, opts) do
     search = Map.get(opts, :search)
     search = if is_binary(search), do: String.trim(search), else: search
 

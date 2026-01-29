@@ -50,7 +50,9 @@ defmodule FittrackWeb.WorkoutSessionLive.New do
 
   @impl true
   def mount(_params, _session, socket) do
-    session = %WorkoutSession{started_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)}
+    session = %WorkoutSession{
+      started_at: NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+    }
 
     {:ok,
      socket

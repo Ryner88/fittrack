@@ -13,18 +13,20 @@
     >
       <source src={~p"/videos/hero.mp4"} type="video/mp4" />
     </video>
-
-    <!-- Small global dim so the video doesn't overpower -->
+    
+<!-- Small global dim so the video doesn't overpower -->
     <div class="absolute inset-0 bg-black/35"></div>
-
-    <!-- Top fade uses base color so nav text stays readable in BOTH themes -->
-    <div class="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-base-100/70 to-transparent"></div>
-
-    <!-- Subtle vignette -->
-    <div class="absolute inset-0 opacity-50 mix-blend-multiply bg-gradient-to-b from-black/35 via-transparent to-black/65"></div>
+    
+<!-- Top fade uses base color so nav text stays readable in BOTH themes -->
+    <div class="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-base-100/70 to-transparent">
+    </div>
+    
+<!-- Subtle vignette -->
+    <div class="absolute inset-0 opacity-50 mix-blend-multiply bg-gradient-to-b from-black/35 via-transparent to-black/65">
+    </div>
   </div>
-
-  <!-- Foreground content -->
+  
+<!-- Foreground content -->
   <div class="relative z-10 mx-auto flex min-h-screen max-w-6xl items-center px-4 py-12 sm:px-6 lg:px-8">
     <div class="w-full max-w-2xl">
       <!-- Glass panel fixes light-mode readability -->
