@@ -72,19 +72,46 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
                   prompt="Select exercise"
                   required
                 />
-                <.input field={@form[:weight]} type="number" step="0.5" label="Weight" required />
-                <.input field={@form[:reps]} type="number" label="Reps" required />
-                <.input field={@form[:rpe]} type="number" step="0.5" label="RPE (optional)" />
+                <.input
+                  field={@form[:kind]}
+                  type="select"
+                  label="Set type"
+                  options={@kind_options}
+                />
+                <.input
+                  field={@form[:weight]}
+                  type="number"
+                  step="0.5"
+                  label="Weight"
+                  required
+                  placeholder="e.g. 135"
+                />
+                <.input
+                  field={@form[:reps]}
+                  type="number"
+                  label="Reps"
+                  required
+                  placeholder="e.g. 8"
+                />
+                <.input
+                  field={@form[:rpe]}
+                  type="number"
+                  step="0.5"
+                  label="RPE (optional)"
+                  placeholder="e.g. 7.5"
+                />
                 <.input
                   field={@form[:rest_seconds]}
                   type="number"
                   label="Rest (seconds, optional)"
+                  placeholder="e.g. 90"
                 />
                 <div class="md:col-span-2">
                   <.input
                     field={@form[:notes]}
                     type="textarea"
                     label="Set notes (optional)"
+                    placeholder="Add any notes about tempo, cues, or setup"
                   />
                 </div>
               </div>
@@ -92,7 +119,8 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
               <div class="mt-6">
                 <button
                   type="submit"
-                  class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+                  phx-disable-with="Adding..."
+                  class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
                 >
                   Add set
                 </button>
@@ -115,7 +143,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
             class="mt-4 grid gap-4 sm:grid-cols-2"
           >
             <div class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-center text-sm text-base-content/70">
-              No sets logged yet.
+              No sets yet — add your first set above.
             </div>
             <div
               :for={{id, workout_set} <- @streams.workout_sets}
@@ -129,6 +157,11 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
                 <p class="text-xs uppercase tracking-[0.2em] text-base-content/40">
                   {format_weight(workout_set.weight)}
                 </p>
+              </div>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <span class="rounded-full border border-base-200 bg-base-100 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-base-content/70">
+                  {WorkoutSet.kind_label(workout_set.kind)}
+                </span>
               </div>
               <div class="mt-3 space-y-2 text-sm text-base-content/70">
                 <p>
@@ -165,6 +198,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
      |> assign(:workout_session, workout_session)
      |> assign(:exercise_options, exercise_options)
      |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))
+     |> assign(:kind_options, WorkoutSet.kind_options())
      |> stream(:workout_sets, workout_session.workout_sets)}
   end
 
@@ -193,7 +227,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
         {:noreply, put_flash(socket, :error, "You are not authorized to add sets here.")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply, assign(socket, form: to_form(changeset))}
+        {:noreply, assign(socket, form: to_form(changeset, action: :insert))}
     end
   end
 
