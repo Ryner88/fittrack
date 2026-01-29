@@ -100,12 +100,20 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
                   label="RPE (optional)"
                   placeholder="e.g. 7.5"
                 />
-                <.input
-                  field={@form[:rest_seconds]}
-                  type="number"
-                  label="Rest (seconds, optional)"
-                  placeholder="e.g. 90"
-                />
+                <div class="grid gap-4 sm:grid-cols-2 md:col-span-2">
+                  <.input
+                    field={@form[:rest_minutes]}
+                    type="number"
+                    label="Rest minutes (optional)"
+                    placeholder="e.g. 1"
+                  />
+                  <.input
+                    field={@form[:rest_seconds_input]}
+                    type="number"
+                    label="Rest seconds (optional)"
+                    placeholder="e.g. 30"
+                  />
+                </div>
                 <div class="md:col-span-2">
                   <.input
                     field={@form[:notes]}
@@ -172,7 +180,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
                 </p>
                 <p :if={workout_set.rest_seconds}>
                   <span class="font-semibold text-base-content">Rest:</span>
-                  {workout_set.rest_seconds}s
+                  {format_rest_seconds(workout_set.rest_seconds)}
                 </p>
                 <p :if={workout_set.notes && workout_set.notes != ""}>
                   <span class="font-semibold text-base-content">Notes:</span>
@@ -245,5 +253,18 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
     weight
     |> Decimal.normalize()
     |> Decimal.to_string(:normal)
+  end
+
+  defp format_rest_seconds(total_seconds) when is_integer(total_seconds) do
+    minutes = div(total_seconds, 60)
+    seconds = rem(total_seconds, 60)
+
+    cond do
+      minutes > 0 ->
+        "#{minutes}m #{String.pad_leading(Integer.to_string(seconds), 2, "0")}s"
+
+      true ->
+        "#{seconds}s"
+    end
   end
 end
