@@ -46,9 +46,10 @@ defmodule FittrackWeb.Router do
 
       # Exercises (protected)
       live "/exercises", ExerciseLive.Index, :index
-      live "/exercises/new", ExerciseLive.Index, :new
-      live "/exercises/:id/edit", ExerciseLive.Index, :edit
+      live "/exercises/new", ExerciseLive.Form, :new
+      live "/exercises/:id/edit", ExerciseLive.Form, :edit
       live "/exercises/:id", ExerciseLive.Show, :show
+
       live "/sessions", WorkoutSessionLive.Index, :index
       live "/sessions/new", WorkoutSessionLive.New, :new
       live "/sessions/:id", WorkoutSessionLive.Show, :show
