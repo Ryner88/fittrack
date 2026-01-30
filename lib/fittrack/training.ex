@@ -8,6 +8,7 @@ defmodule Fittrack.Training do
   alias Fittrack.Accounts.Scope
   alias Fittrack.Repo
   alias Fittrack.Training.Exercise
+  alias Fittrack.Training.ExerciseTemplate
   alias Fittrack.Training.WorkoutSession
   alias Fittrack.Training.WorkoutSet
 
@@ -68,6 +69,50 @@ defmodule Fittrack.Training do
   def change_exercise(%Exercise{} = exercise, attrs \\ %{}) do
     Exercise.changeset(exercise, attrs)
   end
+
+  @doc """
+  Returns the list of exercise templates.
+  """
+  def list_exercise_templates(opts \\ %{}) do
+    search = Map.get(opts, :search)
+    search = if is_binary(search), do: String.trim(search), else: search
+
+    ExerciseTemplate
+    |> maybe_filter_templates(search)
+    |> order_by([template], asc: template.name)
+    |> Repo.all()
+  end
+
+  @doc """
+  Creates a user exercise from a shared template.
+  """
+  def add_template_to_user(scope, template_id)
+
+  def add_template_to_user(%Scope{user: user}, template_id) do
+    with %ExerciseTemplate{} = template <- Repo.get(ExerciseTemplate, template_id) do
+      case Repo.get_by(Exercise, user_id: user.id, name: template.name, equipment: template.equipment) do
+        %Exercise{} = exercise ->
+          {:ok, exercise}
+
+        nil ->
+          attrs = %{
+            name: template.name,
+            primary_muscle: template.primary_muscle,
+            equipment: template.equipment,
+            notes: template.notes
+          }
+
+          %Exercise{}
+          |> Exercise.changeset(attrs)
+          |> Ecto.Changeset.put_change(:user_id, user.id)
+          |> Repo.insert()
+      end
+    else
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def add_template_to_user(_, _template_id), do: {:error, :unauthorized}
 
   @doc """
   Returns the list of workout sessions for the current user.
@@ -161,6 +206,19 @@ defmodule Fittrack.Training do
       [exercise],
       ilike(exercise.name, ^like) or ilike(exercise.primary_muscle, ^like) or
         ilike(exercise.equipment, ^like)
+    )
+  end
+
+  defp maybe_filter_templates(query, search) when search in [nil, ""], do: query
+
+  defp maybe_filter_templates(query, search) do
+    like = "%#{search}%"
+
+    where(
+      query,
+      [template],
+      ilike(template.name, ^like) or ilike(template.primary_muscle, ^like) or
+        ilike(template.equipment, ^like)
     )
   end
 
