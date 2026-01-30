@@ -88,8 +88,25 @@ defmodule Fittrack.Training do
     WorkoutSession
     |> where([session], session.id == ^id and session.user_id == ^user.id)
     |> Repo.one!()
-    |> Repo.preload(workout_sets: workout_sets_query())
+    |> Repo.preload(workout_sets: workout_sets_query("oldest"))
   end
+
+  @doc """
+  Lists workout sets for a session for the current user with multiple sort options.
+  """
+  def list_workout_sets(scope, session, opts \\ %{})
+
+  def list_workout_sets(%Scope{user: user}, %WorkoutSession{} = session, opts) do
+    sort = Map.get(opts, :sort, "newest")
+
+    if session.user_id == user.id do
+      Repo.all(workout_sets_query(sort, session.id))
+    else
+      []
+    end
+  end
+
+  def list_workout_sets(_, _, _opts), do: []
 
   @doc """
   Creates a workout session scoped to the current user.
@@ -147,10 +164,46 @@ defmodule Fittrack.Training do
     )
   end
 
-  defp workout_sets_query do
-    from workout_set in WorkoutSet,
-      order_by: [asc: workout_set.inserted_at],
-      preload: [:exercise]
+  defp workout_sets_query(sort), do: workout_sets_query(sort, nil)
+
+  defp workout_sets_query(sort, session_id) do
+    base =
+      from ws in WorkoutSet,
+        join: e in assoc(ws, :exercise),
+        preload: [exercise: e]
+
+    base =
+      if is_nil(session_id) do
+        base
+      else
+        from [ws, e] in base, where: ws.workout_session_id == ^session_id
+      end
+
+    case sort do
+      "oldest" ->
+        from [ws, e] in base, order_by: [asc: ws.inserted_at, asc: ws.id]
+
+      "exercise_asc" ->
+        from [ws, e] in base, order_by: [asc: e.name, asc: ws.inserted_at, asc: ws.id]
+
+      "exercise_desc" ->
+        from [ws, e] in base, order_by: [desc: e.name, desc: ws.inserted_at, desc: ws.id]
+
+      "weight_desc" ->
+        from [ws, e] in base, order_by: [desc: ws.weight, desc: ws.inserted_at, desc: ws.id]
+
+      "reps_desc" ->
+        from [ws, e] in base, order_by: [desc: ws.reps, desc: ws.inserted_at, desc: ws.id]
+
+      "rpe_desc" ->
+        from [ws, e] in base, order_by: [desc: ws.rpe, desc: ws.inserted_at, desc: ws.id]
+
+      "kind_asc" ->
+        from [ws, e] in base, order_by: [asc: ws.kind, desc: ws.inserted_at, desc: ws.id]
+
+      _newest ->
+        from [ws, e] in base, order_by: [desc: ws.inserted_at, desc: ws.id]
+    end
   end
 
   defp preload_workout_set({:ok, workout_set}) do
