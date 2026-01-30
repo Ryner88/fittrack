@@ -39,102 +39,199 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
           </div>
         </div>
 
-        <section class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
-          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 class="text-lg font-semibold text-base-content">Log a set</h2>
-              <p class="text-sm text-base-content/70">
-                Add sets to track the work you performed in this session.
-              </p>
+        <section class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 class="text-lg font-semibold text-base-content">Log a set</h2>
+                <p class="text-sm text-base-content/70">
+                  Add sets to track the work you performed in this session.
+                </p>
+              </div>
+              <%= if @exercise_options == [] do %>
+                <.link
+                  navigate={~p"/exercises/new"}
+                  class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+                >
+                  Create an exercise
+                </.link>
+              <% end %>
             </div>
+
             <%= if @exercise_options == [] do %>
-              <.link
-                navigate={~p"/exercises/new"}
-                class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
-              >
-                Create an exercise
-              </.link>
+              <div class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70">
+                You need at least one exercise before you can log sets. Create one to keep going.
+              </div>
+            <% else %>
+              <.form for={@form} id="workout-set-form" phx-change="validate" phx-submit="save">
+                <div class="mt-6 grid gap-4 md:grid-cols-2">
+                  <.input
+                    field={@form[:exercise_id]}
+                    type="select"
+                    label="Exercise"
+                    options={@exercise_options}
+                    prompt="Select exercise"
+                    required
+                  />
+                  <.input
+                    field={@form[:kind]}
+                    type="select"
+                    label="Set type"
+                    options={@kind_options}
+                  />
+                  <.input
+                    field={@form[:weight]}
+                    type="number"
+                    step="0.5"
+                    label="Weight"
+                    required
+                    placeholder="e.g. 135"
+                  />
+                  <.input
+                    field={@form[:reps]}
+                    type="number"
+                    label="Reps"
+                    required
+                    placeholder="e.g. 8"
+                  />
+                  <.input
+                    field={@form[:rpe]}
+                    type="number"
+                    step="0.5"
+                    label="RPE (optional)"
+                    placeholder="e.g. 7.5"
+                  />
+                  <div class="grid gap-4 sm:grid-cols-2 md:col-span-2">
+                    <.input
+                      field={@form[:rest_minutes]}
+                      type="number"
+                      label="Rest minutes (optional)"
+                      placeholder="e.g. 1"
+                    />
+                    <.input
+                      field={@form[:rest_seconds_input]}
+                      type="number"
+                      label="Rest seconds (optional)"
+                      placeholder="e.g. 30"
+                    />
+                  </div>
+                  <div class="md:col-span-2">
+                    <.input
+                      field={@form[:notes]}
+                      type="textarea"
+                      label="Set notes (optional)"
+                      placeholder="Add any notes about tempo, cues, or setup"
+                    />
+                  </div>
+                </div>
+
+                <div class="mt-6">
+                  <button
+                    type="submit"
+                    phx-disable-with="Adding..."
+                    class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
+                  >
+                    Add set
+                  </button>
+                </div>
+              </.form>
             <% end %>
           </div>
 
-          <%= if @exercise_options == [] do %>
-            <div class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70">
-              You need at least one exercise before you can log sets. Create one to keep going.
+          <aside class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
+            <div>
+              <h2 class="text-lg font-semibold text-base-content">Library</h2>
+              <p class="text-sm text-base-content/70">
+                Add a shared template to your personal exercise list in one tap.
+              </p>
             </div>
-          <% else %>
-            <.form for={@form} id="workout-set-form" phx-change="validate" phx-submit="save">
-              <div class="mt-6 grid gap-4 md:grid-cols-2">
-                <.input
-                  field={@form[:exercise_id]}
-                  type="select"
-                  label="Exercise"
-                  options={@exercise_options}
-                  prompt="Select exercise"
-                  required
-                />
-                <.input
-                  field={@form[:kind]}
-                  type="select"
-                  label="Set type"
-                  options={@kind_options}
-                />
-                <.input
-                  field={@form[:weight]}
-                  type="number"
-                  step="0.5"
-                  label="Weight"
-                  required
-                  placeholder="e.g. 135"
-                />
-                <.input
-                  field={@form[:reps]}
-                  type="number"
-                  label="Reps"
-                  required
-                  placeholder="e.g. 8"
-                />
-                <.input
-                  field={@form[:rpe]}
-                  type="number"
-                  step="0.5"
-                  label="RPE (optional)"
-                  placeholder="e.g. 7.5"
-                />
-                <div class="grid gap-4 sm:grid-cols-2 md:col-span-2">
-                  <.input
-                    field={@form[:rest_minutes]}
-                    type="number"
-                    label="Rest minutes (optional)"
-                    placeholder="e.g. 1"
-                  />
-                  <.input
-                    field={@form[:rest_seconds_input]}
-                    type="number"
-                    label="Rest seconds (optional)"
-                    placeholder="e.g. 30"
-                  />
-                </div>
-                <div class="md:col-span-2">
-                  <.input
-                    field={@form[:notes]}
-                    type="textarea"
-                    label="Set notes (optional)"
-                    placeholder="Add any notes about tempo, cues, or setup"
-                  />
-                </div>
-              </div>
 
-              <div class="mt-6">
+            <div class="mt-4 space-y-4">
+              <.form for={@library_form} id="library-search-form" phx-change="library_search" phx-debounce="300">
+                <.input
+                  field={@library_form[:search]}
+                  type="search"
+                  label="Search templates"
+                  placeholder="Search by name, muscle, or equipment"
+                />
+              </.form>
+
+              <div class="flex flex-wrap gap-2">
                 <button
-                  type="submit"
-                  phx-disable-with="Adding..."
-                  class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
+                  type="button"
+                  phx-click="library_filter"
+                  phx-value-filter="all"
+                  class={[
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition",
+                    @library_filter == "all" &&
+                      "border-primary bg-primary text-white shadow-sm shadow-primary/30",
+                    @library_filter != "all" &&
+                      "border-base-200 bg-base-100 text-base-content/70 hover:border-primary/60 hover:text-primary"
+                  ]}
                 >
-                  Add set
+                  All templates
+                </button>
+                <button
+                  type="button"
+                  phx-click="library_filter"
+                  phx-value-filter="favorites"
+                  class={[
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition",
+                    @library_filter == "favorites" &&
+                      "border-primary bg-primary text-white shadow-sm shadow-primary/30",
+                    @library_filter != "favorites" &&
+                      "border-base-200 bg-base-100 text-base-content/70 hover:border-primary/60 hover:text-primary"
+                  ]}
+                >
+                  Favorites
+                </button>
+                <button
+                  type="button"
+                  phx-click="library_filter"
+                  phx-value-filter="recent"
+                  class={[
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.2em] transition",
+                    @library_filter == "recent" &&
+                      "border-primary bg-primary text-white shadow-sm shadow-primary/30",
+                    @library_filter != "recent" &&
+                      "border-base-200 bg-base-100 text-base-content/70 hover:border-primary/60 hover:text-primary"
+                  ]}
+                >
+                  Recent
                 </button>
               </div>
-            </.form>
-          <% end %>
+            </div>
+
+            <div id="library-templates" class="mt-4 space-y-3">
+              <%= if @filtered_library == [] do %>
+                <div class="rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-4 text-sm text-base-content/70">
+                  No templates match your search yet. Try a different keyword.
+                </div>
+              <% else %>
+                <div
+                  :for={template <- @filtered_library}
+                  class="rounded-2xl border border-base-200 bg-base-100 p-4 transition hover:border-primary/40 hover:shadow-sm"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div>
+                      <p class="text-sm font-semibold text-base-content">{template.name}</p>
+                      <p class="mt-1 text-xs text-base-content/60">
+                        {format_template_meta(template)}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      phx-click="prefill_from_library"
+                      phx-value-template_id={template.id}
+                      class="inline-flex items-center justify-center rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition hover:-translate-y-0.5 hover:border-primary hover:bg-primary hover:text-white"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              <% end %>
+            </div>
+          </aside>
         </section>
 
         <section>
@@ -199,6 +296,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
   def mount(%{"id" => id}, _session, socket) do
     workout_session = Training.get_workout_session!(socket.assigns.current_scope, id)
     exercise_options = exercise_options(socket.assigns.current_scope)
+    templates = Training.list_exercise_templates(%{})
 
     {:ok,
      socket
@@ -207,10 +305,58 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
      |> assign(:exercise_options, exercise_options)
      |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))
      |> assign(:kind_options, WorkoutSet.kind_options())
+     |> assign(:library_templates, templates)
+     |> assign(:filtered_library, templates)
+     |> assign(:library_filter, "all")
+     |> assign(:library_search, "")
+     |> assign(:library_form, to_form(%{"search" => ""}, as: :library))
      |> stream(:workout_sets, workout_session.workout_sets)}
   end
 
   @impl true
+  def handle_event("library_search", %{"library" => %{"search" => search}}, socket) do
+    filtered =
+      filter_library_templates(socket.assigns.library_templates, search, socket.assigns.library_filter)
+
+    {:noreply,
+     socket
+     |> assign(:library_search, search)
+     |> assign(:library_form, to_form(%{"search" => search}, as: :library))
+     |> assign(:filtered_library, filtered)}
+  end
+
+  def handle_event("library_filter", %{"filter" => filter}, socket) do
+    filtered =
+      filter_library_templates(socket.assigns.library_templates, socket.assigns.library_search, filter)
+
+    {:noreply,
+     socket
+     |> assign(:library_filter, filter)
+     |> assign(:filtered_library, filtered)}
+  end
+
+  def handle_event("prefill_from_library", %{"template_id" => template_id}, socket) do
+    case Training.add_template_to_user(socket.assigns.current_scope, template_id) do
+      {:ok, exercise} ->
+        exercise_options = exercise_options(socket.assigns.current_scope)
+        changeset = Training.change_workout_set(%WorkoutSet{}, %{"exercise_id" => exercise.id})
+
+        {:noreply,
+         socket
+         |> assign(:exercise_options, exercise_options)
+         |> assign(:form, to_form(changeset))}
+
+      {:error, :not_found} ->
+        {:noreply, put_flash(socket, :error, "That template is no longer available.")}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "You are not authorized to add this template.")}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply, put_flash(socket, :error, "Unable to add the template right now.")}
+    end
+  end
+
   def handle_event("validate", %{"workout_set" => params}, socket) do
     changeset = Training.change_workout_set(%WorkoutSet{}, params)
     {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
@@ -247,6 +393,35 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
 
   defp format_started_at(datetime) do
     Calendar.strftime(datetime, "%b %d, %Y • %H:%M")
+  end
+
+  defp format_template_meta(template) do
+    [template.primary_muscle, template.equipment]
+    |> Enum.filter(&(&1 && &1 != ""))
+    |> Enum.join(" • ")
+  end
+
+  defp filter_library_templates(templates, search, filter) do
+    search = if is_binary(search), do: String.trim(search), else: ""
+    normalized = String.downcase(search)
+
+    templates
+    |> Enum.filter(fn template ->
+      matches_search =
+        normalized == "" or
+          String.contains?(String.downcase(template.name || ""), normalized) or
+          String.contains?(String.downcase(template.primary_muscle || ""), normalized) or
+          String.contains?(String.downcase(template.equipment || ""), normalized)
+
+      matches_filter =
+        case filter do
+          "favorites" -> true
+          "recent" -> true
+          _all -> true
+        end
+
+      matches_search and matches_filter
+    end)
   end
 
   defp format_weight(weight) do
