@@ -9,6 +9,7 @@ defmodule Fittrack.Training do
   alias Fittrack.Repo
   alias Fittrack.Training.Exercise
   alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.Normalizer
   alias Fittrack.Training.WorkoutSession
   alias Fittrack.Training.WorkoutSet
 
@@ -90,22 +91,34 @@ defmodule Fittrack.Training do
 
   def add_template_to_user(%Scope{user: user}, template_id) do
     with %ExerciseTemplate{} = template <- Repo.get(ExerciseTemplate, template_id) do
-      case Repo.get_by(Exercise, user_id: user.id, name: template.name, equipment: template.equipment) do
-        %Exercise{} = exercise ->
+      attrs = %{
+        name: template.name,
+        primary_muscle: template.primary_muscle,
+        equipment: template.equipment,
+        notes: template.notes
+      }
+
+      normalized_name = Normalizer.normalize_text(template.name)
+      normalized_equipment = Normalizer.normalize_text(template.equipment)
+
+      changeset =
+        %Exercise{}
+        |> Exercise.changeset(attrs)
+        |> Ecto.Changeset.put_change(:user_id, user.id)
+
+      case Repo.insert(changeset) do
+        {:ok, exercise} ->
           {:ok, exercise}
 
-        nil ->
-          attrs = %{
-            name: template.name,
-            primary_muscle: template.primary_muscle,
-            equipment: template.equipment,
-            notes: template.notes
-          }
-
-          %Exercise{}
-          |> Exercise.changeset(attrs)
-          |> Ecto.Changeset.put_change(:user_id, user.id)
-          |> Repo.insert()
+        {:error, %Ecto.Changeset{} = changeset} ->
+          case Repo.get_by(Exercise,
+                 user_id: user.id,
+                 normalized_name: normalized_name,
+                 normalized_equipment: normalized_equipment
+               ) do
+            %Exercise{} = exercise -> {:ok, exercise}
+            nil -> {:error, changeset}
+          end
       end
     else
       nil -> {:error, :not_found}
@@ -218,7 +231,8 @@ defmodule Fittrack.Training do
       query,
       [template],
       ilike(template.name, ^like) or ilike(template.primary_muscle, ^like) or
-        ilike(template.equipment, ^like)
+        ilike(template.equipment, ^like) or ilike(template.normalized_name, ^like) or
+        ilike(template.normalized_equipment, ^like)
     )
   end
 
