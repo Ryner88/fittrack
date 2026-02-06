@@ -91,34 +91,30 @@ defmodule Fittrack.Training do
 
   def add_template_to_user(%Scope{user: user}, template_id) do
     with %ExerciseTemplate{} = template <- Repo.get(ExerciseTemplate, template_id) do
-      attrs = %{
-        name: template.name,
-        primary_muscle: template.primary_muscle,
-        equipment: template.equipment,
-        notes: template.notes
-      }
-
       normalized_name = Normalizer.normalize_text(template.name)
       normalized_equipment = Normalizer.normalize_text(template.equipment)
 
-      changeset =
-        %Exercise{}
-        |> Exercise.changeset(attrs)
-        |> Ecto.Changeset.put_change(:user_id, user.id)
-
-      case Repo.insert(changeset) do
-        {:ok, exercise} ->
+      # Fast path: return existing exercise without attempting insert (avoids noisy unique constraint errors)
+      case Repo.get_by(Exercise,
+             user_id: user.id,
+             normalized_name: normalized_name,
+             normalized_equipment: normalized_equipment
+           ) do
+        %Exercise{} = exercise ->
           {:ok, exercise}
 
-        {:error, %Ecto.Changeset{} = changeset} ->
-          case Repo.get_by(Exercise,
-                 user_id: user.id,
-                 normalized_name: normalized_name,
-                 normalized_equipment: normalized_equipment
-               ) do
-            %Exercise{} = exercise -> {:ok, exercise}
-            nil -> {:error, changeset}
-          end
+        nil ->
+          attrs = %{
+            name: template.name,
+            primary_muscle: template.primary_muscle,
+            equipment: template.equipment,
+            notes: template.notes
+          }
+
+          %Exercise{}
+          |> Exercise.changeset(attrs)
+          |> Ecto.Changeset.put_change(:user_id, user.id)
+          |> Repo.insert()
       end
     else
       nil -> {:error, :not_found}
@@ -218,7 +214,8 @@ defmodule Fittrack.Training do
       query,
       [exercise],
       ilike(exercise.name, ^like) or ilike(exercise.primary_muscle, ^like) or
-        ilike(exercise.equipment, ^like)
+        ilike(exercise.equipment, ^like) or ilike(exercise.normalized_name, ^like) or
+        ilike(exercise.normalized_equipment, ^like)
     )
   end
 
