@@ -35,9 +35,6 @@ defmodule Fittrack.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Specifies your project dependencies.
-  #
-  # Type `mix help deps` for examples and options.
   defp deps do
     [
       {:bcrypt_elixir, "~> 3.0"},
@@ -59,9 +56,17 @@ defmodule Fittrack.MixProject do
        app: false,
        compile: false,
        depth: 1},
+
+      # Email
       {:swoosh, "~> 1.16"},
       {:req, "~> 0.5"},
+      {:plug, "~> 1.16"},
+      {:multipart, "~> 0.1"},
+
+      # Data import
       {:nimble_csv, "~> 1.0"},
+
+      # Telemetry / misc
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
@@ -71,12 +76,6 @@ defmodule Fittrack.MixProject do
     ]
   end
 
-  # Aliases are shortcuts or tasks specific to the current project.
-  # For example, to install project dependencies and perform other setup tasks, run:
-  #
-  #     $ mix setup
-  #
-  # See the documentation for `Mix` for more info on aliases.
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
