@@ -37,12 +37,14 @@ config :fittrack, FittrackWeb.Endpoint,
 
 # Configure the mailer
 #
-# By default it uses the "Local" adapter which stores the emails
-# locally. You can see the emails in your browser, at "/dev/mailbox".
+# In dev, use the "Local" adapter which stores emails locally
+# (viewable at "/dev/mailbox" when dev routes are enabled).
 #
-# For production it's recommended to configure a different adapter
-# at the `config/runtime.exs`.
-config :fittrack, Fittrack.Mailer, adapter: Swoosh.Adapters.Local
+# In production, configure a real adapter (Mailgun/SMTP/etc.)
+# in `config/runtime.exs`.
+if config_env() == :dev do
+  config :fittrack, Fittrack.Mailer, adapter: Swoosh.Adapters.Local
+end
 
 # Configure esbuild (the version is required)
 config :esbuild,
