@@ -12,6 +12,10 @@ defmodule Fittrack.Application do
       Fittrack.Repo,
       {DNSCluster, query: Application.get_env(:fittrack, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Fittrack.PubSub},
+
+      # Required for Swoosh.ApiClient.Req (Mailgun, etc.)
+      {Finch, name: Req.Finch},
+
       # Start a worker by calling: Fittrack.Worker.start_link(arg)
       # {Fittrack.Worker, arg},
       # Start to serve requests, typically the last entry
