@@ -5,13 +5,20 @@ defmodule Fittrack.MixProject do
     [
       app: :fittrack,
       version: "0.1.0",
-      elixir: "~> 1.15",
+
+      # Your logs show Elixir 1.18.4 in the release, so this should not be "~> 1.15".
+      # Swoosh also requires Elixir 1.16+.
+      elixir: "~> 1.18",
+
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+
+      # Make `mix precommit` run in :test (instead of defining an unused cli/0).
+      preferred_cli_env: [precommit: :test]
     ]
   end
 
@@ -22,12 +29,6 @@ defmodule Fittrack.MixProject do
     [
       mod: {Fittrack.Application, []},
       extra_applications: [:logger, :runtime_tools]
-    ]
-  end
-
-  def cli do
-    [
-      preferred_envs: [precommit: :test]
     ]
   end
 
