@@ -58,7 +58,7 @@ defmodule FittrackWeb.UserLive.RegistrationTest do
       result =
         lv
         |> form("#registration_form",
-          user: %{"email" => user.email}
+          user: valid_user_attributes(email: user.email)
         )
         |> render_submit()
 

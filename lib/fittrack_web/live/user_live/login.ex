@@ -143,14 +143,9 @@ defmodule FittrackWeb.UserLive.Login do
                   </button>
                 </div>
 
-                <div class="mt-2">
-                  <.link
-                    navigate={~p"/users/reset-password"}
-                    class="text-sm text-blue-600 hover:underline"
-                  >
-                    Forgot password?
-                  </.link>
-                </div>
+                <p class="mt-2 text-sm text-gray-500">
+                  Need help signing in? Contact support.
+                </p>
               </div>
               
     <!-- Remember me -->
