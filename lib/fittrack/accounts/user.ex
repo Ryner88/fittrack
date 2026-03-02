@@ -56,6 +56,17 @@ defmodule Fittrack.Accounts.User do
     end
   end
 
+
+  @doc """
+  A user changeset for registration.
+
+  It validates email and password fields and optionally hashes the password.
+  """
+  def registration_changeset(user, attrs, opts \\ []) do
+    user
+    |> email_changeset(attrs, opts)
+    |> password_changeset(attrs, opts)
+  end
   @doc """
   A user changeset for changing the password.
 
