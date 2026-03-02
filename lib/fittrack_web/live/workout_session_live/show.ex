@@ -147,7 +147,12 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
             </div>
 
             <div class="mt-4 space-y-4">
-              <.form for={@library_form} id="library-search-form" phx-change="library_search" phx-debounce="300">
+              <.form
+                for={@library_form}
+                id="library-search-form"
+                phx-change="library_search"
+                phx-debounce="300"
+              >
                 <.input
                   field={@library_form[:search]}
                   type="search"
@@ -316,7 +321,11 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
   @impl true
   def handle_event("library_search", %{"library" => %{"search" => search}}, socket) do
     filtered =
-      filter_library_templates(socket.assigns.library_templates, search, socket.assigns.library_filter)
+      filter_library_templates(
+        socket.assigns.library_templates,
+        search,
+        socket.assigns.library_filter
+      )
 
     {:noreply,
      socket
@@ -327,7 +336,11 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
 
   def handle_event("library_filter", %{"filter" => filter}, socket) do
     filtered =
-      filter_library_templates(socket.assigns.library_templates, socket.assigns.library_search, filter)
+      filter_library_templates(
+        socket.assigns.library_templates,
+        socket.assigns.library_search,
+        filter
+      )
 
     {:noreply,
      socket

@@ -36,11 +36,9 @@ defmodule FittrackWeb.Layouts do
   def app(assigns) do
     ~H"""
     <div class="min-h-screen relative bg-gradient-to-b from-base-200 via-base-200 to-base-100">
-      <div
-        class="pointer-events-none fixed inset-0 opacity-[0.04]
+      <div class="pointer-events-none fixed inset-0 opacity-[0.04]
                bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.35)_1px,transparent_0)]
-               [background-size:24px_24px]"
-      >
+               [background-size:24px_24px]">
       </div>
 
       <div class="relative">

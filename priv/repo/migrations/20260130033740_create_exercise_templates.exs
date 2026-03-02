@@ -19,4 +19,3 @@ defmodule Fittrack.Repo.Migrations.CreateExerciseTemplates do
     create unique_index(:exercise_templates, [:name, :equipment])
   end
 end
-

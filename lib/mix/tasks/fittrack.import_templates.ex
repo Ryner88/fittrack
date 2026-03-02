@@ -171,7 +171,17 @@ defmodule Mix.Tasks.Fittrack.ImportTemplates do
 
     {count, _} =
       Repo.insert_all(ExerciseTemplate, rows,
-        on_conflict: {:replace, [:name, :primary_muscle, :equipment, :notes, :normalized_name, :normalized_equipment, :updated_at]},
+        on_conflict:
+          {:replace,
+           [
+             :name,
+             :primary_muscle,
+             :equipment,
+             :notes,
+             :normalized_name,
+             :normalized_equipment,
+             :updated_at
+           ]},
         conflict_target: [:normalized_name, :normalized_equipment]
       )
 

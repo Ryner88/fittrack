@@ -9,7 +9,6 @@ defmodule Fittrack.MixProject do
       # Your logs show Elixir 1.18.4 in the release, so this should not be "~> 1.15".
       # Swoosh also requires Elixir 1.16+.
       elixir: "~> 1.18",
-
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
