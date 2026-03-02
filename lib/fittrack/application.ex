@@ -14,7 +14,7 @@ defmodule Fittrack.Application do
       {Phoenix.PubSub, name: Fittrack.PubSub},
 
       # Required for Swoosh.ApiClient.Req (Mailgun, etc.)
-      {Finch, name: Req.Finch},
+      {Finch, name: Fittrack.Finch},
 
       # Start a worker by calling: Fittrack.Worker.start_link(arg)
       # {Fittrack.Worker, arg},
