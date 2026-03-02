@@ -79,7 +79,10 @@ defmodule FittrackWeb.UserLive.Registration do
               </div>
 
               <div>
-                <label for={@form[:password_confirmation].id} class="block text-sm font-medium text-gray-700">
+                <label
+                  for={@form[:password_confirmation].id}
+                  class="block text-sm font-medium text-gray-700"
+                >
                   Retype password
                 </label>
 
@@ -136,7 +139,11 @@ defmodule FittrackWeb.UserLive.Registration do
   end
 
   def mount(_params, _session, socket) do
-    changeset = Accounts.change_user_registration(%User{}, %{}, validate_unique: false, hash_password: false)
+    changeset =
+      Accounts.change_user_registration(%User{}, %{},
+        validate_unique: false,
+        hash_password: false
+      )
 
     {:ok, assign_form(socket, changeset), temporary_assigns: [form: nil]}
   end
