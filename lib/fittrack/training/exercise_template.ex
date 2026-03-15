@@ -24,6 +24,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
     |> update_change(:equipment, &String.trim/1)
     |> update_change(:notes, &String.trim/1)
     |> normalize_fields()
+    |> unique_constraint([:name, :equipment])
     |> unique_constraint([:normalized_name, :normalized_equipment])
   end
 
