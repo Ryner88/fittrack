@@ -3,7 +3,7 @@ defmodule Fittrack.Training.WorkoutSet do
   import Ecto.Changeset
 
   alias Fittrack.Training.Exercise
-  alias Fittrack.Training.WorkoutSession
+  alias Fittrack.Training.Workout
 
   schema "workout_sets" do
     field :weight, :decimal
@@ -15,7 +15,7 @@ defmodule Fittrack.Training.WorkoutSet do
     field :notes, :string
     field :kind, :string, default: "normal"
 
-    belongs_to :workout_session, WorkoutSession
+    belongs_to :workout, Workout
     belongs_to :exercise, Exercise
 
     timestamps(type: :utc_datetime)

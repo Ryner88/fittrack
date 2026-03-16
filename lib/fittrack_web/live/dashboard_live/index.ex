@@ -162,8 +162,8 @@ defmodule FittrackWeb.DashboardLive.Index do
     %{
       total_personal_bests: Training.count_personal_bests(scope),
       total_volume: Training.total_volume_lifted(scope),
-      total_sessions: Training.count_workout_sessions(scope),
-      weekly_sessions: Training.count_weekly_sessions(scope)
+      total_sessions: Training.count_workouts(scope),
+      weekly_sessions: Training.count_weekly_workouts(scope)
     }
   end
 

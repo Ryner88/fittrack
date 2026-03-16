@@ -1,4 +1,4 @@
-defmodule FittrackWeb.WorkoutSessionLive.Show do
+defmodule FittrackWeb.WorkoutLive.Show do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
@@ -11,13 +11,13 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
       <div class="space-y-10">
         <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p class="text-xs uppercase tracking-[0.2em] text-base-content/50">Workout session</p>
+            <p class="text-xs uppercase tracking-[0.2em] text-base-content/50">Workout</p>
             <h1 class="mt-2 text-2xl font-semibold text-base-content">
-              {format_started_at(@workout_session.started_at)}
+              {format_started_at(@workout.started_at)}
             </h1>
             <p class="mt-1 text-sm text-base-content/70">
-              <%= if @workout_session.notes && @workout_session.notes != "" do %>
-                {@workout_session.notes}
+              <%= if @workout.notes && @workout.notes != "" do %>
+                {@workout.notes}
               <% else %>
                 No notes added yet.
               <% end %>
@@ -25,7 +25,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
           </div>
           <div class="flex flex-wrap gap-3">
             <.link
-              navigate={~p"/sessions"}
+              navigate={~p"/workouts"}
               class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
             >
               Back to history
@@ -241,9 +241,9 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
 
         <section>
           <div class="flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-base-content">Session sets</h2>
+            <h2 class="text-lg font-semibold text-base-content">Workout sets</h2>
             <span class="text-xs uppercase tracking-[0.2em] text-base-content/50">
-              {format_started_at(@workout_session.started_at)}
+              {format_started_at(@workout.started_at)}
             </span>
           </div>
 
@@ -299,14 +299,14 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    workout_session = Training.get_workout_session!(socket.assigns.current_scope, id)
+    workout = Training.get_workout!(socket.assigns.current_scope, id)
     exercise_options = exercise_options(socket.assigns.current_scope)
     templates = Training.list_exercise_templates(%{})
 
     {:ok,
      socket
-     |> assign(:page_title, "Workout Session")
-     |> assign(:workout_session, workout_session)
+     |> assign(:page_title, "Workout")
+     |> assign(:workout, workout)
      |> assign(:exercise_options, exercise_options)
      |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))
      |> assign(:kind_options, WorkoutSet.kind_options())
@@ -315,7 +315,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
      |> assign(:library_filter, "all")
      |> assign(:library_search, "")
      |> assign(:library_form, to_form(%{"search" => ""}, as: :library))
-     |> stream(:workout_sets, workout_session.workout_sets)}
+     |> stream(:workout_sets, workout.workout_sets)}
   end
 
   @impl true
@@ -378,7 +378,7 @@ defmodule FittrackWeb.WorkoutSessionLive.Show do
   def handle_event("save", %{"workout_set" => params}, socket) do
     case Training.create_workout_set(
            socket.assigns.current_scope,
-           socket.assigns.workout_session,
+           socket.assigns.workout,
            params
          ) do
       {:ok, workout_set} ->

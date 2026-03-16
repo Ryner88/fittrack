@@ -1,4 +1,4 @@
-defmodule Fittrack.Training.WorkoutSession do
+defmodule Fittrack.Training.Workout do
   use Ecto.Schema
   import Ecto.Changeset
 
@@ -16,8 +16,8 @@ defmodule Fittrack.Training.WorkoutSession do
   end
 
   @doc false
-  def changeset(workout_session, attrs) do
-    workout_session
+  def changeset(workout, attrs) do
+    workout
     |> cast(attrs, [:started_at, :notes])
     |> validate_required([:started_at])
   end

@@ -12,14 +12,14 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
           <div>
             <h1 class="text-2xl font-semibold text-base-content">Workout Plans</h1>
             <p class="text-sm text-base-content/70">
-              Create and manage your custom training routines.
+              Create and manage workout templates for consistent training routines.
             </p>
           </div>
           <.link
             navigate={~p"/workout-plans/new"}
             class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
           >
-            <.icon name="hero-plus" class="mr-2 size-4" /> New workout plan
+            <.icon name="hero-plus" class="mr-2 size-4" /> Create plan
           </.link>
         </div>
 
@@ -74,12 +74,45 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
 
   @impl true
   def handle_event("start_session", %{"id" => id}, socket) do
-    {:ok, session} = Training.create_session_from_plan(socket.assigns.current_scope, id)
+    {:ok, workout} = Training.create_workout_from_plan(socket.assigns.current_scope, id)
 
     {:noreply,
      socket
-     |> put_flash(:info, "Workout session started from plan")
-     |> push_navigate(to: ~p"/sessions/#{session}")}
+     |> put_flash(:info, "Workout started from plan")
+     |> push_navigate(to: ~p"/workouts/#{workout}")}
+  end
+
+  @impl true
+  def handle_event("duplicate", %{"id" => id}, socket) do
+    workout_plan = Training.get_workout_plan!(socket.assigns.current_scope, id)
+
+    # Create a duplicate with "Copy of" prefix
+    attrs = %{
+      name: "Copy of #{workout_plan.name}",
+      description: workout_plan.description,
+      workout_plan_exercises:
+        Enum.map(workout_plan.workout_plan_exercises, fn exercise ->
+          %{
+            exercise_id: exercise.exercise_id,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            rest_seconds: exercise.rest_seconds
+          }
+        end)
+    }
+
+    case Training.create_workout_plan(socket.assigns.current_scope, attrs) do
+      {:ok, _new_plan} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Workout plan duplicated successfully")
+         |> assign(:workout_plans, list_workout_plans(socket.assigns.current_scope))}
+
+      {:error, _changeset} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "Failed to duplicate workout plan")}
+    end
   end
 
   defp list_workout_plans(current_scope) do
@@ -104,6 +137,8 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
           <div class="mt-3 flex items-center gap-4 text-sm text-base-content/60">
             <.icon name="hero-queue-list" class="h-4 w-4" />
             <span>{length(@workout_plan.workout_plan_exercises)} exercises</span>
+            <.icon name="hero-clock" class="h-4 w-4 ml-2" />
+            <span>~{estimate_duration(@workout_plan)}m</span>
           </div>
         </div>
       </div>
@@ -122,6 +157,13 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
           >
             <.icon name="hero-pencil" class="h-3 w-3" /> Edit
           </.link>
+          <button
+            phx-click="duplicate"
+            phx-value-id={@workout_plan.id}
+            class="inline-flex items-center gap-2 rounded-lg border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
+          >
+            <.icon name="hero-document-duplicate" class="h-3 w-3" /> Duplicate
+          </button>
         </div>
         <div class="flex gap-2">
           <button
@@ -129,7 +171,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
             phx-value-id={@workout_plan.id}
             class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-primary/90"
           >
-            <.icon name="hero-play" class="h-3 w-3" /> Start
+            <.icon name="hero-play" class="h-3 w-3" /> Start workout
           </button>
           <button
             phx-click="delete"
@@ -143,5 +185,17 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
       </div>
     </div>
     """
+  end
+
+  defp estimate_duration(workout_plan) do
+    # Rough estimate: 45 seconds per set + rest time between sets
+    total_sets = Enum.sum(Enum.map(workout_plan.workout_plan_exercises, & &1.sets))
+
+    total_rest_seconds =
+      Enum.sum(Enum.map(workout_plan.workout_plan_exercises, &(&1.rest_seconds * &1.sets)))
+
+    # Assume 45 seconds per set + rest time, convert to minutes
+    total_seconds = total_sets * 45 + total_rest_seconds
+    max(1, div(total_seconds, 60))
   end
 end

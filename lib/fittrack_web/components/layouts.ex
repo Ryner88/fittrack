@@ -75,10 +75,10 @@ defmodule FittrackWeb.Layouts do
                   Plans
                 </.link>
                 <.link
-                  navigate={~p"/sessions"}
+                  navigate={~p"/workouts"}
                   class="rounded-full px-3 py-2 transition hover:bg-base-200"
                 >
-                  Sessions
+                  Workouts
                 </.link>
               <% else %>
                 <.link

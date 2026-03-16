@@ -10,7 +10,7 @@ defmodule Fittrack.Training do
   alias Fittrack.Training.Exercise
   alias Fittrack.Training.ExerciseTemplate
   alias Fittrack.Training.Normalizer
-  alias Fittrack.Training.WorkoutSession
+  alias Fittrack.Training.Workout
   alias Fittrack.Training.WorkoutSet
   alias Fittrack.Training.WorkoutPlan
 
@@ -132,37 +132,38 @@ defmodule Fittrack.Training do
   def add_template_to_user(_, _template_id), do: {:error, :unauthorized}
 
   @doc """
-  Returns the list of workout sessions for the current user.
+  Returns the list of workouts for the current user.
   """
-  def list_workout_sessions(%Scope{user: user}) do
-    WorkoutSession
-    |> where([session], session.user_id == ^user.id)
-    |> order_by([session], desc: session.started_at)
+  def list_workouts(%Scope{user: user}) do
+    Workout
+    |> where([workout], workout.user_id == ^user.id)
+    |> order_by([workout], desc: workout.started_at)
+    |> preload(workout_sets: [:exercise])
     |> Repo.all()
   end
 
-  def list_workout_sessions(_), do: []
+  def list_workouts(_), do: []
 
   @doc """
-  Gets a workout session with sets for the current user.
+  Gets a workout with sets for the current user.
   """
-  def get_workout_session!(%Scope{user: user}, id) do
-    WorkoutSession
-    |> where([session], session.id == ^id and session.user_id == ^user.id)
+  def get_workout!(%Scope{user: user}, id) do
+    Workout
+    |> where([workout], workout.id == ^id and workout.user_id == ^user.id)
     |> Repo.one!()
     |> Repo.preload(workout_sets: workout_sets_query("oldest"))
   end
 
   @doc """
-  Lists workout sets for a session for the current user with multiple sort options.
+  Lists workout sets for a workout for the current user with multiple sort options.
   """
-  def list_workout_sets(scope, session, opts \\ %{})
+  def list_workout_sets(scope, workout, opts \\ %{})
 
-  def list_workout_sets(%Scope{user: user}, %WorkoutSession{} = session, opts) do
+  def list_workout_sets(%Scope{user: user}, %Workout{} = workout, opts) do
     sort = Map.get(opts, :sort, "newest")
 
-    if session.user_id == user.id do
-      Repo.all(workout_sets_query(sort, session.id))
+    if workout.user_id == user.id do
+      Repo.all(workout_sets_query(sort, workout.id))
     else
       []
     end
@@ -171,33 +172,33 @@ defmodule Fittrack.Training do
   def list_workout_sets(_, _, _opts), do: []
 
   @doc """
-  Creates a workout session scoped to the current user.
+  Creates a workout scoped to the current user.
   """
-  def create_workout_session(%Scope{user: user}, attrs) do
-    %WorkoutSession{}
-    |> WorkoutSession.changeset(attrs)
+  def create_workout(%Scope{user: user}, attrs) do
+    %Workout{}
+    |> Workout.changeset(attrs)
     |> Ecto.Changeset.put_change(:user_id, user.id)
     |> Repo.insert()
   end
 
   @doc """
-  Returns an `%Ecto.Changeset{}` for tracking workout session changes.
+  Returns an `%Ecto.Changeset{}` for tracking workout changes.
   """
-  def change_workout_session(%WorkoutSession{} = workout_session, attrs \\ %{}) do
-    WorkoutSession.changeset(workout_session, attrs)
+  def change_workout(%Workout{} = workout, attrs \\ %{}) do
+    Workout.changeset(workout, attrs)
   end
 
   @doc """
-  Creates a workout set within a session for the current user.
+  Creates a workout set within a workout for the current user.
   """
-  def create_workout_set(%Scope{user: user}, %WorkoutSession{} = session, attrs) do
+  def create_workout_set(%Scope{user: user}, %Workout{} = workout, attrs) do
     exercise_id = Map.get(attrs, "exercise_id") || Map.get(attrs, :exercise_id)
 
-    with true <- session.user_id == user.id,
+    with true <- workout.user_id == user.id,
          %Exercise{} <- Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
       %WorkoutSet{}
       |> WorkoutSet.changeset(attrs)
-      |> Ecto.Changeset.put_change(:workout_session_id, session.id)
+      |> Ecto.Changeset.put_change(:workout_id, workout.id)
       |> Repo.insert()
       |> preload_workout_set()
     else
@@ -271,7 +272,7 @@ defmodule Fittrack.Training do
       if is_nil(session_id) do
         base
       else
-        from [ws, e] in base, where: ws.workout_session_id == ^session_id
+        from [ws, e] in base, where: ws.workout_id == ^session_id
       end
 
     case sort do
@@ -378,14 +379,14 @@ defmodule Fittrack.Training do
   end
 
   @doc """
-  Creates a workout session from a workout plan.
+  Creates a workout from a workout plan.
   """
-  def create_session_from_plan(%Scope{user: user}, workout_plan_id) do
+  def create_workout_from_plan(%Scope{user: user}, workout_plan_id) do
     workout_plan = get_workout_plan!(%Scope{user: user}, workout_plan_id)
 
-    # Create a new workout session
-    {:ok, session} =
-      create_workout_session(%Scope{user: user}, %{
+    # Create a new workout
+    {:ok, workout} =
+      create_workout(%Scope{user: user}, %{
         name: "#{workout_plan.name} - #{DateTime.utc_now() |> Calendar.strftime("%Y-%m-%d")}"
       })
 
@@ -393,7 +394,7 @@ defmodule Fittrack.Training do
     Enum.each(workout_plan.workout_plan_exercises, fn plan_exercise ->
       # Create sets based on the plan
       Enum.each(1..plan_exercise.sets, fn _set_number ->
-        create_workout_set(%Scope{user: user}, session, %{
+        create_workout_set(%Scope{user: user}, workout, %{
           exercise_id: plan_exercise.exercise_id,
           reps: parse_reps_range(plan_exercise.reps),
           rest_seconds: plan_exercise.rest_seconds
@@ -401,7 +402,7 @@ defmodule Fittrack.Training do
       end)
     end)
 
-    {:ok, session}
+    {:ok, workout}
   end
 
   # Parse reps range like "8-12" to get a default value
@@ -429,7 +430,7 @@ defmodule Fittrack.Training do
   """
   def count_personal_bests(%Scope{user: user}) do
     from(ws in WorkoutSet,
-      join: wsession in assoc(ws, :workout_session),
+      join: wsession in assoc(ws, :workout),
       join: e in assoc(ws, :exercise),
       where: wsession.user_id == ^user.id and e.user_id == ^user.id,
       select: {e.id, max(ws.weight)},
@@ -446,7 +447,7 @@ defmodule Fittrack.Training do
   """
   def total_volume_lifted(%Scope{user: user}) do
     from(ws in WorkoutSet,
-      join: wsession in assoc(ws, :workout_session),
+      join: wsession in assoc(ws, :workout),
       where: wsession.user_id == ^user.id,
       select: sum(ws.weight * ws.reps)
     )
@@ -460,43 +461,43 @@ defmodule Fittrack.Training do
   def total_volume_lifted(_), do: 0.0
 
   @doc """
-  Counts the total number of workout sessions for the current user.
+  Counts the total number of workouts for the current user.
   """
-  def count_workout_sessions(%Scope{user: user}) do
-    from(ws in WorkoutSession,
-      where: ws.user_id == ^user.id,
-      select: count(ws.id)
+  def count_workouts(%Scope{user: user}) do
+    from(w in Workout,
+      where: w.user_id == ^user.id,
+      select: count(w.id)
     )
     |> Repo.one()
   end
 
-  def count_workout_sessions(_), do: 0
+  def count_workouts(_), do: 0
 
   @doc """
-  Counts the number of workout sessions for the current week.
+  Counts the number of workouts for the current week.
   """
-  def count_weekly_sessions(%Scope{user: user}) do
+  def count_weekly_workouts(%Scope{user: user}) do
     start_of_week = Date.utc_today() |> Date.beginning_of_week()
     end_of_week = Date.utc_today() |> Date.end_of_week()
 
-    from(ws in WorkoutSession,
+    from(w in Workout,
       where:
-        ws.user_id == ^user.id and
-          fragment("DATE(?)", ws.started_at) >= ^start_of_week and
-          fragment("DATE(?)", ws.started_at) <= ^end_of_week,
-      select: count(ws.id)
+        w.user_id == ^user.id and
+          fragment("DATE(?)", w.started_at) >= ^start_of_week and
+          fragment("DATE(?)", w.started_at) <= ^end_of_week,
+      select: count(w.id)
     )
     |> Repo.one()
   end
 
-  def count_weekly_sessions(_), do: 0
+  def count_weekly_workouts(_), do: 0
 
   @doc """
   Returns personal bests for each exercise for the current user.
   """
   def list_personal_bests(%Scope{user: user}) do
     from(ws in WorkoutSet,
-      join: wsession in assoc(ws, :workout_session),
+      join: wsession in assoc(ws, :workout),
       join: e in assoc(ws, :exercise),
       where: wsession.user_id == ^user.id and e.user_id == ^user.id,
       group_by: [e.id, e.name],
@@ -523,7 +524,7 @@ defmodule Fittrack.Training do
     start_date = Date.utc_today() |> Date.add(-days)
 
     from(ws in WorkoutSet,
-      join: wsession in assoc(ws, :workout_session),
+      join: wsession in assoc(ws, :workout),
       where:
         wsession.user_id == ^user.id and
           fragment("DATE(?)", ws.inserted_at) >= ^start_date,
@@ -571,12 +572,12 @@ defmodule Fittrack.Training do
   Returns workout dates for a given month for the current user.
   """
   def workout_dates_in_month(%Scope{user: user}, start_date, end_date) do
-    from(ws in WorkoutSession,
+    from(w in Workout,
       where:
-        ws.user_id == ^user.id and
-          fragment("DATE(?)", ws.started_at) >= ^start_date and
-          fragment("DATE(?)", ws.started_at) <= ^end_date,
-      select: fragment("DATE(?)", ws.started_at)
+        w.user_id == ^user.id and
+          fragment("DATE(?)", w.started_at) >= ^start_date and
+          fragment("DATE(?)", w.started_at) <= ^end_date,
+      select: fragment("DATE(?)", w.started_at)
     )
     |> Repo.all()
   end

@@ -98,12 +98,12 @@ defmodule FittrackWeb.WorkoutPlanLive.Show do
 
   @impl true
   def handle_event("start_session", %{"id" => id}, socket) do
-    {:ok, session} = Training.create_session_from_plan(socket.assigns.current_scope, id)
+    {:ok, workout} = Training.create_workout_from_plan(socket.assigns.current_scope, id)
 
     {:noreply,
      socket
      |> put_flash(:info, "Workout session started from plan")
-     |> push_navigate(to: ~p"/sessions/#{session}")}
+     |> push_navigate(to: ~p"/workouts/#{workout}")}
   end
 
   @impl true
