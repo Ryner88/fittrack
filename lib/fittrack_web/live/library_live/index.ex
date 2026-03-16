@@ -12,7 +12,7 @@ defmodule FittrackWeb.LibraryLive.Index do
           <div>
             <h1 class="text-2xl font-semibold text-base-content">Exercise Library</h1>
             <p class="text-sm text-base-content/70">
-              Browse exercises and add them to your personal collection.
+              Explore the full exercise catalog and add movements to your exercise list.
             </p>
           </div>
         </div>
@@ -167,7 +167,7 @@ defmodule FittrackWeb.LibraryLive.Index do
           phx-value-template_id={@template.id}
           class="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-primary/90"
         >
-          <.icon name="hero-plus" class="h-3 w-3" /> Add to Library
+          <.icon name="hero-plus" class="h-3 w-3" /> Add to My Exercises
         </button>
       </div>
 

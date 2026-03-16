@@ -12,7 +12,7 @@ defmodule FittrackWeb.ExerciseLive.Index do
           <div>
             <h1 class="text-2xl font-semibold text-base-content">Exercises</h1>
             <p class="text-sm text-base-content/70">
-              Build your library and quickly find movements when logging sessions.
+              Keep your personal exercise list organized for workout planning and logging.
             </p>
           </div>
           <div class="flex gap-3">
