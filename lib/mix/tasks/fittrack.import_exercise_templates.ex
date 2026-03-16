@@ -12,25 +12,33 @@ defmodule Mix.Tasks.Fittrack.ImportExerciseTemplates do
 
   ## Environment Variables
 
-    * `WGER_API_KEY` - Your WGER API key from https://wger.de/user/api-key (optional for public resources)
+    * `WGER_API_KEY` - Your WGER API key from https://wger.de/user/api-key
+      (optional for public resources)
 
   ## Examples
 
-      # Import up to 100 exercises (default)
       mix fittrack.import_exercise_templates
-
-      # Import up to 50 exercises
       mix fittrack.import_exercise_templates --limit 50
-
-      # Use a specific API key
       WGER_API_KEY=your_key_here mix fittrack.import_exercise_templates
   """
 
   @impl true
   def run(args) do
+    Application.load(:fittrack)
+
+    endpoint_config =
+      Application.get_env(:fittrack, FittrackWeb.Endpoint, [])
+
+    Application.put_env(
+      :fittrack,
+      FittrackWeb.Endpoint,
+      Keyword.put(endpoint_config, :server, false),
+      persistent: true
+    )
+
     Mix.Task.run("app.start")
 
-    {opts, _} = OptionParser.parse!(args, switches: [limit: :integer])
+    {opts, _argv, _invalid} = OptionParser.parse(args, switches: [limit: :integer])
 
     limit = Keyword.get(opts, :limit, 100)
     api_key = System.get_env("WGER_API_KEY")
@@ -49,7 +57,7 @@ defmodule Mix.Tasks.Fittrack.ImportExerciseTemplates do
         """)
 
       {:error, reason} ->
-        Mix.raise("Import failed: #{reason}")
+        Mix.raise("Import failed: #{inspect(reason)}")
     end
   end
 end
