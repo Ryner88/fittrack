@@ -9,22 +9,45 @@ defmodule Fittrack.Training.Exercise do
   schema "exercises" do
     field :name, :string
     field :primary_muscle, :string
+    field :secondary_muscles, {:array, :string}, default: []
     field :equipment, :string
     field :notes, :string
     field :normalized_name, :string
     field :normalized_equipment, :string
 
+    field :movement_pattern, :string
+    field :exercise_category, :string
+    field :training_style_tags, {:array, :string}, default: []
+
     belongs_to :user, User
+    belongs_to :source_template, Fittrack.Training.ExerciseTemplate
     has_many :workout_sets, WorkoutSet
 
     timestamps(type: :utc_datetime)
   end
 
+  @movement_patterns ~w(push pull squat hinge lunge carry rotation core isolation)
+  @exercise_categories ~w(compound isolation bodyweight machine cardio mobility plyometric accessory)
+  @training_styles ~w(bodybuilding powerlifting powerbuilding strength hypertrophy conditioning athletic olympic_weightlifting calisthenics mobility rehab beginner)
+
   @doc false
   def changeset(exercise, attrs) do
     exercise
-    |> cast(attrs, [:name, :primary_muscle, :equipment, :notes])
+    |> cast(attrs, [
+      :name,
+      :primary_muscle,
+      :secondary_muscles,
+      :equipment,
+      :notes,
+      :movement_pattern,
+      :exercise_category,
+      :training_style_tags,
+      :source_template_id
+    ])
     |> validate_required([:name, :primary_muscle, :equipment])
+    |> validate_inclusion(:movement_pattern, @movement_patterns)
+    |> validate_inclusion(:exercise_category, @exercise_categories)
+    |> validate_array_subset(:training_style_tags, @training_styles)
     |> update_change(:name, &String.trim/1)
     |> update_change(:primary_muscle, &String.trim/1)
     |> update_change(:equipment, &String.trim/1)
@@ -40,5 +63,15 @@ defmodule Fittrack.Training.Exercise do
     changeset
     |> put_change(:normalized_name, normalized_name)
     |> put_change(:normalized_equipment, normalized_equipment)
+  end
+
+  defp validate_array_subset(changeset, field, allowed_values) do
+    values = get_field(changeset, field, [])
+
+    if Enum.all?(values, &(&1 in allowed_values)) do
+      changeset
+    else
+      add_error(changeset, field, "contains invalid values")
+    end
   end
 end

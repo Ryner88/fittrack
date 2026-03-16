@@ -6,9 +6,10 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
   alias Fittrack.Training.Exercise
 
   schema "workout_plan_exercises" do
-    field :order, :integer
-    field :sets, :integer
-    field :reps, :string
+    field :position, :integer
+    field :target_sets, :integer
+    field :target_reps_min, :integer
+    field :target_reps_max, :integer
     field :rest_seconds, :integer
     field :notes, :string
 
@@ -21,13 +22,41 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
   @doc false
   def changeset(workout_plan_exercise, attrs) do
     workout_plan_exercise
-    |> cast(attrs, [:order, :sets, :reps, :rest_seconds, :notes, :exercise_id])
-    |> validate_required([:order, :sets, :reps, :exercise_id])
-    |> validate_number(:sets, greater_than: 0)
+    |> cast(attrs, [
+      :position,
+      :target_sets,
+      :target_reps_min,
+      :target_reps_max,
+      :rest_seconds,
+      :notes,
+      :workout_plan_id,
+      :exercise_id
+    ])
+    |> validate_required([:position, :workout_plan_id, :exercise_id])
+    |> validate_number(:position, greater_than: 0)
+    |> validate_number(:target_sets, greater_than: 0)
+    |> validate_number(:target_reps_min, greater_than: 0)
+    |> validate_number(:target_reps_max, greater_than: 0)
+    |> validate_reps_range()
     |> validate_number(:rest_seconds, greater_than_or_equal_to: 0)
-    |> update_change(:reps, &String.trim/1)
     |> update_change(:notes, &String.trim/1)
     |> foreign_key_constraint(:workout_plan_id)
     |> foreign_key_constraint(:exercise_id)
+  end
+
+  defp validate_reps_range(changeset) do
+    min = get_field(changeset, :target_reps_min)
+    max = get_field(changeset, :target_reps_max)
+
+    cond do
+      is_nil(min) or is_nil(max) ->
+        changeset
+
+      min <= max ->
+        changeset
+
+      true ->
+        add_error(changeset, :target_reps_max, "must be greater than or equal to min reps")
+    end
   end
 end

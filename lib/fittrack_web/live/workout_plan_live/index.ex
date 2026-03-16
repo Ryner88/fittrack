@@ -91,12 +91,17 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
       name: "Copy of #{workout_plan.name}",
       description: workout_plan.description,
       workout_plan_exercises:
-        Enum.map(workout_plan.workout_plan_exercises, fn exercise ->
+        workout_plan.workout_plan_exercises
+        |> Enum.with_index()
+        |> Enum.map(fn {exercise, idx} ->
           %{
+            position: idx + 1,
             exercise_id: exercise.exercise_id,
-            sets: exercise.sets,
-            reps: exercise.reps,
-            rest_seconds: exercise.rest_seconds
+            target_sets: exercise.target_sets,
+            target_reps_min: exercise.target_reps_min,
+            target_reps_max: exercise.target_reps_max,
+            rest_seconds: exercise.rest_seconds,
+            notes: exercise.notes || ""
           }
         end)
     }
@@ -189,10 +194,10 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
 
   defp estimate_duration(workout_plan) do
     # Rough estimate: 45 seconds per set + rest time between sets
-    total_sets = Enum.sum(Enum.map(workout_plan.workout_plan_exercises, & &1.sets))
+    total_sets = Enum.sum(Enum.map(workout_plan.workout_plan_exercises, & &1.target_sets))
 
     total_rest_seconds =
-      Enum.sum(Enum.map(workout_plan.workout_plan_exercises, &(&1.rest_seconds * &1.sets)))
+      Enum.sum(Enum.map(workout_plan.workout_plan_exercises, &(&1.rest_seconds * &1.target_sets)))
 
     # Assume 45 seconds per set + rest time, convert to minutes
     total_seconds = total_sets * 45 + total_rest_seconds

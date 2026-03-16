@@ -13,6 +13,7 @@ defmodule Fittrack.Training do
   alias Fittrack.Training.Workout
   alias Fittrack.Training.WorkoutSet
   alias Fittrack.Training.WorkoutPlan
+  alias Fittrack.Training.WorkoutPlanExercise
 
   @doc """
   Returns the list of exercises for the current user.
@@ -272,7 +273,7 @@ defmodule Fittrack.Training do
       if is_nil(session_id) do
         base
       else
-        from [ws, e] in base, where: ws.workout_id == ^session_id
+        from [ws, e] in base, where: ws.workout_session_id == ^session_id
       end
 
     case sort do
@@ -316,10 +317,19 @@ defmodule Fittrack.Training do
     |> where([wp], wp.user_id == ^user.id)
     |> order_by([wp], desc: wp.updated_at)
     |> Repo.all()
-    |> Repo.preload(workout_plan_exercises: [exercise: []])
+    |> preload_workout_plan_exercises()
   end
 
   def list_workout_plans(_), do: []
+
+  defp preload_workout_plan_exercises(workout_plans_or_plan) do
+    Repo.preload(workout_plans_or_plan,
+      workout_plan_exercises: {
+        from(wpe in WorkoutPlanExercise, order_by: [asc: wpe.position]),
+        [exercise: []]
+      }
+    )
+  end
 
   @doc """
   Gets a workout plan with exercises for the current user.
@@ -328,7 +338,7 @@ defmodule Fittrack.Training do
     WorkoutPlan
     |> where([wp], wp.id == ^id and wp.user_id == ^user.id)
     |> Repo.one!()
-    |> Repo.preload(workout_plan_exercises: [exercise: []])
+    |> preload_workout_plan_exercises()
   end
 
   @doc """
@@ -341,7 +351,7 @@ defmodule Fittrack.Training do
     |> Repo.insert()
     |> case do
       {:ok, workout_plan} ->
-        {:ok, Repo.preload(workout_plan, workout_plan_exercises: [exercise: []])}
+        {:ok, preload_workout_plan_exercises(workout_plan)}
 
       error ->
         error
@@ -357,7 +367,7 @@ defmodule Fittrack.Training do
     |> Repo.update()
     |> case do
       {:ok, workout_plan} ->
-        {:ok, Repo.preload(workout_plan, workout_plan_exercises: [exercise: []])}
+        {:ok, preload_workout_plan_exercises(workout_plan)}
 
       error ->
         error
@@ -393,36 +403,16 @@ defmodule Fittrack.Training do
     # Create workout sets for each exercise in the plan
     Enum.each(workout_plan.workout_plan_exercises, fn plan_exercise ->
       # Create sets based on the plan
-      Enum.each(1..plan_exercise.sets, fn _set_number ->
+      Enum.each(1..(plan_exercise.target_sets || 1), fn _set_number ->
         create_workout_set(%Scope{user: user}, workout, %{
           exercise_id: plan_exercise.exercise_id,
-          reps: parse_reps_range(plan_exercise.reps),
+          reps: plan_exercise.target_reps_min || 8,
           rest_seconds: plan_exercise.rest_seconds
         })
       end)
     end)
 
     {:ok, workout}
-  end
-
-  # Parse reps range like "8-12" to get a default value
-  defp parse_reps_range(reps_string) do
-    case String.split(reps_string, "-") do
-      [single] ->
-        case Integer.parse(single) do
-          {num, _} -> num
-          _ -> 10
-        end
-
-      [min_str, _max_str] ->
-        case Integer.parse(min_str) do
-          {num, _} -> num
-          _ -> 10
-        end
-
-      _ ->
-        10
-    end
   end
 
   @doc """
@@ -550,7 +540,7 @@ defmodule Fittrack.Training do
 
     # Get personal bests with their latest date
     from(ws in WorkoutSet,
-      join: wsession in assoc(ws, :workout_session),
+      join: wsession in assoc(ws, :workout),
       join: e in assoc(ws, :exercise),
       where: wsession.user_id == ^user.id and e.user_id == ^user.id,
       group_by: [e.id, e.name],

@@ -126,7 +126,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Show do
       <div class="flex items-start gap-4">
         <!-- Order indicator -->
         <div class="flex items-center justify-center w-10 h-10 rounded-full bg-primary text-white font-semibold">
-          {@exercise.order}
+          {@exercise.position}
         </div>
         
     <!-- Exercise details -->
@@ -141,11 +141,13 @@ defmodule FittrackWeb.WorkoutPlanLive.Show do
     <!-- Sets, reps, rest -->
           <div class="mt-4 grid grid-cols-3 gap-4">
             <div class="text-center">
-              <div class="text-2xl font-bold text-primary">{@exercise.sets}</div>
+              <div class="text-2xl font-bold text-primary">{@exercise.target_sets}</div>
               <div class="text-xs text-base-content/60 uppercase tracking-wide">Sets</div>
             </div>
             <div class="text-center">
-              <div class="text-2xl font-bold text-primary">{@exercise.reps}</div>
+              <div class="text-2xl font-bold text-primary">
+                {@exercise.target_reps_min}-{@exercise.target_reps_max}
+              </div>
               <div class="text-xs text-base-content/60 uppercase tracking-wide">Reps</div>
             </div>
             <div class="text-center">

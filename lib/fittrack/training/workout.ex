@@ -10,7 +10,7 @@ defmodule Fittrack.Training.Workout do
     field :notes, :string
 
     belongs_to :user, User
-    has_many :workout_sets, WorkoutSet
+    has_many :workout_sets, WorkoutSet, foreign_key: :workout_session_id
 
     timestamps(type: :utc_datetime)
   end

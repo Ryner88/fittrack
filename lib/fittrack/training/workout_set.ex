@@ -15,7 +15,7 @@ defmodule Fittrack.Training.WorkoutSet do
     field :notes, :string
     field :kind, :string, default: "normal"
 
-    belongs_to :workout, Workout
+    belongs_to :workout, Workout, foreign_key: :workout_session_id
     belongs_to :exercise, Exercise
 
     timestamps(type: :utc_datetime)

@@ -29,7 +29,75 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
               <h3 class="text-lg font-semibold text-base-content mb-4">Plan Details</h3>
               <div class="grid gap-4 md:grid-cols-2">
                 <.input field={@form[:name]} type="text" label="Plan Name" required />
-                <.input field={@form[:description]} type="textarea" label="Description" rows="3" />
+                <.input field={@form[:goal]} type="text" label="Goal" />
+
+                <.input
+                  field={@form[:description]}
+                  type="textarea"
+                  label="Description"
+                  rows="3"
+                  class="md:col-span-2"
+                />
+
+                <.input
+                  field={@form[:primary_style]}
+                  type="select"
+                  label="Primary Style"
+                  options={[
+                    {"Bodybuilding", "bodybuilding"},
+                    {"Powerlifting", "powerlifting"},
+                    {"Powerbuilding", "powerbuilding"},
+                    {"Strength", "strength"},
+                    {"Hypertrophy", "hypertrophy"},
+                    {"Conditioning", "conditioning"},
+                    {"Athletic", "athletic"},
+                    {"Olympic Weightlifting", "olympic_weightlifting"},
+                    {"Calisthenics", "calisthenics"},
+                    {"Mobility", "mobility"},
+                    {"Rehab", "rehab"},
+                    {"Beginner", "beginner"}
+                  ]}
+                />
+
+                <.input
+                  field={@form[:secondary_style_tags]}
+                  type="select"
+                  label="Secondary Styles"
+                  options={[
+                    {"Bodybuilding", "bodybuilding"},
+                    {"Powerlifting", "powerlifting"},
+                    {"Powerbuilding", "powerbuilding"},
+                    {"Strength", "strength"},
+                    {"Hypertrophy", "hypertrophy"},
+                    {"Conditioning", "conditioning"},
+                    {"Athletic", "athletic"},
+                    {"Olympic Weightlifting", "olympic_weightlifting"},
+                    {"Calisthenics", "calisthenics"},
+                    {"Mobility", "mobility"},
+                    {"Rehab", "rehab"},
+                    {"Beginner", "beginner"}
+                  ]}
+                  multiple
+                  size="4"
+                />
+
+                <.input
+                  field={@form[:difficulty]}
+                  type="select"
+                  label="Difficulty"
+                  options={[
+                    {"Beginner", "beginner"},
+                    {"Intermediate", "intermediate"},
+                    {"Advanced", "advanced"}
+                  ]}
+                />
+
+                <.input
+                  field={@form[:estimated_duration_minutes]}
+                  type="number"
+                  label="Estimated Duration (min)"
+                  min="1"
+                />
               </div>
             </div>
             
@@ -130,12 +198,13 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
   @impl true
   def handle_event("add_exercise", _params, socket) do
     existing_exercises = socket.assigns.form[:workout_plan_exercises].value || []
-    next_order = length(existing_exercises) + 1
+    next_position = length(existing_exercises) + 1
 
     new_exercise = %{
-      order: next_order,
-      sets: 3,
-      reps: "8-12",
+      position: next_position,
+      target_sets: 3,
+      target_reps_min: 8,
+      target_reps_max: 12,
       rest_seconds: 60,
       notes: ""
     }
@@ -159,7 +228,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
     reordered_exercises =
       updated_exercises
       |> Enum.with_index()
-      |> Enum.map(fn {exercise, idx} -> Map.put(exercise, :order, idx + 1) end)
+      |> Enum.map(fn {exercise, idx} -> Map.put(exercise, :position, idx + 1) end)
 
     changeset =
       socket.assigns.workout_plan
@@ -228,7 +297,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
     |> List.replace_at(i, Enum.at(exercises, j))
     |> List.replace_at(j, Enum.at(exercises, i))
     |> Enum.with_index()
-    |> Enum.map(fn {exercise, idx} -> Map.put(exercise, :order, idx + 1) end)
+    |> Enum.map(fn {exercise, idx} -> Map.put(exercise, :position, idx + 1) end)
   end
 
   defp update_form(socket, exercises) do
@@ -249,7 +318,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
       <!-- Order indicator -->
       <div class="flex flex-col items-center gap-2">
         <div class="flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-sm font-medium">
-          {@form[:order].value}
+          {@form[:position].value}
         </div>
         <div class="flex flex-col gap-1">
           <button
@@ -276,7 +345,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
       </div>
       
     <!-- Exercise details -->
-      <div class="flex-1 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div class="flex-1 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
         <.input
           field={@form[:exercise_id]}
           type="select"
@@ -284,14 +353,19 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
           options={Enum.map(@exercises, &{&1.name, &1.id})}
           required
         />
-        <.input field={@form[:sets]} type="number" label="Sets" min="1" required />
-        <.input field={@form[:reps]} type="text" label="Reps" placeholder="8-12" required />
+        <.input field={@form[:target_sets]} type="number" label="Sets" min="1" required />
+        <.input field={@form[:target_reps_min]} type="number" label="Min Reps" min="1" required />
+        <.input field={@form[:target_reps_max]} type="number" label="Max Reps" min="1" required />
         <.input field={@form[:rest_seconds]} type="number" label="Rest (sec)" min="0" />
       </div>
       
-    <!-- Notes and remove -->
+    <!-- Notes -->
+      <div class="flex-1">
+        <.input field={@form[:notes]} type="textarea" label="Notes" rows="2" />
+      </div>
+      
+    <!-- Remove button -->
       <div class="flex flex-col gap-2">
-        <.input field={@form[:notes]} type="textarea" label="Notes" rows="2" class="w-48" />
         <button
           type="button"
           phx-click="remove_exercise"
