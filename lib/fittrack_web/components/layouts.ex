@@ -57,10 +57,22 @@ defmodule FittrackWeb.Layouts do
             <nav class="hidden items-center gap-2 text-sm font-semibold text-base-content md:flex">
               <%= if @current_scope && @current_scope.user do %>
                 <.link
+                  navigate={~p"/dashboard"}
+                  class="rounded-full px-3 py-2 transition hover:bg-base-200"
+                >
+                  Dashboard
+                </.link>
+                <.link
                   navigate={~p"/exercises"}
                   class="rounded-full px-3 py-2 transition hover:bg-base-200"
                 >
                   Exercises
+                </.link>
+                <.link
+                  navigate={~p"/workout-plans"}
+                  class="rounded-full px-3 py-2 transition hover:bg-base-200"
+                >
+                  Plans
                 </.link>
                 <.link
                   navigate={~p"/sessions"}

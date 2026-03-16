@@ -15,12 +15,20 @@ defmodule FittrackWeb.ExerciseLive.Index do
               Build your library and quickly find movements when logging sessions.
             </p>
           </div>
-          <.link
-            navigate={~p"/exercises/new"}
-            class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
-          >
-            <.icon name="hero-plus" class="mr-2 size-4" /> New exercise
-          </.link>
+          <div class="flex gap-3">
+            <.link
+              navigate={~p"/library"}
+              class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+            >
+              <.icon name="hero-book-open" class="mr-2 size-4" /> Browse Library
+            </.link>
+            <.link
+              navigate={~p"/exercises/new"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              <.icon name="hero-plus" class="mr-2 size-4" /> New exercise
+            </.link>
+          </div>
         </div>
 
         <div class="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-sm">

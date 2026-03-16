@@ -7,20 +7,25 @@ defmodule Fittrack.TrainingTest do
     alias Fittrack.Training.Exercise
 
     import Fittrack.TrainingFixtures
+    import Fittrack.AccountsFixtures
 
     @invalid_attrs %{name: nil, primary_muscle: nil, equipment: nil, notes: nil}
 
-    test "list_exercises/0 returns all exercises" do
-      exercise = exercise_fixture()
-      assert Training.list_exercises() == [exercise]
+    setup do
+      %{scope: user_scope_fixture()}
     end
 
-    test "get_exercise!/1 returns the exercise with given id" do
+    test "list_exercises/1 returns all exercises for user", %{scope: scope} do
       exercise = exercise_fixture()
-      assert Training.get_exercise!(exercise.id) == exercise
+      assert Training.list_exercises(scope) == [exercise]
     end
 
-    test "create_exercise/1 with valid data creates a exercise" do
+    test "get_exercise!/2 returns the exercise with given id", %{scope: scope} do
+      exercise = exercise_fixture()
+      assert Training.get_exercise!(scope, exercise.id) == exercise
+    end
+
+    test "create_exercise/2 with valid data creates a exercise", %{scope: scope} do
       valid_attrs = %{
         name: "some name",
         primary_muscle: "some primary_muscle",
@@ -28,18 +33,18 @@ defmodule Fittrack.TrainingTest do
         notes: "some notes"
       }
 
-      assert {:ok, %Exercise{} = exercise} = Training.create_exercise(valid_attrs)
+      assert {:ok, %Exercise{} = exercise} = Training.create_exercise(scope, valid_attrs)
       assert exercise.name == "some name"
       assert exercise.primary_muscle == "some primary_muscle"
       assert exercise.equipment == "some equipment"
       assert exercise.notes == "some notes"
     end
 
-    test "create_exercise/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = Training.create_exercise(@invalid_attrs)
+    test "create_exercise/2 with invalid data returns error changeset", %{scope: scope} do
+      assert {:error, %Ecto.Changeset{}} = Training.create_exercise(scope, @invalid_attrs)
     end
 
-    test "update_exercise/2 with valid data updates the exercise" do
+    test "update_exercise/3 with valid data updates the exercise", %{scope: scope} do
       exercise = exercise_fixture()
 
       update_attrs = %{
@@ -49,23 +54,28 @@ defmodule Fittrack.TrainingTest do
         notes: "some updated notes"
       }
 
-      assert {:ok, %Exercise{} = exercise} = Training.update_exercise(exercise, update_attrs)
+      assert {:ok, %Exercise{} = exercise} =
+               Training.update_exercise(scope, exercise, update_attrs)
+
       assert exercise.name == "some updated name"
       assert exercise.primary_muscle == "some updated primary_muscle"
       assert exercise.equipment == "some updated equipment"
       assert exercise.notes == "some updated notes"
     end
 
-    test "update_exercise/2 with invalid data returns error changeset" do
+    test "update_exercise/3 with invalid data returns error changeset", %{scope: scope} do
       exercise = exercise_fixture()
-      assert {:error, %Ecto.Changeset{}} = Training.update_exercise(exercise, @invalid_attrs)
-      assert exercise == Training.get_exercise!(exercise.id)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Training.update_exercise(scope, exercise, @invalid_attrs)
+
+      assert exercise == Training.get_exercise!(scope, exercise.id)
     end
 
-    test "delete_exercise/1 deletes the exercise" do
+    test "delete_exercise/2 deletes the exercise", %{scope: scope} do
       exercise = exercise_fixture()
-      assert {:ok, %Exercise{}} = Training.delete_exercise(exercise)
-      assert_raise Ecto.NoResultsError, fn -> Training.get_exercise!(exercise.id) end
+      assert {:ok, %Exercise{}} = Training.delete_exercise(scope, exercise)
+      assert_raise Ecto.NoResultsError, fn -> Training.get_exercise!(scope, exercise.id) end
     end
 
     test "change_exercise/1 returns a exercise changeset" do

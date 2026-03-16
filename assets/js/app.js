@@ -25,6 +25,7 @@ import { Socket } from "phoenix"
 import { LiveSocket } from "phoenix_live_view"
 import { hooks as colocatedHooks } from "phoenix-colocated/fittrack"
 import topbar from "../vendor/topbar"
+import Chart from "chart.js/auto"
 
 // ---- Custom Hooks ----------------------------------------------------------
 
@@ -46,6 +47,79 @@ const Hooks = {
       })
     },
   },
+
+  // Chart hooks for dashboard
+  PersonalBestsChart: {
+    mounted() {
+      const data = JSON.parse(this.el.dataset.chartData)
+      const ctx = this.el.getContext('2d')
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Weight (lbs)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Exercises'
+              }
+            }
+          }
+        }
+      })
+    }
+  },
+
+  VolumeChart: {
+    mounted() {
+      const data = JSON.parse(this.el.dataset.chartData)
+      const ctx = this.el.getContext('2d')
+
+      new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Volume (lbs)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
+            }
+          }
+        }
+      })
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -56,7 +56,6 @@ defmodule Fittrack.Accounts.User do
     end
   end
 
-
   @doc """
   A user changeset for registration.
 
@@ -67,6 +66,7 @@ defmodule Fittrack.Accounts.User do
     |> email_changeset(attrs, opts)
     |> password_changeset(attrs, opts)
   end
+
   @doc """
   A user changeset for changing the password.
 

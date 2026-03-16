@@ -8,6 +8,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
     field :name, :string
     field :primary_muscle, :string
     field :equipment, :string
+    field :difficulty, :string
     field :notes, :string
     field :normalized_name, :string
     field :normalized_equipment, :string
@@ -17,11 +18,13 @@ defmodule Fittrack.Training.ExerciseTemplate do
 
   def changeset(template, attrs) do
     template
-    |> cast(attrs, [:name, :primary_muscle, :equipment, :notes])
+    |> cast(attrs, [:name, :primary_muscle, :equipment, :difficulty, :notes])
     |> validate_required([:name])
+    |> validate_inclusion(:difficulty, ["beginner", "intermediate", "advanced"])
     |> update_change(:name, &String.trim/1)
     |> update_change(:primary_muscle, &String.trim/1)
     |> update_change(:equipment, &String.trim/1)
+    |> update_change(:difficulty, &String.trim/1)
     |> update_change(:notes, &String.trim/1)
     |> normalize_fields()
     |> unique_constraint([:name, :equipment])

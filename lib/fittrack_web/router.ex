@@ -3,6 +3,18 @@ defmodule FittrackWeb.Router do
 
   import FittrackWeb.UserAuth
 
+  # Simple plug to set default locale to English
+  defmodule SetLocale do
+    import Plug.Conn
+
+    def init(opts), do: opts
+
+    def call(conn, _opts) do
+      Gettext.put_locale(FittrackWeb.Gettext, "en")
+      conn
+    end
+  end
+
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -11,6 +23,7 @@ defmodule FittrackWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :fetch_current_scope_for_user
+    plug SetLocale
   end
 
   pipeline :api do
@@ -41,6 +54,8 @@ defmodule FittrackWeb.Router do
 
     live_session :require_authenticated_user,
       on_mount: [{FittrackWeb.UserAuth, :require_authenticated}] do
+      live "/dashboard", DashboardLive.Index, :index
+
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
 
@@ -49,6 +64,16 @@ defmodule FittrackWeb.Router do
       live "/exercises/new", ExerciseLive.Form, :new
       live "/exercises/:id/edit", ExerciseLive.Form, :edit
       live "/exercises/:id", ExerciseLive.Show, :show
+
+      # Exercise Library
+      live "/library", LibraryLive.Index, :index
+      live "/library/:id", LibraryLive.Show, :show
+
+      # Workout Plans
+      live "/workout-plans", WorkoutPlanLive.Index, :index
+      live "/workout-plans/new", WorkoutPlanLive.Form, :new
+      live "/workout-plans/:id/edit", WorkoutPlanLive.Form, :edit
+      live "/workout-plans/:id", WorkoutPlanLive.Show, :show
 
       live "/sessions", WorkoutSessionLive.Index, :index
       live "/sessions/new", WorkoutSessionLive.New, :new

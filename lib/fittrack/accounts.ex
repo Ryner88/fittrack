@@ -80,7 +80,6 @@ defmodule Fittrack.Accounts do
     |> Repo.insert()
   end
 
-
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking user registration changes.
 
