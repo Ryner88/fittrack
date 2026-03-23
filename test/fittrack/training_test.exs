@@ -16,12 +16,12 @@ defmodule Fittrack.TrainingTest do
     end
 
     test "list_exercises/1 returns all exercises for user", %{scope: scope} do
-      exercise = exercise_fixture()
+      exercise = exercise_fixture(scope)
       assert Training.list_exercises(scope) == [exercise]
     end
 
     test "get_exercise!/2 returns the exercise with given id", %{scope: scope} do
-      exercise = exercise_fixture()
+      exercise = exercise_fixture(scope)
       assert Training.get_exercise!(scope, exercise.id) == exercise
     end
 
@@ -45,7 +45,7 @@ defmodule Fittrack.TrainingTest do
     end
 
     test "update_exercise/3 with valid data updates the exercise", %{scope: scope} do
-      exercise = exercise_fixture()
+      exercise = exercise_fixture(scope)
 
       update_attrs = %{
         name: "some updated name",
@@ -64,7 +64,7 @@ defmodule Fittrack.TrainingTest do
     end
 
     test "update_exercise/3 with invalid data returns error changeset", %{scope: scope} do
-      exercise = exercise_fixture()
+      exercise = exercise_fixture(scope)
 
       assert {:error, %Ecto.Changeset{}} =
                Training.update_exercise(scope, exercise, @invalid_attrs)
@@ -73,7 +73,7 @@ defmodule Fittrack.TrainingTest do
     end
 
     test "delete_exercise/2 deletes the exercise", %{scope: scope} do
-      exercise = exercise_fixture()
+      exercise = exercise_fixture(scope)
       assert {:ok, %Exercise{}} = Training.delete_exercise(scope, exercise)
       assert_raise Ecto.NoResultsError, fn -> Training.get_exercise!(scope, exercise.id) end
     end
@@ -81,6 +81,72 @@ defmodule Fittrack.TrainingTest do
     test "change_exercise/1 returns a exercise changeset" do
       exercise = exercise_fixture()
       assert %Ecto.Changeset{} = Training.change_exercise(exercise)
+    end
+
+    test "get_exercise/2 returns the exercise when found", %{scope: scope} do
+      exercise = exercise_fixture(scope)
+      assert Training.get_exercise(scope, exercise.id) == exercise
+    end
+
+    test "log_exercise_set/2 creates a workout set entry", %{scope: scope} do
+      exercise = exercise_fixture(scope)
+
+      {:ok, _set} =
+        Training.log_exercise_set(scope, %{
+          "exercise_id" => exercise.id,
+          "weight" => "100",
+          "reps" => "5"
+        })
+
+      result =
+        Fittrack.Repo.get_by(Fittrack.Training.WorkoutSet, exercise_id: exercise.id, reps: 5)
+
+      assert result
+      assert Decimal.equal?(result.weight, Decimal.new("100"))
+    end
+
+    test "exercise_progress_over_time/3 returns data points for logged sets", %{scope: scope} do
+      exercise = exercise_fixture(scope)
+
+      {:ok, _set} =
+        Training.log_exercise_set(scope, %{
+          "exercise_id" => exercise.id,
+          "weight" => "105",
+          "reps" => "8"
+        })
+
+      data = Training.exercise_progress_over_time(scope, exercise.id, 7)
+      assert [%{avg_weight: _}] = data
+    end
+
+    test "workout_dates_in_month_with_counts returns day counts", %{scope: scope} do
+      {:ok, workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.utc_now(),
+          finished_at: DateTime.utc_now()
+        })
+
+      _ =
+        Training.create_workout_set(scope, workout, %{
+          exercise_id: exercise_fixture(scope).id,
+          weight: "100",
+          reps: "5"
+        })
+
+      start_date = Date.utc_today() |> Date.beginning_of_month()
+      end_date = Date.utc_today() |> Date.end_of_month()
+
+      data = Training.workout_dates_in_month_with_counts(scope, start_date, end_date)
+      assert is_list(data)
+    end
+
+    test "log_exercise_set/2 rejects unauthorized exercise", %{scope: scope} do
+      assert {:error, :unauthorized} =
+               Training.log_exercise_set(scope, %{
+                 "exercise_id" => 999_999,
+                 "weight" => "100",
+                 "reps" => "5"
+               })
     end
   end
 end

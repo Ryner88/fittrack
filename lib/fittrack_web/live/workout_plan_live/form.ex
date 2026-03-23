@@ -101,6 +101,70 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
               </div>
             </div>
             
+    <!-- Weekly Drag-and-Drop -->
+            <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
+              <h3 class="text-lg font-semibold text-base-content">Weekly Workout Builder</h3>
+              <p class="text-sm text-base-content/70 mb-4">
+                Drag exercises from your library into specific day slots to lay out a weekly plan.
+              </p>
+
+              <div class="grid gap-4 md:grid-cols-2">
+                <div
+                  id="exercise-library"
+                  class="rounded-lg border border-base-200 bg-base-50 p-4"
+                  phx-hook="WorkoutPlanDragDrop"
+                >
+                  <h4 class="text-sm font-semibold text-base-content mb-2">Exercise Library</h4>
+                  <div class="space-y-2 max-h-64 overflow-y-auto">
+                    <%= for exercise <- @exercises do %>
+                      <div
+                        class="draggable-exercise rounded-lg border border-base-300 bg-white px-3 py-2 text-sm font-medium text-base-content cursor-grab hover:border-primary hover:bg-primary/10"
+                        draggable="true"
+                        data-exercise-id={exercise.id}
+                        data-exercise-name={exercise.name}
+                      >
+                        {exercise.name}
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+
+                <div class="rounded-lg border border-base-200 bg-base-50 p-4">
+                  <h4 class="text-sm font-semibold text-base-content mb-2">Weekly Calendar</h4>
+                  <div class="grid grid-cols-7 gap-2">
+                    {plan_exercises_by_day =
+                      (@form[:workout_plan_exercises].value || [])
+                      |> Enum.group_by(fn ex -> ex.scheduled_day || "Unscheduled" end)}
+
+                    {exercise_map =
+                      Map.new(@exercises, fn exercise -> {exercise.id, exercise.name} end)}
+                    {exercise_name = fn id ->
+                      id = if is_binary(id), do: String.to_integer(id), else: id
+                      Map.get(exercise_map, id, "Unknown")
+                    end}
+
+                    <%= for day <- ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] do %>
+                      <div
+                        id={"drop-zone-#{day}"}
+                        class="drop-zone min-h-[70px] rounded-lg border border-dashed border-base-300 p-2 text-left text-xs text-base-content/70"
+                        phx-hook="DropZone"
+                        data-day={day}
+                      >
+                        <p class="font-semibold">
+                          {String.slice(day, 0, 3)} ({length(Map.get(plan_exercises_by_day, day, []))})
+                        </p>
+                        <ul class="mt-1 space-y-1">
+                          <%= for exercise <- Map.get(plan_exercises_by_day, day, []) |> Enum.take(3) do %>
+                            <li class="truncate">{exercise_name.(exercise.exercise_id)}</li>
+                          <% end %>
+                        </ul>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
     <!-- Exercises -->
             <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
               <div class="flex items-center justify-between mb-4">
@@ -206,6 +270,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
       target_reps_min: 8,
       target_reps_max: 12,
       rest_seconds: 60,
+      scheduled_day: nil,
       notes: ""
     }
 
@@ -216,6 +281,39 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
       |> Training.change_workout_plan(%{workout_plan_exercises: updated_exercises})
 
     {:noreply, assign(socket, :form, to_form(changeset))}
+  end
+
+  @impl true
+  def handle_event("add_exercise_to_day", %{"exercise_id" => exercise_id, "day" => day}, socket) do
+    {exercise_id, _} = Integer.parse(exercise_id)
+
+    case Training.get_exercise(socket.assigns.current_scope, exercise_id) do
+      %{} = exercise ->
+        existing_exercises = socket.assigns.form[:workout_plan_exercises].value || []
+        next_position = length(existing_exercises) + 1
+
+        new_exercise = %{
+          exercise_id: exercise.id,
+          position: next_position,
+          target_sets: 3,
+          target_reps_min: 8,
+          target_reps_max: 12,
+          rest_seconds: 60,
+          scheduled_day: day,
+          notes: ""
+        }
+
+        updated_exercises = existing_exercises ++ [new_exercise]
+
+        changeset =
+          socket.assigns.workout_plan
+          |> Training.change_workout_plan(%{workout_plan_exercises: updated_exercises})
+
+        {:noreply, assign(socket, :form, to_form(changeset))}
+
+      _ ->
+        {:noreply, put_flash(socket, :error, "Could not add exercise to day. Please try again.")}
+    end
   end
 
   @impl true
@@ -352,6 +450,21 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
           label="Exercise"
           options={Enum.map(@exercises, &{&1.name, &1.id})}
           required
+        />
+        <.input
+          field={@form[:scheduled_day]}
+          type="select"
+          label="Day"
+          options={[
+            {"Sunday", "Sunday"},
+            {"Monday", "Monday"},
+            {"Tuesday", "Tuesday"},
+            {"Wednesday", "Wednesday"},
+            {"Thursday", "Thursday"},
+            {"Friday", "Friday"},
+            {"Saturday", "Saturday"}
+          ]}
+          prompt="Not scheduled"
         />
         <.input field={@form[:target_sets]} type="number" label="Sets" min="1" required />
         <.input field={@form[:target_reps_min]} type="number" label="Min Reps" min="1" required />

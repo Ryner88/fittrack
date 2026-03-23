@@ -79,6 +79,26 @@ defmodule FittrackWeb.Router do
       live "/workouts/new", WorkoutLive.New, :new
       live "/workouts/:id", WorkoutLive.Show, :show
 
+      live "/workout-history", WorkoutHistoryLive.Index, :index
+      live "/nutrition", NutritionLive.Index, :index
+
+      # Meals
+      live "/meals", MealLive.Index, :index
+      live "/meals/new", MealLive.Form, :new
+      live "/meals/:id/edit", MealLive.Form, :edit
+      live "/meals/:id", MealLive.Show, :show
+
+      # Meal Plans
+      live "/meal-plans", MealPlanLive.Index, :index
+      live "/meal-plans/new", MealPlanLive.Form, :new
+      live "/meal-plans/:id/edit", MealPlanLive.Form, :edit
+      live "/meal-plans/:id", MealPlanLive.Show, :show
+
+      # Food Library
+      live "/foods", FoodLive.Index, :index
+      live "/foods/new", FoodLive.Form, :new
+      live "/foods/:id/edit", FoodLive.Form, :edit
+
       # Backwards compatible redirects (old session URLs)
       get "/sessions", RedirectController, :workouts_redirect
       get "/sessions/new", RedirectController, :new_workout_redirect

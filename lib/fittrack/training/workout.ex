@@ -18,7 +18,7 @@ defmodule Fittrack.Training.Workout do
   @doc false
   def changeset(workout, attrs) do
     workout
-    |> cast(attrs, [:started_at, :notes])
+    |> cast(attrs, [:started_at, :notes, :user_id])
     |> validate_required([:started_at])
   end
 end

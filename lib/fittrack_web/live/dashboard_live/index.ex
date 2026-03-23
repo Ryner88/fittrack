@@ -91,6 +91,81 @@ defmodule FittrackWeb.DashboardLive.Index do
           </div>
         </div>
         
+    <!-- Exercise Progress -->
+        <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 class="text-lg font-semibold text-base-content">Exercise Progress</h3>
+              <p class="text-sm text-base-content/70">
+                Select an exercise to see how your average weight is trending over time.
+              </p>
+            </div>
+            <form id="exercise-progress-form" phx-change="select_exercise" class="w-48">
+              <label class="block">
+                <span class="sr-only">Exercise</span>
+                <select
+                  name="exercise_id"
+                  class="mt-1 block w-full rounded-lg border border-base-300 px-3 py-2 text-sm"
+                  value={@selected_exercise_id}
+                >
+                  <%= for exercise <- @exercises do %>
+                    <option value={exercise.id} selected={exercise.id == @selected_exercise_id}>
+                      {exercise.name}
+                    </option>
+                  <% end %>
+                </select>
+              </label>
+            </form>
+          </div>
+
+          <div class="h-80 mt-4">
+            <canvas
+              id="exercise-progress-chart"
+              phx-hook="ExerciseProgressChart"
+              data-chart-data={Jason.encode!(@exercise_progress_chart)}
+            >
+            </canvas>
+          </div>
+
+          <div class="mt-5">
+            <h4 class="text-sm font-semibold">Quick log</h4>
+            <form phx-submit="log_exercise" class="grid gap-3 md:grid-cols-4">
+              <label class="block">
+                <span class="text-xs text-base-content/70">Exercise</span>
+                <select
+                  name="performance[exercise_id]"
+                  class="mt-1 block w-full rounded-lg border border-base-300 px-3 py-2 text-sm"
+                >
+                  <%= for exercise <- @exercises do %>
+                    <option value={exercise.id}>{exercise.name}</option>
+                  <% end %>
+                </select>
+              </label>
+
+              <label class="block">
+                <span class="text-xs text-base-content/70">Weight</span>
+                <input
+                  name="performance[weight]"
+                  type="number"
+                  step="0.5"
+                  class="mt-1 block w-full rounded-lg border border-base-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label class="block">
+                <span class="text-xs text-base-content/70">Reps</span>
+                <input
+                  name="performance[reps]"
+                  type="number"
+                  class="mt-1 block w-full rounded-lg border border-base-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <button type="submit" class="btn btn-primary mt-6">Log Set</button>
+            </form>
+          </div>
+        </div>
+        
     <!-- Recent Personal Bests -->
         <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
           <h3 class="text-lg font-semibold text-base-content mb-4">Recent Personal Bests</h3>
@@ -148,12 +223,21 @@ defmodule FittrackWeb.DashboardLive.Index do
   def mount(_params, _session, socket) do
     current_scope = socket.assigns.current_scope
 
+    exercises = Training.list_exercises(current_scope)
+    selected_exercise_id = exercises |> List.first() |> then(&(&1 && &1.id))
+
     {:ok,
      socket
      |> assign(:page_title, "Dashboard")
      |> assign(:stats, load_stats(current_scope))
+     |> assign(:exercises, exercises)
+     |> assign(:selected_exercise_id, selected_exercise_id)
      |> assign(:personal_bests_chart, load_personal_bests_chart(current_scope))
      |> assign(:volume_chart, load_volume_chart(current_scope))
+     |> assign(
+       :exercise_progress_chart,
+       load_exercise_progress_chart(current_scope, selected_exercise_id)
+     )
      |> assign(:recent_personal_bests, load_recent_personal_bests(current_scope))
      |> assign(:calendar_days, load_calendar_days(current_scope))}
   end
@@ -202,6 +286,28 @@ defmodule FittrackWeb.DashboardLive.Index do
     }
   end
 
+  defp load_exercise_progress_chart(_scope, nil) do
+    %{labels: [], datasets: []}
+  end
+
+  defp load_exercise_progress_chart(scope, exercise_id) do
+    progress_data = Training.exercise_progress_over_time(scope, exercise_id)
+
+    %{
+      labels: Enum.map(progress_data, &Calendar.strftime(&1.date, "%b %d")),
+      datasets: [
+        %{
+          label: "Average weight",
+          data: Enum.map(progress_data, & &1.avg_weight),
+          borderColor: "rgba(59, 130, 246, 1)",
+          backgroundColor: "rgba(59, 130, 246, 0.25)",
+          borderWidth: 2,
+          fill: true
+        }
+      ]
+    }
+  end
+
   defp load_recent_personal_bests(scope) do
     Training.recent_personal_bests(scope, limit: 5)
   end
@@ -240,6 +346,46 @@ defmodule FittrackWeb.DashboardLive.Index do
         end
 
     calendar_days
+  end
+
+  @impl true
+  def handle_event("select_exercise", %{"exercise_id" => exercise_id}, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_exercise_id, String.to_integer(exercise_id))
+     |> assign(
+       :exercise_progress_chart,
+       load_exercise_progress_chart(socket.assigns.current_scope, String.to_integer(exercise_id))
+     )}
+  end
+
+  @impl true
+  def handle_event(
+        "log_exercise",
+        %{"performance" => %{"exercise_id" => exercise_id, "weight" => weight, "reps" => reps}},
+        socket
+      ) do
+    case Training.log_exercise_set(socket.assigns.current_scope, %{
+           "exercise_id" => exercise_id,
+           "weight" => weight,
+           "reps" => reps
+         }) do
+      {:ok, _workout_set} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Performance logged successfully")
+         |> assign(:stats, load_stats(socket.assigns.current_scope))
+         |> assign(
+           :exercise_progress_chart,
+           load_exercise_progress_chart(
+             socket.assigns.current_scope,
+             String.to_integer(exercise_id)
+           )
+         )}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Could not log performance. Please try again.")}
+    end
   end
 
   defp format_weight(weight) when is_float(weight), do: Float.round(weight, 1)

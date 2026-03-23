@@ -3,6 +3,7 @@ defmodule FittrackWeb.ExerciseLiveTest do
 
   import Phoenix.LiveViewTest
   import Fittrack.TrainingFixtures
+  import Fittrack.AccountsFixtures
 
   @create_attrs %{
     name: "some name",
@@ -18,27 +19,31 @@ defmodule FittrackWeb.ExerciseLiveTest do
   }
   @invalid_attrs %{name: nil, primary_muscle: nil, equipment: nil, notes: nil}
   defp create_exercise(_) do
-    exercise = exercise_fixture()
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Fittrack.Accounts.Scope{user: user}
+    exercise = exercise_fixture(scope)
 
-    %{exercise: exercise}
+    %{exercise: exercise, user: user}
   end
 
   describe "Index" do
     setup [:create_exercise]
 
-    test "lists all exercises", %{conn: conn, exercise: exercise} do
+    test "lists all exercises", %{conn: conn, exercise: exercise, user: user} do
+      conn = log_in_user(conn, user)
       {:ok, _index_live, html} = live(conn, ~p"/exercises")
 
       assert html =~ "Listing Exercises"
       assert html =~ exercise.name
     end
 
-    test "saves new exercise", %{conn: conn} do
+    test "saves new exercise", %{conn: conn, user: user} do
+      conn = log_in_user(conn, user)
       {:ok, index_live, _html} = live(conn, ~p"/exercises")
 
       assert {:ok, form_live, _} =
                index_live
-               |> element("a", "New Exercise")
+               |> element("a", "New exercise")
                |> render_click()
                |> follow_redirect(conn, ~p"/exercises/new")
 
@@ -48,18 +53,19 @@ defmodule FittrackWeb.ExerciseLiveTest do
              |> form("#exercise-form", exercise: @invalid_attrs)
              |> render_change() =~ "can&#39;t be blank"
 
-      assert {:ok, index_live, _html} =
-               form_live
-               |> form("#exercise-form", exercise: @create_attrs)
-               |> render_submit()
-               |> follow_redirect(conn, ~p"/exercises")
+      {:ok, index_live, _html} =
+        form_live
+        |> form("#exercise-form", exercise: @create_attrs)
+        |> render_submit()
+        |> follow_redirect(conn, ~p"/exercises")
 
       html = render(index_live)
       assert html =~ "Exercise created successfully"
       assert html =~ "some name"
     end
 
-    test "updates exercise in listing", %{conn: conn, exercise: exercise} do
+    test "updates exercise in listing", %{conn: conn, exercise: exercise, user: user} do
+      conn = log_in_user(conn, user)
       {:ok, index_live, _html} = live(conn, ~p"/exercises")
 
       assert {:ok, form_live, _html} =
@@ -85,7 +91,8 @@ defmodule FittrackWeb.ExerciseLiveTest do
       assert html =~ "some updated name"
     end
 
-    test "deletes exercise in listing", %{conn: conn, exercise: exercise} do
+    test "deletes exercise in listing", %{conn: conn, exercise: exercise, user: user} do
+      conn = log_in_user(conn, user)
       {:ok, index_live, _html} = live(conn, ~p"/exercises")
 
       assert index_live |> element("#exercises-#{exercise.id} a", "Delete") |> render_click()
@@ -96,14 +103,16 @@ defmodule FittrackWeb.ExerciseLiveTest do
   describe "Show" do
     setup [:create_exercise]
 
-    test "displays exercise", %{conn: conn, exercise: exercise} do
+    test "displays exercise", %{conn: conn, exercise: exercise, user: user} do
+      conn = log_in_user(conn, user)
       {:ok, _show_live, html} = live(conn, ~p"/exercises/#{exercise}")
 
       assert html =~ "Show Exercise"
       assert html =~ exercise.name
     end
 
-    test "updates exercise and returns to show", %{conn: conn, exercise: exercise} do
+    test "updates exercise and returns to show", %{conn: conn, exercise: exercise, user: user} do
+      conn = log_in_user(conn, user)
       {:ok, show_live, _html} = live(conn, ~p"/exercises/#{exercise}")
 
       assert {:ok, form_live, _} =

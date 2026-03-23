@@ -40,6 +40,10 @@ defmodule Fittrack.Training do
     Repo.get_by!(Exercise, id: id, user_id: user.id)
   end
 
+  def get_exercise(%Scope{user: user}, id) do
+    Repo.get_by(Exercise, id: id, user_id: user.id)
+  end
+
   @doc """
   Creates a exercise scoped to the current user.
   """
@@ -199,7 +203,7 @@ defmodule Fittrack.Training do
          %Exercise{} <- Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
       %WorkoutSet{}
       |> WorkoutSet.changeset(attrs)
-      |> Ecto.Changeset.put_change(:workout_id, workout.id)
+      |> Ecto.Changeset.put_change(:workout_session_id, workout.id)
       |> Repo.insert()
       |> preload_workout_set()
     else
@@ -559,6 +563,65 @@ defmodule Fittrack.Training do
   def recent_personal_bests(_, _opts), do: []
 
   @doc """
+  Returns exercise progress line points for a given exercise.
+  """
+  def exercise_progress_over_time(scope, exercise_id, days \\ 30)
+
+  def exercise_progress_over_time(%Scope{user: user}, exercise_id, days) do
+    start_date = Date.utc_today() |> Date.add(-days)
+
+    from(ws in WorkoutSet,
+      join: w in assoc(ws, :workout),
+      where:
+        w.user_id == ^user.id and ws.exercise_id == ^exercise_id and
+          fragment("DATE(?)", ws.inserted_at) >= ^start_date,
+      group_by: fragment("DATE(?)", ws.inserted_at),
+      select: %{
+        date: fragment("DATE(?)", ws.inserted_at),
+        avg_weight: avg(ws.weight),
+        max_weight: max(ws.weight),
+        total_reps: sum(ws.reps)
+      },
+      order_by: fragment("DATE(?)", ws.inserted_at)
+    )
+    |> Repo.all()
+  end
+
+  def exercise_progress_over_time(_, _exercise_id, _days), do: []
+
+  @doc """
+  Logs a single set for fast dashboard entry.
+  """
+  def log_exercise_set(%Scope{} = scope, %{
+        "exercise_id" => exercise_id,
+        "weight" => weight,
+        "reps" => reps
+      }) do
+    case get_exercise(scope, exercise_id) do
+      nil ->
+        {:error, :unauthorized}
+
+      _exercise ->
+        with {:ok, workout} <-
+               create_workout(scope, %{
+                 started_at: DateTime.utc_now(),
+                 notes: "Quick Log: #{Date.utc_today()}"
+               }),
+             {:ok, workout_set} <-
+               create_workout_set(scope, workout, %{
+                 exercise_id: exercise_id,
+                 weight: weight,
+                 reps: reps,
+                 kind: "normal"
+               }) do
+          {:ok, workout_set}
+        else
+          error -> error
+        end
+    end
+  end
+
+  @doc """
   Returns workout dates for a given month for the current user.
   """
   def workout_dates_in_month(%Scope{user: user}, start_date, end_date) do
@@ -573,4 +636,55 @@ defmodule Fittrack.Training do
   end
 
   def workout_dates_in_month(_, _start_date, _end_date), do: []
+
+  @doc """
+  Returns workout dates and session counts for a given month.
+  """
+  def workout_dates_in_month_with_counts(%Scope{user: user}, start_date, end_date) do
+    from(w in Workout,
+      where:
+        w.user_id == ^user.id and
+          fragment("DATE(?)", w.started_at) >= ^start_date and
+          fragment("DATE(?)", w.started_at) <= ^end_date,
+      group_by: fragment("DATE(?)", w.started_at),
+      select: %{date: fragment("DATE(?)", w.started_at), count: count(w.id)}
+    )
+    |> Repo.all()
+  end
+
+  def workout_dates_in_month_with_counts(_, _start_date, _end_date), do: []
+
+  @doc """
+  Lists workouts for a current user within a date range.
+  Accepts Date or DateTime boundaries.
+  """
+  def list_workouts_in_date_range(%Scope{user: user}, %Date{} = start_date, %Date{} = end_date) do
+    from(w in Workout,
+      where:
+        w.user_id == ^user.id and
+          fragment("DATE(?)", w.started_at) >= ^start_date and
+          fragment("DATE(?)", w.started_at) <= ^end_date,
+      order_by: [desc: w.started_at],
+      preload: [:workout_sets]
+    )
+    |> Repo.all()
+  end
+
+  def list_workouts_in_date_range(
+        %Scope{user: user},
+        %DateTime{} = start_dt,
+        %DateTime{} = end_dt
+      ) do
+    from(w in Workout,
+      where:
+        w.user_id == ^user.id and
+          w.started_at >= ^start_dt and
+          w.started_at <= ^end_dt,
+      order_by: [desc: w.started_at],
+      preload: [:workout_sets]
+    )
+    |> Repo.all()
+  end
+
+  def list_workouts_in_date_range(_, _, _), do: []
 end

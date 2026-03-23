@@ -12,6 +12,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
     field :target_reps_max, :integer
     field :rest_seconds, :integer
     field :notes, :string
+    field :scheduled_day, :string
 
     belongs_to :workout_plan, WorkoutPlan
     belongs_to :exercise, Exercise
@@ -28,6 +29,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
       :target_reps_min,
       :target_reps_max,
       :rest_seconds,
+      :scheduled_day,
       :notes,
       :workout_plan_id,
       :exercise_id
@@ -39,6 +41,16 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
     |> validate_number(:target_reps_max, greater_than: 0)
     |> validate_reps_range()
     |> validate_number(:rest_seconds, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:scheduled_day, [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+      nil
+    ])
     |> update_change(:notes, &String.trim/1)
     |> foreign_key_constraint(:workout_plan_id)
     |> foreign_key_constraint(:exercise_id)

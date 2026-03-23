@@ -119,6 +119,157 @@ const Hooks = {
         }
       })
     }
+  },
+
+  ExerciseProgressChart: {
+    mounted() {
+      const data = JSON.parse(this.el.dataset.chartData)
+      const ctx = this.el.getContext('2d')
+
+      new Chart(ctx, {
+        type: 'line',
+        data: data,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: {
+                display: true,
+                text: 'Weight (lbs)'
+              }
+            },
+            x: {
+              title: {
+                display: true,
+                text: 'Date'
+              }
+            }
+          }
+        }
+      })
+    }
+  },
+
+  WorkoutPlanDragDrop: {
+    mounted() {
+      this.el.addEventListener('dragstart', (event) => {
+        const target = event.target.closest('.draggable-item')
+        if (!target) return
+
+        const itemId = target.dataset.itemId
+        const itemType = target.dataset.itemType || 'exercise'
+
+        if (itemId) {
+          event.dataTransfer.setData('text/item-id', itemId)
+          event.dataTransfer.setData('text/item-type', itemType)
+          event.dataTransfer.effectAllowed = 'copy'
+        }
+      })
+    }
+  },
+
+  DropZone: {
+    mounted() {
+      this.el.addEventListener('dragover', (event) => {
+        event.preventDefault()
+        this.el.classList.add('border-primary', 'bg-primary/10')
+      })
+
+      this.el.addEventListener('dragleave', () => {
+        this.el.classList.remove('border-primary', 'bg-primary/10')
+      })
+
+      this.el.addEventListener('drop', (event) => {
+        event.preventDefault()
+        this.el.classList.remove('border-primary', 'bg-primary/10')
+
+        const itemId = event.dataTransfer.getData('text/item-id')
+        const itemType = event.dataTransfer.getData('text/item-type')
+
+        if (itemId) {
+          this.pushEvent('add_item_to_day', {
+            item_id: itemId,
+            item_type: itemType,
+            day: this.el.dataset.day
+          })
+        }
+      })
+    }
+  },
+
+  RestTimer: {
+    mounted() {
+      const display = this.el.querySelector('[data-timer-display]')
+      const restore = this.el.querySelector('[data-rest-input]')
+      const startBtn = this.el.querySelector('[data-start-rest]')
+      const stopBtn = this.el.querySelector('[data-stop-rest]')
+      const resetBtn = this.el.querySelector('[data-reset-stopwatch]')
+      const toggleBtn = this.el.querySelector('[data-toggle-stopwatch]')
+      const swDisplay = this.el.querySelector('[data-stopwatch-display]')
+
+      let restInterval = null
+      let stopwatchInterval = null
+      let stopwatchSeconds = 0
+
+      const format = (seconds) => {
+        const mins = String(Math.floor(seconds / 60)).padStart(2, '0')
+        const secs = String(seconds % 60).padStart(2, '0')
+        return `${mins}:${secs}`
+      }
+
+      const updateStopwatch = () => {
+        stopwatchSeconds += 1
+        swDisplay.textContent = format(stopwatchSeconds)
+      }
+
+      startBtn.addEventListener('click', () => {
+        const total = Number(restore.value) || 60
+        let remaining = total
+
+        clearInterval(restInterval)
+        display.textContent = format(remaining)
+
+        restInterval = setInterval(() => {
+          remaining -= 1
+          display.textContent = format(remaining)
+
+          if (remaining <= 0) {
+            clearInterval(restInterval)
+            display.textContent = '00:00'
+          }
+        }, 1000)
+      })
+
+      stopBtn.addEventListener('click', () => {
+        clearInterval(restInterval)
+      })
+
+      toggleBtn.addEventListener('click', () => {
+        if (!stopwatchInterval) {
+          stopwatchInterval = setInterval(updateStopwatch, 1000)
+          toggleBtn.textContent = 'Pause Stopwatch'
+        } else {
+          clearInterval(stopwatchInterval)
+          stopwatchInterval = null
+          toggleBtn.textContent = 'Start Stopwatch'
+        }
+      })
+
+      resetBtn.addEventListener('click', () => {
+        clearInterval(stopwatchInterval)
+        stopwatchInterval = null
+        stopwatchSeconds = 0
+        swDisplay.textContent = '00:00'
+        toggleBtn.textContent = 'Start Stopwatch'
+      })
+    }
   }
 }
 

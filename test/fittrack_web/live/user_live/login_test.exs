@@ -8,9 +8,9 @@ defmodule FittrackWeb.UserLive.LoginTest do
     test "renders login page", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/users/log-in")
 
-      assert html =~ "Log in"
+      assert html =~ "Sign in"
       assert html =~ "Register"
-      assert html =~ "Log in with email"
+      assert html =~ "Email me a magic login link"
     end
   end
 
@@ -81,7 +81,7 @@ defmodule FittrackWeb.UserLive.LoginTest do
 
       {:ok, _login_live, login_html} =
         lv
-        |> element("main a", "Sign up")
+        |> element("main a", "Create an account")
         |> render_click()
         |> follow_redirect(conn, ~p"/users/register")
 
@@ -100,10 +100,10 @@ defmodule FittrackWeb.UserLive.LoginTest do
 
       assert html =~ "You need to reauthenticate"
       refute html =~ "Register"
-      assert html =~ "Log in with email"
+      assert html =~ "Email me a magic login link"
 
-      assert html =~
-               ~s(<input type="email" name="user[email]" id="login_form_magic_email" value="#{user.email}")
+      assert html =~ "user_email_magic"
+      assert html =~ user.email
     end
   end
 end

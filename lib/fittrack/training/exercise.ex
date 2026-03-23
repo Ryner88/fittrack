@@ -51,7 +51,7 @@ defmodule Fittrack.Training.Exercise do
     |> update_change(:name, &String.trim/1)
     |> update_change(:primary_muscle, &String.trim/1)
     |> update_change(:equipment, &String.trim/1)
-    |> update_change(:notes, &String.trim/1)
+    |> update_change(:notes, fn v -> if is_binary(v), do: String.trim(v), else: v end)
     |> normalize_fields()
     |> unique_constraint([:user_id, :normalized_name, :normalized_equipment])
   end

@@ -7,18 +7,17 @@ defmodule Fittrack.TrainingFixtures do
   @doc """
   Generate a exercise.
   """
-  def exercise_fixture(attrs \\ %{}) do
-    scope = Fittrack.AccountsFixtures.user_scope_fixture()
+  def exercise_fixture(scope \\ nil) do
+    scope = scope || Fittrack.AccountsFixtures.user_scope_fixture()
 
-    {:ok, exercise} =
-      attrs
-      |> Enum.into(%{
-        equipment: "some equipment",
-        name: "some name",
-        notes: "some notes",
-        primary_muscle: "some primary_muscle"
-      })
-      |> Fittrack.Training.create_exercise(scope)
+    attrs = %{
+      equipment: "some equipment",
+      name: "some name",
+      notes: "some notes",
+      primary_muscle: "some primary_muscle"
+    }
+
+    {:ok, exercise} = Fittrack.Training.create_exercise(scope, attrs)
 
     exercise
   end
