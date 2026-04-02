@@ -71,6 +71,7 @@ defmodule FittrackWeb.Router do
 
       # Workout Plans
       live "/workout-plans", WorkoutPlanLive.Index, :index
+      live "/workout-plans/generator", WorkoutPlanLive.Generator, :new
       live "/workout-plans/new", WorkoutPlanLive.Form, :new
       live "/workout-plans/:id/edit", WorkoutPlanLive.Form, :edit
       live "/workout-plans/:id", WorkoutPlanLive.Show, :show

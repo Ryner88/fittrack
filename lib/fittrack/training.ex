@@ -24,9 +24,12 @@ defmodule Fittrack.Training do
     search = Map.get(opts, :search)
     search = if is_binary(search), do: String.trim(search), else: search
 
+    equipment = Map.get(opts, :equipment)
+
     Exercise
     |> where([exercise], exercise.user_id == ^user.id)
     |> maybe_filter_exercises(search)
+    |> maybe_filter_exercises_by_equipment(equipment)
     |> order_by([exercise], asc: exercise.name)
     |> Repo.all()
   end
@@ -233,6 +236,21 @@ defmodule Fittrack.Training do
     )
   end
 
+  defp maybe_filter_exercises_by_equipment(query, nil), do: query
+
+  defp maybe_filter_exercises_by_equipment(query, equipment) when is_list(equipment) do
+    equipment = Enum.map(equipment, &String.downcase/1)
+
+    where(
+      query,
+      [exercise],
+      fragment("lower(?)", exercise.equipment) in ^equipment or
+        fragment("lower(?)", exercise.equipment) == "bodyweight"
+    )
+  end
+
+  defp maybe_filter_exercises_by_equipment(query, _), do: query
+
   defp maybe_filter_templates(query, search) when search in [nil, ""], do: query
 
   defp maybe_filter_templates(query, search) do
@@ -263,6 +281,209 @@ defmodule Fittrack.Training do
 
   defp maybe_filter_by_difficulty(query, difficulty) do
     where(query, [template], template.difficulty == ^difficulty)
+  end
+
+  @doc """
+  Generates an AI-powered 4-week workout plan based on user input, saves it to the current user account.
+  """
+  def generate_ai_workout_plan(%Scope{} = scope, attrs) when is_map(attrs) do
+    goal = Map.get(attrs, "goal", "general") |> String.downcase()
+    experience = Map.get(attrs, "experience", "beginner") |> String.downcase()
+    equipment = normalize_equipment_input(Map.get(attrs, "equipment", []))
+
+    days_per_week =
+      attrs
+      |> Map.get("days_per_week", 4)
+      |> parse_int(4)
+
+    with {:ok, days} <- validate_days_per_week(days_per_week),
+         {:ok, exercises} <- fetch_ai_exercises(scope, equipment, experience),
+         false <- Enum.empty?(exercises) do
+      sets = experience_to_sets(experience)
+      rest_seconds = experience_to_rest(experience)
+      {min_reps, max_reps} = goal_to_rep_range(goal)
+
+      schedule_days = days_for_week(days)
+
+      workout_plan_exercises =
+        build_workout_plan_exercises(
+          exercises,
+          schedule_days,
+          sets,
+          min_reps,
+          max_reps,
+          rest_seconds
+        )
+
+      plan_name = "AI Workout Plan (#{String.capitalize(goal)}) - #{Date.utc_today()}"
+
+      plan_description =
+        """
+        4-week automatically generated plan.
+        Goal: #{String.capitalize(goal)}
+        Experience: #{String.capitalize(experience)}
+        Equipment: #{Enum.map(equipment, &String.capitalize/1) |> Enum.join(", ")}
+
+        Follow this weekly workout cycle for 4 weeks and progress weights each week.
+        """
+
+      create_workout_plan(scope, %{
+        "name" => plan_name,
+        "description" => String.trim(plan_description),
+        "goal" => goal,
+        "primary_style" => goal_to_primary_style(goal),
+        "difficulty" => experience_to_difficulty(experience),
+        "estimated_duration_minutes" => 45,
+        "workout_plan_exercises" => workout_plan_exercises
+      })
+    else
+      [] ->
+        {:error,
+         "No exercises available to generate plan. Add exercises or expand equipment options."}
+
+      {:error, msg} ->
+        {:error, msg}
+    end
+  end
+
+  def generate_ai_workout_plan(_, _), do: {:error, "Unauthorized"}
+
+  defp normalize_equipment_input(equipment) when is_binary(equipment),
+    do: String.split(equipment, ",", trim: true) |> Enum.map(&String.trim/1)
+
+  defp normalize_equipment_input(equipment) when is_list(equipment),
+    do: Enum.map(equipment, fn e -> String.downcase(String.trim(to_string(e))) end)
+
+  defp normalize_equipment_input(_), do: []
+
+  defp parse_int(value, _default) when is_integer(value), do: value
+
+  defp parse_int(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, _} -> int
+      :error -> default
+    end
+  end
+
+  defp parse_int(_, default), do: default
+
+  defp validate_days_per_week(days) when days in 1..7, do: {:ok, days}
+  defp validate_days_per_week(_), do: {:error, "Days per week must be between 1 and 7"}
+
+  defp fetch_ai_exercises(scope, equipment, _experience) do
+    exercises = list_exercises(scope, %{equipment: equipment})
+    exercises = if exercises == [], do: list_exercises(scope), else: exercises
+
+    if exercises != [] do
+      {:ok, exercises}
+    else
+      templates =
+        case equipment do
+          [] ->
+            list_exercise_templates()
+
+          _ ->
+            equipment
+            |> Enum.map(fn eq -> list_exercise_templates(%{equipment: eq}) end)
+            |> List.flatten()
+        end
+
+      templates = Enum.uniq_by(templates, & &1.name)
+
+      if templates == [] do
+        {:error, "No exercise templates available for selected equipment"}
+      else
+        created_exercises =
+          templates
+          |> Enum.map(fn template ->
+            {:ok, exercise} = add_template_to_user(scope, template.id)
+            exercise
+          end)
+
+        {:ok, created_exercises}
+      end
+    end
+  end
+
+  defp goal_to_primary_style("strength"), do: "strength"
+  defp goal_to_primary_style("hypertrophy"), do: "hypertrophy"
+  defp goal_to_primary_style("endurance"), do: "conditioning"
+  defp goal_to_primary_style("fat_loss"), do: "conditioning"
+  defp goal_to_primary_style("general"), do: "bodybuilding"
+  defp goal_to_primary_style(_), do: "bodybuilding"
+
+  defp experience_to_difficulty("beginner"), do: "beginner"
+  defp experience_to_difficulty("intermediate"), do: "intermediate"
+  defp experience_to_difficulty("advanced"), do: "advanced"
+  defp experience_to_difficulty(_), do: "beginner"
+
+  defp experience_to_sets("beginner"), do: 3
+  defp experience_to_sets("intermediate"), do: 4
+  defp experience_to_sets("advanced"), do: 5
+  defp experience_to_sets(_), do: 3
+
+  defp experience_to_rest("beginner"), do: 60
+  defp experience_to_rest("intermediate"), do: 90
+  defp experience_to_rest("advanced"), do: 120
+  defp experience_to_rest(_), do: 75
+
+  defp goal_to_rep_range("strength"), do: {4, 6}
+  defp goal_to_rep_range("hypertrophy"), do: {8, 12}
+  defp goal_to_rep_range("endurance"), do: {12, 20}
+  defp goal_to_rep_range("fat_loss"), do: {10, 15}
+  defp goal_to_rep_range(_), do: {8, 12}
+
+  defp days_for_week(1), do: ["Monday"]
+  defp days_for_week(2), do: ["Monday", "Thursday"]
+  defp days_for_week(3), do: ["Monday", "Wednesday", "Friday"]
+  defp days_for_week(4), do: ["Monday", "Tuesday", "Thursday", "Friday"]
+  defp days_for_week(5), do: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+  defp days_for_week(6), do: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+  defp days_for_week(7),
+    do: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+  defp build_workout_plan_exercises(
+         exercises,
+         schedule_days,
+         sets,
+         min_reps,
+         max_reps,
+         rest_seconds
+       ) do
+    # Use a dynamic daily exercise list and rotate through the pool for variety.
+    pool_exercises = Enum.shuffle(exercises)
+
+    exercises_per_day =
+      cond do
+        length(pool_exercises) >= 6 -> 5
+        length(pool_exercises) >= 4 -> 4
+        true -> min(length(pool_exercises), 3)
+      end
+
+    schedule_days
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {day, day_idx} ->
+      day_exercises =
+        pool_exercises
+        |> Enum.drop(rem(day_idx * exercises_per_day, max(1, length(pool_exercises))))
+        |> Enum.take(exercises_per_day)
+
+      day_exercises
+      |> Enum.with_index(1)
+      |> Enum.map(fn {exercise, idx} ->
+        %{
+          position: day_idx * exercises_per_day + idx,
+          exercise_id: exercise.id,
+          target_sets: sets,
+          target_reps_min: min_reps,
+          target_reps_max: max_reps,
+          rest_seconds: rest_seconds,
+          scheduled_day: day,
+          notes: "Week 1-4: same structure. Increase load 2.5-5% each week."
+        }
+      end)
+    end)
   end
 
   defp workout_sets_query(sort), do: workout_sets_query(sort, nil)

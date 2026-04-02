@@ -34,7 +34,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
       :workout_plan_id,
       :exercise_id
     ])
-    |> validate_required([:position, :workout_plan_id, :exercise_id])
+    |> validate_required([:position, :exercise_id])
     |> validate_number(:position, greater_than: 0)
     |> validate_number(:target_sets, greater_than: 0)
     |> validate_number(:target_reps_min, greater_than: 0)

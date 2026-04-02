@@ -15,12 +15,20 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
               Create and manage workout templates for consistent training routines.
             </p>
           </div>
-          <.link
-            navigate={~p"/workout-plans/new"}
-            class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
-          >
-            <.icon name="hero-plus" class="mr-2 size-4" /> Create plan
-          </.link>
+          <div class="flex gap-2">
+            <.link
+              navigate={~p"/workout-plans/generator"}
+              class="inline-flex items-center justify-center rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-secondary/90"
+            >
+              <.icon name="hero-rocket" class="mr-2 size-4" /> AI Generator
+            </.link>
+            <.link
+              navigate={~p"/workout-plans/new"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              <.icon name="hero-plus" class="mr-2 size-4" /> Create plan
+            </.link>
+          </div>
         </div>
 
         <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

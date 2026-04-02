@@ -148,5 +148,22 @@ defmodule Fittrack.TrainingTest do
                  "reps" => "5"
                })
     end
+
+    test "generate_ai_workout_plan/2 generates and saves workflow plan", %{scope: scope} do
+      exercise_fixture(scope)
+
+      params = %{
+        "goal" => "hypertrophy",
+        "experience" => "beginner",
+        "equipment" => ["Bodyweight"],
+        "days_per_week" => "3"
+      }
+
+      assert {:ok, plan} = Training.generate_ai_workout_plan(scope, params)
+      assert plan.name =~ "AI Workout Plan"
+      assert plan.goal == "hypertrophy"
+      assert plan.difficulty == "beginner"
+      assert length(plan.workout_plan_exercises) > 0
+    end
   end
 end
