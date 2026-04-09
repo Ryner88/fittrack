@@ -15,6 +15,32 @@ defmodule Fittrack.Training do
   alias Fittrack.Training.WorkoutPlan
   alias Fittrack.Training.WorkoutPlanExercise
 
+  @goal_preferences ~w(strength hypertrophy endurance fat_loss general)
+  @training_style_preferences ~w(cardio strength hypertrophy isometric speed power plyometric mobility conditioning core balance functional bodybuilding calisthenics)
+  @training_split_preferences ~w(full_body upper_lower push_pull_legs body_part_split athletic_performance circuit_based strength_focused hybrid)
+  @equipment_aliases %{
+    "bodyweight" => ["bodyweight", "body weight"],
+    "dumbbell" => ["dumbbell", "dumbbells"],
+    "barbell" => ["barbell", "barbells"],
+    "bench" => ["bench", "benches"],
+    "machine" => ["machine", "machines"],
+    "kettlebell" => ["kettlebell", "kettlebells"],
+    "band" => ["band", "bands", "resistance band", "resistance bands"],
+    "cable" => ["cable", "cables", "cable machine", "cable machines"],
+    "pull-up bar" => ["pull-up bar", "pull up bar", "pullup bar"],
+    "cardio machine" => [
+      "cardio machine",
+      "cardio machines",
+      "treadmill",
+      "bike",
+      "stationary bike",
+      "elliptical",
+      "rower",
+      "rowing machine",
+      "stair climber"
+    ]
+  }
+
   @doc """
   Returns the list of exercises for the current user.
   """
@@ -237,16 +263,15 @@ defmodule Fittrack.Training do
   end
 
   defp maybe_filter_exercises_by_equipment(query, nil), do: query
+  defp maybe_filter_exercises_by_equipment(query, []), do: query
 
   defp maybe_filter_exercises_by_equipment(query, equipment) when is_list(equipment) do
-    equipment = Enum.map(equipment, &String.downcase/1)
+    equipment_terms =
+      equipment
+      |> equipment_filter_terms()
+      |> then(&Enum.uniq(["bodyweight" | &1]))
 
-    where(
-      query,
-      [exercise],
-      fragment("lower(?)", exercise.equipment) in ^equipment or
-        fragment("lower(?)", exercise.equipment) == "bodyweight"
-    )
+    where(query, [exercise], fragment("lower(?)", exercise.equipment) in ^equipment_terms)
   end
 
   defp maybe_filter_exercises_by_equipment(query, _), do: query
@@ -274,7 +299,13 @@ defmodule Fittrack.Training do
   defp maybe_filter_by_equipment(query, nil), do: query
 
   defp maybe_filter_by_equipment(query, equipment) do
-    where(query, [template], template.equipment == ^equipment)
+    equipment_terms = equipment_filter_terms(equipment)
+
+    if equipment_terms == [] do
+      query
+    else
+      where(query, [template], fragment("lower(?)", template.equipment) in ^equipment_terms)
+    end
   end
 
   defp maybe_filter_by_difficulty(query, nil), do: query
@@ -287,8 +318,23 @@ defmodule Fittrack.Training do
   Generates an AI-powered 4-week workout plan based on user input, saves it to the current user account.
   """
   def generate_ai_workout_plan(%Scope{} = scope, attrs) when is_map(attrs) do
-    goal = Map.get(attrs, "goal", "general") |> String.downcase()
+    primary_goal =
+      (Map.get(attrs, "primary_goal") || Map.get(attrs, "goal") || "general")
+      |> normalize_goal_preference("general")
+
+    secondary_goal = Map.get(attrs, "secondary_goal") |> normalize_goal_preference()
+    tertiary_goal = Map.get(attrs, "tertiary_goal") |> normalize_goal_preference()
+    additional_goal = Map.get(attrs, "additional_goal") |> normalize_goal_preference()
     experience = Map.get(attrs, "experience", "beginner") |> String.downcase()
+
+    training_styles =
+      Map.get(attrs, "training_styles", [])
+      |> normalize_multi_select(@training_style_preferences)
+
+    training_split =
+      Map.get(attrs, "training_split", [])
+      |> normalize_multi_select(@training_split_preferences)
+
     equipment = normalize_equipment_input(Map.get(attrs, "equipment", []))
 
     days_per_week =
@@ -296,12 +342,19 @@ defmodule Fittrack.Training do
       |> Map.get("days_per_week", 4)
       |> parse_int(4)
 
-    with {:ok, days} <- validate_days_per_week(days_per_week),
+    with :ok <-
+           validate_unique_goals([
+             primary_goal,
+             secondary_goal,
+             tertiary_goal,
+             additional_goal
+           ]),
+         {:ok, days} <- validate_days_per_week(days_per_week),
          {:ok, exercises} <- fetch_ai_exercises(scope, equipment, experience),
          false <- Enum.empty?(exercises) do
       sets = experience_to_sets(experience)
       rest_seconds = experience_to_rest(experience)
-      {min_reps, max_reps} = goal_to_rep_range(goal)
+      {min_reps, max_reps} = goal_to_rep_range(primary_goal)
 
       schedule_days = days_for_week(days)
 
@@ -315,23 +368,34 @@ defmodule Fittrack.Training do
           rest_seconds
         )
 
-      plan_name = "AI Workout Plan (#{String.capitalize(goal)}) - #{Date.utc_today()}"
+      plan_name = "AI Workout Plan (#{goal_label(primary_goal)}) - #{Date.utc_today()}"
 
       plan_description =
-        """
-        4-week automatically generated plan.
-        Goal: #{String.capitalize(goal)}
-        Experience: #{String.capitalize(experience)}
-        Equipment: #{Enum.map(equipment, &String.capitalize/1) |> Enum.join(", ")}
-
-        Follow this weekly workout cycle for 4 weeks and progress weights each week.
-        """
+        [
+          "4-week automatically generated plan.",
+          "Goals (priority order): #{format_goal_preferences([primary_goal, secondary_goal, tertiary_goal, additional_goal])}",
+          "Experience: #{String.capitalize(experience)}",
+          "Equipment: #{format_equipment_preferences(equipment)}",
+          maybe_preference_line("Training Styles", training_styles, &training_style_label/1),
+          maybe_preference_line("Training Split", training_split, &training_split_label/1),
+          "",
+          "Follow this weekly workout cycle for 4 weeks and progress weights each week."
+        ]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.join("\n")
 
       create_workout_plan(scope, %{
         "name" => plan_name,
         "description" => String.trim(plan_description),
-        "goal" => goal,
-        "primary_style" => goal_to_primary_style(goal),
+        "goal" => primary_goal,
+        "primary_goal" => primary_goal,
+        "secondary_goal" => secondary_goal,
+        "tertiary_goal" => tertiary_goal,
+        "additional_goal" => additional_goal,
+        "primary_style" => goal_to_primary_style(primary_goal),
+        "secondary_style_tags" => secondary_style_tags(training_styles),
+        "training_styles" => training_styles,
+        "training_split" => training_split,
         "difficulty" => experience_to_difficulty(experience),
         "estimated_duration_minutes" => 45,
         "workout_plan_exercises" => workout_plan_exercises
@@ -348,13 +412,101 @@ defmodule Fittrack.Training do
 
   def generate_ai_workout_plan(_, _), do: {:error, "Unauthorized"}
 
-  defp normalize_equipment_input(equipment) when is_binary(equipment),
-    do: String.split(equipment, ",", trim: true) |> Enum.map(&String.trim/1)
+  defp normalize_goal_preference(value, default \\ nil)
+  defp normalize_goal_preference(nil, default), do: default
 
-  defp normalize_equipment_input(equipment) when is_list(equipment),
-    do: Enum.map(equipment, fn e -> String.downcase(String.trim(to_string(e))) end)
+  defp normalize_goal_preference(value, default) do
+    normalized =
+      value
+      |> to_string()
+      |> String.trim()
+      |> String.downcase()
+
+    cond do
+      normalized == "" -> default
+      normalized in @goal_preferences -> normalized
+      true -> default
+    end
+  end
+
+  defp validate_unique_goals(goals) do
+    goals = Enum.reject(goals, &is_nil/1)
+
+    if Enum.uniq(goals) == goals do
+      :ok
+    else
+      {:error, "Each goal must be unique."}
+    end
+  end
+
+  defp normalize_multi_select(values, allowed_values) when is_binary(values) do
+    values
+    |> String.split(",", trim: true)
+    |> normalize_multi_select(allowed_values)
+  end
+
+  defp normalize_multi_select(values, allowed_values) when is_list(values) do
+    values
+    |> Enum.map(&to_string/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&String.downcase/1)
+    |> Enum.filter(&(&1 in allowed_values))
+    |> Enum.uniq()
+  end
+
+  defp normalize_multi_select(_, _allowed_values), do: []
+
+  defp normalize_equipment_input(equipment) when is_binary(equipment) do
+    equipment
+    |> String.split(",", trim: true)
+    |> normalize_equipment_input()
+  end
+
+  defp normalize_equipment_input(equipment) when is_list(equipment) do
+    equipment
+    |> Enum.map(&normalize_equipment_value/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+  end
 
   defp normalize_equipment_input(_), do: []
+
+  defp normalize_equipment_value(nil), do: nil
+
+  defp normalize_equipment_value(value) do
+    normalized =
+      value
+      |> to_string()
+      |> String.trim()
+      |> String.downcase()
+
+    cond do
+      normalized == "" ->
+        nil
+
+      true ->
+        Enum.find_value(@equipment_aliases, normalized, fn {canonical, aliases} ->
+          if normalized == canonical or normalized in aliases, do: canonical
+        end)
+    end
+  end
+
+  defp equipment_filter_terms(equipment) when is_list(equipment) do
+    equipment
+    |> Enum.flat_map(&equipment_filter_terms/1)
+    |> Enum.uniq()
+  end
+
+  defp equipment_filter_terms(equipment) do
+    canonical = normalize_equipment_value(equipment)
+
+    if canonical do
+      Map.get(@equipment_aliases, canonical, [canonical])
+    else
+      []
+    end
+  end
 
   defp parse_int(value, _default) when is_integer(value), do: value
 
@@ -403,6 +555,74 @@ defmodule Fittrack.Training do
         {:ok, created_exercises}
       end
     end
+  end
+
+  defp secondary_style_tags(training_styles) do
+    training_styles
+    |> Enum.flat_map(fn
+      "strength" -> ["strength"]
+      "hypertrophy" -> ["hypertrophy"]
+      "conditioning" -> ["conditioning"]
+      "mobility" -> ["mobility"]
+      "bodybuilding" -> ["bodybuilding"]
+      "calisthenics" -> ["calisthenics"]
+      _ -> []
+    end)
+    |> Enum.uniq()
+  end
+
+  defp format_goal_preferences(goals) do
+    goals
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&goal_label/1)
+    |> Enum.join(" -> ")
+  end
+
+  defp format_equipment_preferences([]), do: "Any available equipment"
+
+  defp format_equipment_preferences(equipment) do
+    equipment
+    |> Enum.map(&equipment_label/1)
+    |> Enum.join(", ")
+  end
+
+  defp maybe_preference_line(_label, [], _formatter), do: nil
+
+  defp maybe_preference_line(label, values, formatter) do
+    "#{label}: #{Enum.map(values, formatter) |> Enum.join(", ")}"
+  end
+
+  defp goal_label("general"), do: "General Fitness"
+  defp goal_label(value), do: humanize_choice(value)
+  defp training_style_label(value), do: humanize_choice(value)
+
+  defp training_split_label("upper_lower"), do: "Upper / Lower"
+  defp training_split_label("push_pull_legs"), do: "Push / Pull / Legs"
+  defp training_split_label("body_part_split"), do: "Body Part Split"
+  defp training_split_label("athletic_performance"), do: "Athletic Performance"
+  defp training_split_label("circuit_based"), do: "Circuit Based"
+  defp training_split_label("strength_focused"), do: "Strength Focused"
+  defp training_split_label(value), do: humanize_choice(value)
+
+  defp equipment_label("bodyweight"), do: "Bodyweight"
+  defp equipment_label("dumbbell"), do: "Dumbbells"
+  defp equipment_label("barbell"), do: "Barbell"
+  defp equipment_label("bench"), do: "Bench"
+  defp equipment_label("machine"), do: "Machines"
+  defp equipment_label("kettlebell"), do: "Kettlebells"
+  defp equipment_label("band"), do: "Resistance Bands"
+  defp equipment_label("cable"), do: "Cable Machine"
+  defp equipment_label("pull-up bar"), do: "Pull-Up Bar"
+  defp equipment_label("cardio machine"), do: "Cardio Machines"
+  defp equipment_label(value), do: humanize_choice(value)
+
+  defp humanize_choice(value) do
+    value
+    |> String.replace("_", " ")
+    |> String.replace("-", " ")
+    |> String.split(" ", trim: true)
+    |> Enum.map(&String.capitalize/1)
+    |> Enum.join(" ")
   end
 
   defp goal_to_primary_style("strength"), do: "strength"
