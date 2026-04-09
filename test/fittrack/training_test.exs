@@ -153,17 +153,39 @@ defmodule Fittrack.TrainingTest do
       exercise_fixture(scope)
 
       params = %{
-        "goal" => "hypertrophy",
+        "primary_goal" => "hypertrophy",
+        "secondary_goal" => "strength",
+        "training_styles" => ["hypertrophy", "mobility"],
+        "training_split" => ["full_body", "hybrid"],
         "experience" => "beginner",
-        "equipment" => ["Bodyweight"],
+        "equipment" => ["bodyweight"],
         "days_per_week" => "3"
       }
 
       assert {:ok, plan} = Training.generate_ai_workout_plan(scope, params)
       assert plan.name =~ "AI Workout Plan"
       assert plan.goal == "hypertrophy"
+      assert plan.primary_goal == "hypertrophy"
+      assert plan.secondary_goal == "strength"
+      assert plan.training_styles == ["hypertrophy", "mobility"]
+      assert plan.training_split == ["full_body", "hybrid"]
       assert plan.difficulty == "beginner"
       assert length(plan.workout_plan_exercises) > 0
+    end
+
+    test "generate_ai_workout_plan/2 rejects duplicate goals", %{scope: scope} do
+      exercise_fixture(scope)
+
+      params = %{
+        "primary_goal" => "strength",
+        "secondary_goal" => "strength",
+        "experience" => "beginner",
+        "equipment" => ["bodyweight"],
+        "days_per_week" => "3"
+      }
+
+      assert {:error, "Each goal must be unique."} =
+               Training.generate_ai_workout_plan(scope, params)
     end
   end
 end
