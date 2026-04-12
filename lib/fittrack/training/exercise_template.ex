@@ -5,6 +5,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
   alias Fittrack.Training.Normalizer
 
   schema "exercise_templates" do
+    field :source_id, :integer
     field :name, :string
     field :primary_muscle, :string
     field :secondary_muscles, {:array, :string}, default: []
@@ -28,6 +29,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
   def changeset(template, attrs) do
     template
     |> cast(attrs, [
+      :source_id,
       :name,
       :primary_muscle,
       :secondary_muscles,
@@ -49,6 +51,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
     |> update_change(:difficulty, &String.trim/1)
     |> update_change(:notes, &String.trim/1)
     |> normalize_fields()
+    |> unique_constraint(:source_id)
     |> unique_constraint([:name, :equipment])
     |> unique_constraint([:normalized_name, :normalized_equipment])
   end

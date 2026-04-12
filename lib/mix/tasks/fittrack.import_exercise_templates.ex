@@ -46,13 +46,13 @@ defmodule Mix.Tasks.Fittrack.ImportExerciseTemplates do
     Mix.shell().info("Importing up to #{limit} exercises from WGER API...")
 
     case ExerciseTemplateImporter.import_from_wger(limit: limit, api_key: api_key) do
-      %{inserted: inserted, skipped: skipped, failed: failed} ->
+      %{inserted: inserted, updated: updated, failed: failed} ->
         Mix.shell().info("""
         Import completed successfully!
 
         Results:
           - Inserted: #{inserted}
-          - Skipped (already exist): #{skipped}
+          - Updated: #{updated}
           - Failed: #{failed}
         """)
 
