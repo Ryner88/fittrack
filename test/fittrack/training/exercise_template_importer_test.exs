@@ -145,7 +145,8 @@ defmodule Fittrack.Training.ExerciseTemplateImporterTest do
             "id" => 1286,
             "language" => 2,
             "name" => "Medicine ball booklet crunch",
-            "description" => "Using a medicine ball as an overload will make the exercise heavier."
+            "description" =>
+              "Using a medicine ball as an overload will make the exercise heavier."
           }
         ],
         "muscles" => [%{"name" => "Rectus abdominis"}],
@@ -156,7 +157,9 @@ defmodule Fittrack.Training.ExerciseTemplateImporterTest do
 
       assert normalized.source_id == 976
       assert normalized.name == "Medicine ball booklet crunch"
-      assert normalized.notes == "Using a medicine ball as an overload will make the exercise heavier."
+
+      assert normalized.notes ==
+               "Using a medicine ball as an overload will make the exercise heavier."
     end
   end
 

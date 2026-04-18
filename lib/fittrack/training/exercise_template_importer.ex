@@ -362,7 +362,9 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   defp english_language_value?(value) when is_integer(value), do: english_language_id?(value)
   defp english_language_value?(_), do: false
 
-  defp english_language_id?(value) when is_integer(value), do: MapSet.member?(@wger_english_language_ids, value)
+  defp english_language_id?(value) when is_integer(value),
+    do: MapSet.member?(@wger_english_language_ids, value)
+
   defp english_language_id?(_), do: false
 
   defp present_string(value) when is_binary(value) do

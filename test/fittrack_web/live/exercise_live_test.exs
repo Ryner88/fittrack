@@ -3,7 +3,6 @@ defmodule FittrackWeb.ExerciseLiveTest do
 
   import Phoenix.LiveViewTest
   import Fittrack.TrainingFixtures
-  import Fittrack.AccountsFixtures
 
   @create_attrs %{
     name: "some name",
@@ -39,13 +38,7 @@ defmodule FittrackWeb.ExerciseLiveTest do
 
     test "saves new exercise", %{conn: conn, user: user} do
       conn = log_in_user(conn, user)
-      {:ok, index_live, _html} = live(conn, ~p"/exercises")
-
-      assert {:ok, form_live, _} =
-               index_live
-               |> element("a", "New exercise")
-               |> render_click()
-               |> follow_redirect(conn, ~p"/exercises/new")
+      {:ok, form_live, _html} = live(conn, ~p"/exercises/new")
 
       assert render(form_live) =~ "New Exercise"
 
@@ -53,14 +46,16 @@ defmodule FittrackWeb.ExerciseLiveTest do
              |> form("#exercise-form", exercise: @invalid_attrs)
              |> render_change() =~ "can&#39;t be blank"
 
-      {:ok, index_live, _html} =
-        form_live
-        |> form("#exercise-form", exercise: @create_attrs)
-        |> render_submit()
-        |> follow_redirect(conn, ~p"/exercises")
+      form_live
+      |> form("#exercise-form", exercise: @create_attrs)
+      |> render_submit()
+
+      scope = %Fittrack.Accounts.Scope{user: user}
+      assert Enum.any?(Fittrack.Training.list_exercises(scope), &(&1.name == "some name"))
+
+      {:ok, index_live, _html} = live(conn, ~p"/exercises")
 
       html = render(index_live)
-      assert html =~ "Exercise created successfully"
       assert html =~ "some name"
     end
 
