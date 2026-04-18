@@ -204,6 +204,149 @@ const Hooks = {
     }
   },
 
+  BarcodeImport: {
+    mounted() {
+      this.input = this.el.querySelector("[data-barcode-input]")
+      this.cameraButton = this.el.querySelector("[data-open-camera]")
+      this.fileButton = this.el.querySelector("[data-open-file]")
+      this.status = this.el.querySelector("[data-barcode-status]")
+      this.detector = null
+
+      this.supported = "BarcodeDetector" in window
+      this.updateStatus(
+        this.supported
+          ? "Scanner ready. Use the camera or pick a barcode photo."
+          : "Direct camera scanning is not supported in this browser. You can still paste a barcode manually."
+      )
+
+      if (this.supported) {
+        try {
+          this.detector = new window.BarcodeDetector({
+            formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"],
+          })
+        } catch (_error) {
+          this.detector = new window.BarcodeDetector()
+        }
+      }
+
+      this.cameraButton?.addEventListener("click", () => this.input?.click())
+      this.fileButton?.addEventListener("click", () => this.input?.click())
+      this.input?.addEventListener("change", (event) => this.handleFileChange(event))
+    },
+
+    updateStatus(message) {
+      if (this.status) this.status.textContent = message
+    },
+
+    async handleFileChange(event) {
+      const [file] = event.target.files || []
+
+      if (!file) return
+
+      if (!this.detector) {
+        this.pushEvent("barcode_scan_error", {
+          message: "This browser cannot scan barcodes from the camera. Paste the barcode manually instead.",
+        })
+        event.target.value = ""
+        return
+      }
+
+      this.updateStatus("Scanning image for a barcode…")
+
+      try {
+        const bitmap = await createImageBitmap(file)
+        const matches = await this.detector.detect(bitmap)
+        const barcode = matches.find((match) => match.rawValue)?.rawValue
+
+        if (barcode) {
+          this.updateStatus(`Barcode detected: ${barcode}`)
+          this.pushEvent("barcode_detected", { barcode })
+        } else {
+          this.updateStatus("No barcode detected. Try a sharper image or paste the code manually.")
+          this.pushEvent("barcode_scan_error", {
+            message: "No barcode was detected in that image. Try a clearer photo or enter it manually.",
+          })
+        }
+      } catch (_error) {
+        this.updateStatus("Scanning failed. You can still paste the barcode manually.")
+        this.pushEvent("barcode_scan_error", {
+          message: "The browser could not scan that image. Try another photo or enter the barcode manually.",
+        })
+      } finally {
+        event.target.value = ""
+      }
+    },
+  },
+
+  ScreenshotImport: {
+    mounted() {
+      this.input = this.el.querySelector("[data-screenshot-input]")
+      this.openButton = this.el.querySelector("[data-open-screenshot]")
+      this.status = this.el.querySelector("[data-screenshot-status]")
+
+      this.openButton?.addEventListener("click", () => this.input?.click())
+      this.input?.addEventListener("change", (event) => this.handleFile(event))
+
+      this.handlePaste = (event) => {
+        const imageItem = Array.from(event.clipboardData?.items || []).find((item) =>
+          item.type.startsWith("image/")
+        )
+
+        if (!imageItem) return
+
+        event.preventDefault()
+        const file = imageItem.getAsFile()
+        if (file) this.readFile(file)
+      }
+
+      this.el.addEventListener("paste", this.handlePaste)
+      this.updateStatus("Upload a screenshot or paste one from your clipboard.")
+    },
+
+    destroyed() {
+      this.el.removeEventListener("paste", this.handlePaste)
+    },
+
+    updateStatus(message) {
+      if (this.status) this.status.textContent = message
+    },
+
+    handleFile(event) {
+      const [file] = event.target.files || []
+      if (!file) return
+
+      this.readFile(file)
+      event.target.value = ""
+    },
+
+    readFile(file) {
+      if (!file.type.startsWith("image/")) {
+        this.pushEvent("screenshot_import_error", {
+          message: "Choose a valid image screenshot before importing.",
+        })
+        return
+      }
+
+      this.updateStatus("Reading screenshot…")
+
+      const reader = new FileReader()
+
+      reader.onload = () => {
+        this.updateStatus("Sending screenshot for parsing…")
+        this.pushEvent("screenshot_selected", { data_url: reader.result })
+      }
+
+      reader.onerror = () => {
+        this.updateStatus("Screenshot import failed. Try another image.")
+        this.pushEvent("screenshot_import_error", {
+          message: "The screenshot could not be read. Try another image.",
+        })
+      }
+
+      reader.readAsDataURL(file)
+    },
+  },
+
   RestTimer: {
     mounted() {
       const display = this.el.querySelector('[data-timer-display]')

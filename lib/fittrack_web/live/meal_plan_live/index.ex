@@ -1,6 +1,7 @@
 defmodule FittrackWeb.MealPlanLive.Index do
   use FittrackWeb, :live_view
 
+  alias Decimal
   alias Fittrack.Nutrition
 
   @impl true
@@ -145,7 +146,7 @@ defmodule FittrackWeb.MealPlanLive.Index do
             <.icon name="hero-queue-list" class="h-4 w-4" />
             <span>{length(@meal_plan.meal_plan_meals)} meals</span>
             <.icon name="hero-fire" class="h-4 w-4 ml-2" />
-            <span>{round(@meal_plan.daily_calories_target || 0)} cal/day</span>
+            <span>{format_value(@meal_plan.daily_calories_target)} cal/day</span>
           </div>
           <div class="mt-2 text-xs text-base-content/50 capitalize">
             Goal: {@meal_plan.goal}
@@ -188,5 +189,15 @@ defmodule FittrackWeb.MealPlanLive.Index do
       </div>
     </div>
     """
+  end
+
+  defp format_value(nil), do: "0"
+  defp format_value(value) when is_integer(value), do: Integer.to_string(value)
+
+  defp format_value(%Decimal{} = value) do
+    value
+    |> Decimal.round(1)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
   end
 end

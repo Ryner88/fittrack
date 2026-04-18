@@ -1,6 +1,7 @@
 defmodule FittrackWeb.MealPlanLive.Show do
   use FittrackWeb, :live_view
 
+  alias Decimal
   alias Fittrack.Nutrition
 
   @impl true
@@ -10,7 +11,7 @@ defmodule FittrackWeb.MealPlanLive.Show do
       <.header>
         Meal Plan: {@meal_plan.name}
         <:subtitle>
-          {@meal_plan.goal} • {round(@meal_plan.daily_calories_target || 0)} cal/day
+          {@meal_plan.goal} • {format_value(@meal_plan.daily_calories_target)} cal/day
         </:subtitle>
         <:actions>
           <.button navigate={~p"/meal-plans"}>
@@ -25,10 +26,10 @@ defmodule FittrackWeb.MealPlanLive.Show do
       <.list>
         <:item title="Name">{@meal_plan.name}</:item>
         <:item title="Goal">{@meal_plan.goal}</:item>
-        <:item title="Daily Calories">{round(@meal_plan.daily_calories_target || 0)} cal</:item>
-        <:item title="Daily Protein">{round(@meal_plan.daily_protein_g_target || 0)}g</:item>
-        <:item title="Daily Carbs">{round(@meal_plan.daily_carbs_g_target || 0)}g</:item>
-        <:item title="Daily Fats">{round(@meal_plan.daily_fats_g_target || 0)}g</:item>
+        <:item title="Daily Calories">{format_value(@meal_plan.daily_calories_target)} cal</:item>
+        <:item title="Daily Protein">{format_value(@meal_plan.daily_protein_g_target)}g</:item>
+        <:item title="Daily Carbs">{format_value(@meal_plan.daily_carbs_g_target)}g</:item>
+        <:item title="Daily Fats">{format_value(@meal_plan.daily_fats_g_target)}g</:item>
         <:item title="Description">{@meal_plan.description || "None"}</:item>
       </.list>
 
@@ -47,7 +48,9 @@ defmodule FittrackWeb.MealPlanLive.Show do
                   )}
                 </p>
                 <p class="text-sm text-base-content/70">
-                  {round(meal.serving_count || 0)} serving(s), {round(meal.calories_per_serving || 0)} cal
+                  {format_value(meal.serving_count)} serving(s), {format_value(
+                    meal.calories_per_serving
+                  )} cal
                 </p>
               </div>
             <% end %>
@@ -66,5 +69,15 @@ defmodule FittrackWeb.MealPlanLive.Show do
      socket
      |> assign(:page_title, "Meal Plan")
      |> assign(:meal_plan, meal_plan)}
+  end
+
+  defp format_value(nil), do: "0"
+  defp format_value(value) when is_integer(value), do: Integer.to_string(value)
+
+  defp format_value(%Decimal{} = value) do
+    value
+    |> Decimal.round(1)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
   end
 end

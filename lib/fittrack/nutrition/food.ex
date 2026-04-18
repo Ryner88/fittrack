@@ -12,6 +12,10 @@ defmodule Fittrack.Nutrition.Food do
     field :protein_per_unit, :decimal
     field :carbs_per_unit, :decimal
     field :fats_per_unit, :decimal
+    field :fiber_per_unit, :decimal
+    field :sugar_per_unit, :decimal
+    field :sodium_mg_per_unit, :decimal
+    field :micronutrients, :map, default: %{}
 
     belongs_to :user, User
 
@@ -29,6 +33,10 @@ defmodule Fittrack.Nutrition.Food do
       :protein_per_unit,
       :carbs_per_unit,
       :fats_per_unit,
+      :fiber_per_unit,
+      :sugar_per_unit,
+      :sodium_mg_per_unit,
+      :micronutrients,
       :user_id
     ])
     |> validate_required([:name, :unit, :unit_amount, :calories_per_unit, :user_id])
@@ -37,5 +45,8 @@ defmodule Fittrack.Nutrition.Food do
     |> validate_number(:protein_per_unit, greater_than_or_equal_to: 0)
     |> validate_number(:carbs_per_unit, greater_than_or_equal_to: 0)
     |> validate_number(:fats_per_unit, greater_than_or_equal_to: 0)
+    |> validate_number(:fiber_per_unit, greater_than_or_equal_to: 0)
+    |> validate_number(:sugar_per_unit, greater_than_or_equal_to: 0)
+    |> validate_number(:sodium_mg_per_unit, greater_than_or_equal_to: 0)
   end
 end

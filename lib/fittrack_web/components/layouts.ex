@@ -63,6 +63,12 @@ defmodule FittrackWeb.Layouts do
                   Dashboard
                 </.link>
                 <.link
+                  navigate={~p"/nutrition"}
+                  class="rounded-full px-3 py-2 transition hover:bg-base-200"
+                >
+                  Nutrition
+                </.link>
+                <.link
                   navigate={~p"/exercises"}
                   class="rounded-full px-3 py-2 transition hover:bg-base-200"
                 >
