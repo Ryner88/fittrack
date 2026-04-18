@@ -1,6 +1,7 @@
 defmodule FittrackWeb.MealLive.Show do
   use FittrackWeb, :live_view
 
+  alias Decimal
   alias Fittrack.Nutrition
 
   @impl true
@@ -25,10 +26,10 @@ defmodule FittrackWeb.MealLive.Show do
         <:item title="Date & Time">
           {Calendar.strftime(@meal.eaten_at, "%B %d, %Y at %I:%M %p")}
         </:item>
-        <:item title="Total Calories">{round(@meal.total_calories || 0)}</:item>
-        <:item title="Total Protein">{round(@meal.total_protein_g || 0)}g</:item>
-        <:item title="Total Carbs">{round(@meal.total_carbs_g || 0)}g</:item>
-        <:item title="Total Fats">{round(@meal.total_fats_g || 0)}g</:item>
+        <:item title="Total Calories">{format_decimal(@meal.total_calories)}</:item>
+        <:item title="Total Protein">{format_decimal(@meal.total_protein_g)}g</:item>
+        <:item title="Total Carbs">{format_decimal(@meal.total_carbs_g)}g</:item>
+        <:item title="Total Fats">{format_decimal(@meal.total_fats_g)}g</:item>
         <:item title="Notes">{@meal.notes || "No notes"}</:item>
       </.list>
       
@@ -50,10 +51,10 @@ defmodule FittrackWeb.MealLive.Show do
                     </p>
                   </div>
                   <div class="text-right">
-                    <p class="font-bold">{round(item.calories || 0)} cal</p>
+                    <p class="font-bold">{format_decimal(item.calories)} cal</p>
                     <p class="text-sm text-base-content/70">
-                      {round(item.protein_g || 0)}g P • {round(item.carbs_g || 0)}g C • {round(
-                        item.fats_g || 0
+                      {format_decimal(item.protein_g)}g P • {format_decimal(item.carbs_g)}g C • {format_decimal(
+                        item.fats_g
                       )}g F
                     </p>
                   </div>
@@ -73,5 +74,14 @@ defmodule FittrackWeb.MealLive.Show do
      socket
      |> assign(:page_title, "Show Meal")
      |> assign(:meal, Nutrition.get_meal!(socket.assigns.current_scope, id))}
+  end
+
+  defp format_decimal(nil), do: "0"
+
+  defp format_decimal(%Decimal{} = value) do
+    value
+    |> Decimal.round(1)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
   end
 end

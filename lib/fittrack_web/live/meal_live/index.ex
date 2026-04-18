@@ -1,6 +1,7 @@
 defmodule FittrackWeb.MealLive.Index do
   use FittrackWeb, :live_view
 
+  alias Decimal
   alias Fittrack.Nutrition
 
   @impl true
@@ -59,10 +60,10 @@ defmodule FittrackWeb.MealLive.Index do
           <:col :let={{_id, meal}} label="Date & Time">
             {meal.eaten_at |> Calendar.strftime("%B %d, %Y at %I:%M %p")}
           </:col>
-          <:col :let={{_id, meal}} label="Calories">{round(meal.total_calories || 0)}</:col>
-          <:col :let={{_id, meal}} label="Protein">{round(meal.total_protein_g || 0)}g</:col>
-          <:col :let={{_id, meal}} label="Carbs">{round(meal.total_carbs_g || 0)}g</:col>
-          <:col :let={{_id, meal}} label="Fats">{round(meal.total_fats_g || 0)}g</:col>
+          <:col :let={{_id, meal}} label="Calories">{format_decimal(meal.total_calories)}</:col>
+          <:col :let={{_id, meal}} label="Protein">{format_decimal(meal.total_protein_g)}g</:col>
+          <:col :let={{_id, meal}} label="Carbs">{format_decimal(meal.total_carbs_g)}g</:col>
+          <:col :let={{_id, meal}} label="Fats">{format_decimal(meal.total_fats_g)}g</:col>
           <:action :let={{_id, meal}}>
             <div class="sr-only">
               <.link navigate={~p"/meals/#{meal}"}>Show</.link>
@@ -113,5 +114,14 @@ defmodule FittrackWeb.MealLive.Index do
 
   defp list_meals(current_scope) do
     Nutrition.list_meals(current_scope)
+  end
+
+  defp format_decimal(nil), do: "0"
+
+  defp format_decimal(%Decimal{} = value) do
+    value
+    |> Decimal.round(1)
+    |> Decimal.normalize()
+    |> Decimal.to_string(:normal)
   end
 end
