@@ -333,7 +333,23 @@ defmodule FittrackWeb.NutritionLiveTest do
         "fiber_per_unit" => "5",
         "sugar_per_unit" => "6",
         "sodium_mg_per_unit" => "870",
-        "micronutrients" => %{"Potassium" => "420 mg", "Calcium" => "120 mg"}
+        "micronutrients" => %{"Potassium" => "420 mg", "Calcium" => "120 mg"},
+        "extraction" => %{
+          "screen_type" => "dining_hall_modal",
+          "venue_name" => "North Dining Hall",
+          "serving_size_text" => "1 sandwich",
+          "extracted_text" => [
+            "North Dining Hall",
+            "Turkey Sandwich",
+            "Calories 420",
+            "Protein 28g"
+          ],
+          "field_mapping" => %{
+            "calories_per_unit" => "Calories 420",
+            "protein_per_unit" => "Protein 28g",
+            "carbs_per_unit" => "Carbs 34g"
+          }
+        }
       }
     })
 
@@ -346,13 +362,71 @@ defmodule FittrackWeb.NutritionLiveTest do
 
     view
     |> element("#screenshot-import-panel")
-    |> render_hook("screenshot_selected", %{"data_url" => "data:image/png;base64,abc123"})
+    |> render_hook("screenshot_selected", %{
+      "data_url" => "data:image/png;base64,abc123",
+      "source_image_metadata" => %{
+        "source" => "upload",
+        "filename" => "turkey-sandwich.png",
+        "mime_type" => "image/png",
+        "byte_size" => 24_000,
+        "width" => 1080,
+        "height" => 1350
+      }
+    })
 
     assert has_element?(view, "#barcode-confirmation-form")
     assert render(view) =~ "Turkey Sandwich"
     assert render(view) =~ "Fiber (g)"
     assert render(view) =~ "Sodium (mg)"
     assert render(view) =~ "Potassium: 420 mg"
+    assert render(view) =~ "Dining hall modal"
+    assert render(view) =~ "North Dining Hall"
+    assert render(view) =~ "turkey-sandwich.png"
+    assert render(view) =~ "Calories 420"
+    assert render(view) =~ "Protein 28g"
+  end
+
+  test "screenshot imports persist metadata when saved to the library", %{conn: conn} do
+    Application.put_env(:fittrack, :screenshot_import_test_response, {
+      :ok,
+      %{
+        "name" => "Dining Hall Chili",
+        "unit" => "serving",
+        "unit_amount" => "1",
+        "quantity" => "1",
+        "calories_per_unit" => "310",
+        "protein_per_unit" => "18",
+        "carbs_per_unit" => "24",
+        "fats_per_unit" => "14",
+        "extraction" => %{
+          "screen_type" => "dining_hall_modal",
+          "extracted_text" => ["Dining Hall Chili", "Calories 310"],
+          "field_mapping" => %{"calories_per_unit" => "Calories 310"}
+        }
+      }
+    })
+
+    user = user_fixture()
+    scope = %Fittrack.Accounts.Scope{user: user}
+    conn = log_in_user(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/meals/new")
+
+    view
+    |> element("#screenshot-import-panel")
+    |> render_hook("screenshot_selected", %{
+      "data_url" => "data:image/png;base64,abc123",
+      "source_image_metadata" => %{"source" => "clipboard", "mime_type" => "image/png"}
+    })
+
+    view
+    |> element("button[phx-click=\"save_barcode_food\"]")
+    |> render_click()
+
+    food = Enum.find(Fittrack.Nutrition.list_foods(scope), &(&1.name == "Dining Hall Chili"))
+    assert food.source_image_metadata["source"] == "clipboard"
+    assert food.parsed_values["detected_context"]["kind"] == "dining_hall_modal"
+    assert food.parsed_values["field_mapping"]["calories_per_unit"] == "Calories 310"
   end
 
   test "can create a meal plan via LiveView", %{conn: conn} do

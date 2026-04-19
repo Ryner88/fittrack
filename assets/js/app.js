@@ -283,6 +283,15 @@ const Hooks = {
       this.input = this.el.querySelector("[data-screenshot-input]")
       this.openButton = this.el.querySelector("[data-open-screenshot]")
       this.status = this.el.querySelector("[data-screenshot-status]")
+      this.enabled = this.el.dataset.enabled !== "false"
+      this.disabledMessage =
+        this.el.dataset.disabledMessage ||
+        "Screenshot import needs OPENAI_API_KEY before it can parse images."
+
+      if (!this.enabled) {
+        this.updateStatus(this.disabledMessage)
+        return
+      }
 
       this.openButton?.addEventListener("click", () => this.input?.click())
       this.input?.addEventListener("change", (event) => this.handleFile(event))
@@ -304,7 +313,7 @@ const Hooks = {
     },
 
     destroyed() {
-      this.el.removeEventListener("paste", this.handlePaste)
+      if (this.handlePaste) this.el.removeEventListener("paste", this.handlePaste)
     },
 
     updateStatus(message) {
@@ -315,11 +324,11 @@ const Hooks = {
       const [file] = event.target.files || []
       if (!file) return
 
-      this.readFile(file)
+      this.readFile(file, "upload")
       event.target.value = ""
     },
 
-    readFile(file) {
+    async readFile(file, source = "upload") {
       if (!file.type.startsWith("image/")) {
         this.pushEvent("screenshot_import_error", {
           message: "Choose a valid image screenshot before importing.",
@@ -329,11 +338,15 @@ const Hooks = {
 
       this.updateStatus("Reading screenshot…")
 
+      const sourceImageMetadata = await this.buildSourceImageMetadata(file, source)
       const reader = new FileReader()
 
       reader.onload = () => {
         this.updateStatus("Sending screenshot for parsing…")
-        this.pushEvent("screenshot_selected", { data_url: reader.result })
+        this.pushEvent("screenshot_selected", {
+          data_url: reader.result,
+          source_image_metadata: sourceImageMetadata,
+        })
       }
 
       reader.onerror = () => {
@@ -344,6 +357,42 @@ const Hooks = {
       }
 
       reader.readAsDataURL(file)
+    },
+
+    async buildSourceImageMetadata(file, source) {
+      const metadata = {
+        source,
+        filename: file.name || null,
+        mime_type: file.type || null,
+        byte_size: file.size || null,
+        last_modified: file.lastModified || null,
+      }
+
+      try {
+        const dimensions = await this.readImageDimensions(file)
+        return { ...metadata, ...dimensions }
+      } catch (_error) {
+        return metadata
+      }
+    },
+
+    readImageDimensions(file) {
+      return new Promise((resolve, reject) => {
+        const objectUrl = URL.createObjectURL(file)
+        const image = new Image()
+
+        image.onload = () => {
+          resolve({ width: image.naturalWidth, height: image.naturalHeight })
+          URL.revokeObjectURL(objectUrl)
+        }
+
+        image.onerror = () => {
+          reject(new Error("image dimensions unavailable"))
+          URL.revokeObjectURL(objectUrl)
+        }
+
+        image.src = objectUrl
+      })
     },
   },
 

@@ -15,6 +15,8 @@ defmodule Fittrack.Nutrition.MealItem do
     field :sugar_g, :decimal
     field :sodium_mg, :decimal
     field :micronutrients, :map, default: %{}
+    field :source_image_metadata, :map, default: %{}
+    field :parsed_values, :map, default: %{}
     field :food_name, :string
 
     belongs_to :meal, Meal
@@ -37,6 +39,8 @@ defmodule Fittrack.Nutrition.MealItem do
       :sugar_g,
       :sodium_mg,
       :micronutrients,
+      :source_image_metadata,
+      :parsed_values,
       :food_name,
       :meal_id,
       :food_id

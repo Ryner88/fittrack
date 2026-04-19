@@ -231,13 +231,25 @@ defmodule FittrackWeb.MealLive.Form do
                 <p class="mt-1 text-sm text-base-content/70">
                   Upload or paste a nutrition screenshot and Fittrack will extract the label into the review form below.
                 </p>
+                <p class="mt-3 text-xs text-base-content/55">
+                  Supports packaged labels and dining hall nutrition modal screenshots.
+                </p>
               </div>
 
               <div
                 id="screenshot-import-panel"
                 phx-hook="ScreenshotImport"
                 phx-update="ignore"
-                class="mt-5 rounded-[1.5rem] border border-base-200 bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(244,248,252,0.95))] p-4"
+                data-enabled={to_string(@screenshot_import_available?)}
+                data-disabled-message="Screenshot import needs OPENAI_API_KEY before it can parse images."
+                class={[
+                  "mt-5 rounded-[1.5rem] border bg-[linear-gradient(145deg,rgba(255,255,255,0.95),rgba(244,248,252,0.95))] p-4",
+                  if(@screenshot_import_available?,
+                    do: "border-base-200",
+                    else:
+                      "border-amber-200 bg-[linear-gradient(145deg,rgba(255,251,235,0.95),rgba(255,247,237,0.95))]"
+                  )
+                ]}
               >
                 <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -248,7 +260,11 @@ defmodule FittrackWeb.MealLive.Form do
                       Works best with screenshots of nutrition modals or labels where values are already laid out in rows.
                     </p>
                     <p data-screenshot-status class="mt-2 text-xs font-medium text-base-content/55">
-                      Upload a screenshot or paste one from your clipboard.
+                      {if @screenshot_import_available? do
+                        "Upload a screenshot or paste one from your clipboard."
+                      else
+                        "Set OPENAI_API_KEY and reload the app to enable screenshot parsing."
+                      end}
                     </p>
                   </div>
 
@@ -257,7 +273,14 @@ defmodule FittrackWeb.MealLive.Form do
                     <button
                       data-open-screenshot
                       type="button"
-                      class="inline-flex items-center justify-center rounded-full bg-base-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-base-content"
+                      disabled={!@screenshot_import_available?}
+                      class={[
+                        "inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold shadow-sm transition",
+                        if(@screenshot_import_available?,
+                          do: "bg-base-900 text-white hover:-translate-y-0.5 hover:bg-base-content",
+                          else: "cursor-not-allowed bg-base-300 text-base-content/55"
+                        )
+                      ]}
                     >
                       <.icon name="hero-arrow-up-tray" class="mr-2 h-4 w-4" /> Upload screenshot
                     </button>
@@ -358,6 +381,11 @@ defmodule FittrackWeb.MealLive.Form do
                       <p class="mt-1 text-sm text-base-content/70">
                         {@import_source_label} imported. {@import_source_detail} Adjust anything before saving.
                       </p>
+                      <%= if import_context_label(@barcode_food) do %>
+                        <p class="mt-2 inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                          {import_context_label(@barcode_food)}
+                        </p>
+                      <% end %>
                     </div>
                     <button
                       type="button"
@@ -421,6 +449,54 @@ defmodule FittrackWeb.MealLive.Form do
                       </p>
                     </div>
                   </div>
+
+                  <%= if import_source_metadata_present?(@barcode_food) do %>
+                    <div class="mt-4 rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                      <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
+                        Source image
+                      </p>
+                      <p class="mt-2 text-sm font-medium text-base-content">
+                        {format_source_image_metadata(@barcode_food)}
+                      </p>
+                    </div>
+                  <% end %>
+
+                  <%= if import_text_lines(@barcode_food) != [] or import_field_mapping(@barcode_food) != [] do %>
+                    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                      <%= if import_text_lines(@barcode_food) != [] do %>
+                        <div class="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                          <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
+                            Extracted text
+                          </p>
+                          <div class="mt-3 space-y-2 text-sm text-base-content/75">
+                            <p
+                              :for={line <- import_text_lines(@barcode_food)}
+                              class="rounded-xl bg-base-50 px-3 py-2"
+                            >
+                              {line}
+                            </p>
+                          </div>
+                        </div>
+                      <% end %>
+
+                      <%= if import_field_mapping(@barcode_food) != [] do %>
+                        <div class="rounded-2xl border border-white/80 bg-white/90 p-4 shadow-sm">
+                          <p class="text-xs uppercase tracking-[0.18em] text-base-content/45">
+                            Field mapping
+                          </p>
+                          <div class="mt-3 space-y-2 text-sm text-base-content/75">
+                            <div
+                              :for={{field, value} <- import_field_mapping(@barcode_food)}
+                              class="flex items-start justify-between gap-3 rounded-xl bg-base-50 px-3 py-2"
+                            >
+                              <span class="font-semibold text-base-content">{field}</span>
+                              <span class="text-right">{value}</span>
+                            </div>
+                          </div>
+                        </div>
+                      <% end %>
+                    </div>
+                  <% end %>
 
                   <.form
                     for={@barcode_food_form}
@@ -612,6 +688,7 @@ defmodule FittrackWeb.MealLive.Form do
      |> assign(:total_fats_g, Decimal.new(0))
      |> assign(:import_source_label, "Item")
      |> assign(:import_source_detail, "")
+     |> assign(:screenshot_import_available?, Nutrition.screenshot_import_available?())
      |> assign_food_picker(%{"food_id" => "", "quantity" => "100", "unit" => "g"})
      |> assign_url_import(%{"url" => ""})
      |> assign_barcode_lookup(%{"barcode" => ""})
@@ -716,8 +793,9 @@ defmodule FittrackWeb.MealLive.Form do
     {:noreply, put_flash(socket, :error, message)}
   end
 
-  def handle_event("screenshot_selected", %{"data_url" => data_url}, socket) do
-    {:noreply, perform_screenshot_import(socket, data_url)}
+  def handle_event("screenshot_selected", %{"data_url" => data_url} = params, socket) do
+    {:noreply,
+     perform_screenshot_import(socket, data_url, params["source_image_metadata"] || %{})}
   end
 
   def handle_event("screenshot_import_error", %{"message" => message}, socket) do
@@ -870,9 +948,14 @@ defmodule FittrackWeb.MealLive.Form do
   end
 
   defp assign_barcode_food(socket, params) do
+    merged_params =
+      socket.assigns[:barcode_food]
+      |> Nutrition.normalize_metadata_map()
+      |> Map.merge(params)
+
     socket
-    |> assign(:barcode_food, params)
-    |> assign(:barcode_food_form, to_form(params, as: :barcode_food))
+    |> assign(:barcode_food, merged_params)
+    |> assign(:barcode_food_form, to_form(merged_params, as: :barcode_food))
   end
 
   defp clear_barcode_food(socket) do
@@ -950,12 +1033,12 @@ defmodule FittrackWeb.MealLive.Form do
     end
   end
 
-  defp perform_screenshot_import(socket, data_url) do
-    case Nutrition.import_food_from_screenshot(data_url) do
+  defp perform_screenshot_import(socket, data_url, source_image_metadata) do
+    case Nutrition.import_food_from_screenshot(data_url, source_image_metadata) do
       {:ok, attrs} ->
         socket
         |> assign(:import_source_label, "Screenshot")
-        |> assign(:import_source_detail, "image import.")
+        |> assign(:import_source_detail, screenshot_import_detail(attrs))
         |> assign_barcode_food(attrs)
         |> put_flash(:info, "Screenshot imported. Review and correct anything before saving.")
 
@@ -963,7 +1046,11 @@ defmodule FittrackWeb.MealLive.Form do
         put_flash(socket, :error, "Choose or paste a valid screenshot image.")
 
       {:error, :not_configured} ->
-        put_flash(socket, :error, "Screenshot import is not configured yet.")
+        put_flash(
+          socket,
+          :error,
+          "Screenshot import needs OPENAI_API_KEY. Set it in your environment and reload the app."
+        )
 
       {:error, :parse_failed} ->
         put_flash(
@@ -985,10 +1072,121 @@ defmodule FittrackWeb.MealLive.Form do
       "fats_per_unit",
       "fiber_per_unit",
       "sugar_per_unit",
-      "sodium_mg_per_unit"
+      "sodium_mg_per_unit",
+      "source_image_metadata",
+      "parsed_values"
     ])
     |> Map.put("micronutrients", Nutrition.parse_micronutrients(attrs["micronutrients_text"]))
   end
+
+  defp screenshot_import_detail(attrs) do
+    parsed_values = Nutrition.normalize_metadata_map(attrs["parsed_values"])
+    detected_context = Nutrition.normalize_metadata_map(parsed_values["detected_context"])
+    venue_name = parsed_values["venue_name"]
+
+    cond do
+      venue_name not in [nil, ""] ->
+        "#{venue_name} screenshot."
+
+      detected_context["kind"] == "dining_hall_modal" ->
+        "dining hall modal screenshot."
+
+      true ->
+        "image import."
+    end
+  end
+
+  defp import_context_label(nil), do: nil
+
+  defp import_context_label(attrs) do
+    parsed_values = Nutrition.normalize_metadata_map(attrs["parsed_values"])
+    detected_context = Nutrition.normalize_metadata_map(parsed_values["detected_context"])
+
+    case detected_context["kind"] do
+      "dining_hall_modal" ->
+        "Dining hall modal"
+
+      "nutrition_label" ->
+        "Nutrition label"
+
+      value when is_binary(value) and value != "" ->
+        value |> String.replace("_", " ") |> String.capitalize()
+
+      _ ->
+        nil
+    end
+  end
+
+  defp import_source_metadata_present?(attrs) do
+    metadata = Nutrition.normalize_metadata_map(attrs["source_image_metadata"])
+    map_size(metadata) > 0
+  end
+
+  defp format_source_image_metadata(attrs) do
+    metadata = Nutrition.normalize_metadata_map(attrs["source_image_metadata"])
+
+    parts =
+      [
+        metadata["filename"],
+        metadata["source"],
+        metadata["mime_type"],
+        format_byte_size(metadata["byte_size"]),
+        format_dimensions(metadata["width"], metadata["height"])
+      ]
+      |> Enum.filter(&(&1 not in [nil, ""]))
+
+    Enum.join(parts, " • ")
+  end
+
+  defp import_text_lines(nil), do: []
+
+  defp import_text_lines(attrs) do
+    attrs["parsed_values"]
+    |> Nutrition.normalize_metadata_map()
+    |> Map.get("extracted_text", [])
+    |> case do
+      values when is_list(values) -> values
+      _ -> []
+    end
+  end
+
+  defp import_field_mapping(nil), do: []
+
+  defp import_field_mapping(attrs) do
+    attrs["parsed_values"]
+    |> Nutrition.normalize_metadata_map()
+    |> Map.get("field_mapping", %{})
+    |> Nutrition.normalize_metadata_map()
+    |> Enum.map(fn {field, value} -> {humanize_import_field(field), value} end)
+    |> Enum.sort_by(fn {field, _value} -> field end)
+  end
+
+  defp humanize_import_field(field) do
+    field
+    |> String.replace("_per_unit", "")
+    |> String.replace("_mg", " mg")
+    |> String.replace("_g", " g")
+    |> String.replace("_", " ")
+    |> String.split(" ")
+    |> Enum.map_join(" ", &String.capitalize/1)
+  end
+
+  defp format_byte_size(nil), do: nil
+  defp format_byte_size(size) when is_binary(size), do: format_byte_size(String.to_integer(size))
+
+  defp format_byte_size(size) when is_integer(size) and size >= 1024 do
+    "#{Float.round(size / 1024, 1)} KB"
+  end
+
+  defp format_byte_size(size) when is_integer(size) and size > 0, do: "#{size} B"
+  defp format_byte_size(_), do: nil
+
+  defp format_dimensions(width, height)
+       when is_integer(width) and width > 0 and is_integer(height) and height > 0 do
+    "#{width}x#{height}"
+  end
+
+  defp format_dimensions(_, _), do: nil
 
   defp assign_meal_totals(socket, meal_items) do
     totals = Nutrition.calculate_meal_totals(meal_items)

@@ -190,15 +190,71 @@ defmodule Fittrack.NutritionTest do
           "fiber_per_unit" => "5",
           "sugar_per_unit" => "6",
           "sodium_mg_per_unit" => "870",
-          "micronutrients" => %{"Potassium" => "420 mg", "Calcium" => "120 mg"}
+          "micronutrients" => %{"Potassium" => "420 mg", "Calcium" => "120 mg"},
+          "extraction" => %{
+            "screen_type" => "dining_hall_modal",
+            "venue_name" => "North Dining Hall",
+            "serving_size_text" => "1 sandwich",
+            "extracted_text" => [
+              "North Dining Hall",
+              "Turkey Sandwich",
+              "Calories 420",
+              "Protein 28g"
+            ],
+            "field_mapping" => %{
+              "calories_per_unit" => "Calories 420",
+              "protein_per_unit" => "Protein 28g"
+            }
+          }
         }
       })
 
-      assert {:ok, attrs} = Nutrition.import_food_from_screenshot("data:image/png;base64,abc123")
+      assert {:ok, attrs} =
+               Nutrition.import_food_from_screenshot("data:image/png;base64,abc123", %{
+                 "source" => "upload",
+                 "filename" => "turkey-sandwich.png",
+                 "mime_type" => "image/png"
+               })
+
       assert attrs["name"] == "Turkey Sandwich"
       assert attrs["fiber_per_unit"] == "5"
       assert attrs["sodium_mg_per_unit"] == "870"
       assert attrs["micronutrients_text"] =~ "Potassium: 420 mg"
+      assert attrs["source_image_metadata"]["filename"] == "turkey-sandwich.png"
+      assert attrs["parsed_values"]["venue_name"] == "North Dining Hall"
+      assert attrs["parsed_values"]["detected_context"]["kind"] == "dining_hall_modal"
+      assert attrs["parsed_values"]["field_mapping"]["calories_per_unit"] == "Calories 420"
+      assert "Turkey Sandwich" in attrs["parsed_values"]["extracted_text"]
+    end
+
+    test "create_food stores parsed screenshot metadata" do
+      scope = user_scope_fixture()
+
+      attrs =
+        Nutrition.barcode_food_defaults(%{
+          "name" => "Dining Hall Chili",
+          "unit" => "serving",
+          "unit_amount" => "1",
+          "quantity" => "1",
+          "calories_per_unit" => "310",
+          "protein_per_unit" => "18",
+          "carbs_per_unit" => "24",
+          "fats_per_unit" => "14",
+          "source_image_metadata" => %{
+            "source" => "clipboard",
+            "mime_type" => "image/png",
+            "byte_size" => 24_000
+          },
+          "parsed_values" => %{
+            "detected_context" => %{"kind" => "dining_hall_modal"},
+            "field_mapping" => %{"calories_per_unit" => "Calories 310"},
+            "extracted_text" => ["Dining Hall Chili", "Calories 310"]
+          }
+        })
+
+      assert {:ok, food} = Nutrition.create_food(scope, attrs)
+      assert food.source_image_metadata["source"] == "clipboard"
+      assert food.parsed_values["detected_context"]["kind"] == "dining_hall_modal"
     end
   end
 
@@ -210,6 +266,40 @@ defmodule Fittrack.NutritionTest do
       assert meal.total_calories == Decimal.new("52")
       assert has = Enum.any?(meal.meal_items, fn i -> i.food_name == "Apple" end)
       assert has
+    end
+
+    test "create meal stores import metadata on meal items" do
+      scope = user_scope_fixture()
+
+      assert {:ok, meal} =
+               Nutrition.create_meal(scope, %{
+                 "name" => "Campus Lunch",
+                 "eaten_at" => DateTime.utc_now(),
+                 "meal_items" => [
+                   %{
+                     "food_name" => "Dining Hall Pasta",
+                     "quantity" => "1",
+                     "unit" => "serving",
+                     "calories" => "560",
+                     "protein_g" => "21",
+                     "carbs_g" => "69",
+                     "fats_g" => "22",
+                     "source_image_metadata" => %{
+                       "source" => "upload",
+                       "mime_type" => "image/png"
+                     },
+                     "parsed_values" => %{
+                       "detected_context" => %{"kind" => "dining_hall_modal"},
+                       "field_mapping" => %{"calories" => "Calories 560"},
+                       "extracted_text" => ["Dining Hall Pasta", "Calories 560"]
+                     }
+                   }
+                 ]
+               })
+
+      [item] = meal.meal_items
+      assert item.source_image_metadata["source"] == "upload"
+      assert item.parsed_values["field_mapping"]["calories"] == "Calories 560"
     end
   end
 

@@ -18,6 +18,14 @@ config :swoosh, :api_client, Swoosh.ApiClient.Req
 config :fittrack, FittrackWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+if openai_api_key = System.get_env("OPENAI_API_KEY") do
+  config :fittrack, :openai_api_key, openai_api_key
+end
+
+if screenshot_import_model = System.get_env("SCREENSHOT_IMPORT_MODEL") do
+  config :fittrack, :screenshot_import_model, screenshot_import_model
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

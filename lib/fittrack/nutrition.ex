@@ -131,7 +131,11 @@ defmodule Fittrack.Nutrition do
 
   def supported_url_import_hosts, do: UrlImportParser.supported_hosts()
 
-  def import_food_from_screenshot(data_url), do: ScreenshotImportParser.parse_image_data(data_url)
+  def screenshot_import_available?, do: ScreenshotImportParser.configured?()
+
+  def import_food_from_screenshot(data_url, image_metadata \\ %{}) do
+    ScreenshotImportParser.parse_image_data(data_url, image_metadata)
+  end
 
   @doc """
   Builds a meal item map from arbitrary nutrition attributes.
@@ -153,6 +157,9 @@ defmodule Fittrack.Nutrition do
         food_name: String.trim(food_name),
         unit: unit,
         quantity: quantity,
+        source_image_metadata:
+          normalize_metadata_map(attrs[:source_image_metadata] || attrs["source_image_metadata"]),
+        parsed_values: normalize_metadata_map(attrs[:parsed_values] || attrs["parsed_values"]),
         micronutrients:
           parse_micronutrients(
             attrs[:micronutrients] || attrs["micronutrients"] || attrs[:micronutrients_text] ||
@@ -269,7 +276,13 @@ defmodule Fittrack.Nutrition do
       "sodium_mg_per_unit" =>
         decimal_string(attrs[:sodium_mg_per_unit] || attrs["sodium_mg_per_unit"] || 0),
       "micronutrients_text" =>
-        micronutrients_to_text(attrs[:micronutrients] || attrs["micronutrients"] || %{})
+        micronutrients_to_text(attrs[:micronutrients] || attrs["micronutrients"] || %{}),
+      "source_image_metadata" =>
+        normalize_metadata_map(
+          attrs[:source_image_metadata] || attrs["source_image_metadata"] || %{}
+        ),
+      "parsed_values" =>
+        normalize_metadata_map(attrs[:parsed_values] || attrs["parsed_values"] || %{})
     }
   end
 
@@ -407,6 +420,15 @@ defmodule Fittrack.Nutrition do
   end
 
   def parse_micronutrients(_), do: %{}
+
+  def normalize_metadata_map(nil), do: %{}
+  def normalize_metadata_map(metadata) when is_map(metadata), do: metadata
+
+  def normalize_metadata_map(metadata) when is_list(metadata) do
+    Enum.into(metadata, %{})
+  end
+
+  def normalize_metadata_map(_), do: %{}
 
   @doc """
   Gets a single meal for the current user.
@@ -833,7 +855,10 @@ defmodule Fittrack.Nutrition do
       "fiber_g" => to_decimal(item[:fiber_g] || item["fiber_g"]),
       "sugar_g" => to_decimal(item[:sugar_g] || item["sugar_g"]),
       "sodium_mg" => to_decimal(item[:sodium_mg] || item["sodium_mg"]),
-      "micronutrients" => parse_micronutrients(item[:micronutrients] || item["micronutrients"])
+      "micronutrients" => parse_micronutrients(item[:micronutrients] || item["micronutrients"]),
+      "source_image_metadata" =>
+        normalize_metadata_map(item[:source_image_metadata] || item["source_image_metadata"]),
+      "parsed_values" => normalize_metadata_map(item[:parsed_values] || item["parsed_values"])
     }
   end
 
