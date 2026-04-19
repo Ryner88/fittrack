@@ -7,6 +7,14 @@ To start your Phoenix server:
 
 Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
+## Screenshot Import Setup
+
+Screenshot nutrition import uses the OpenAI API. Set `OPENAI_API_KEY` before
+starting the app to enable it.
+
+You can also override the model with `SCREENSHOT_IMPORT_MODEL`. The default is
+`gpt-4.1-mini`.
+
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
 ## Learn more

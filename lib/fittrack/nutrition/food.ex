@@ -16,6 +16,8 @@ defmodule Fittrack.Nutrition.Food do
     field :sugar_per_unit, :decimal
     field :sodium_mg_per_unit, :decimal
     field :micronutrients, :map, default: %{}
+    field :source_image_metadata, :map, default: %{}
+    field :parsed_values, :map, default: %{}
 
     belongs_to :user, User
 
@@ -37,6 +39,8 @@ defmodule Fittrack.Nutrition.Food do
       :sugar_per_unit,
       :sodium_mg_per_unit,
       :micronutrients,
+      :source_image_metadata,
+      :parsed_values,
       :user_id
     ])
     |> validate_required([:name, :unit, :unit_amount, :calories_per_unit, :user_id])
