@@ -27,8 +27,9 @@ defmodule Fittrack.NutritionFixtures do
       "eaten_at" => DateTime.utc_now(),
       "meal_items" => [
         %{
-          "meal_name" => "Apple",
+          "food_name" => "Apple",
           "quantity" => "100",
+          "unit" => "g",
           "calories" => Decimal.new("52"),
           "protein_g" => Decimal.new("0.26"),
           "carbs_g" => Decimal.new("14"),

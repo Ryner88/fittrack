@@ -36,7 +36,7 @@ defmodule FittrackWeb.NutritionLive.Index do
               <div>
                 <p class="text-sm font-medium text-base-content/70">Calories Today</p>
                 <p class="text-2xl font-bold text-base-content">
-                  {round(@today_stats.total_calories || 0)}
+                  {display_number(@today_stats.total_calories)}
                 </p>
               </div>
             </div>
@@ -48,7 +48,7 @@ defmodule FittrackWeb.NutritionLive.Index do
               <div>
                 <p class="text-sm font-medium text-base-content/70">Protein</p>
                 <p class="text-2xl font-bold text-base-content">
-                  {round(@today_stats.total_protein_g || 0)}g
+                  {display_number(@today_stats.total_protein_g)}g
                 </p>
               </div>
             </div>
@@ -60,7 +60,7 @@ defmodule FittrackWeb.NutritionLive.Index do
               <div>
                 <p class="text-sm font-medium text-base-content/70">Carbs</p>
                 <p class="text-2xl font-bold text-base-content">
-                  {round(@today_stats.total_carbs_g || 0)}g
+                  {display_number(@today_stats.total_carbs_g)}g
                 </p>
               </div>
             </div>
@@ -72,7 +72,7 @@ defmodule FittrackWeb.NutritionLive.Index do
               <div>
                 <p class="text-sm font-medium text-base-content/70">Fats</p>
                 <p class="text-2xl font-bold text-base-content">
-                  {round(@today_stats.total_fats_g || 0)}g
+                  {display_number(@today_stats.total_fats_g)}g
                 </p>
               </div>
             </div>
@@ -129,10 +129,12 @@ defmodule FittrackWeb.NutritionLive.Index do
                   </p>
                 </div>
                 <div class="text-right">
-                  <p class="text-lg font-bold text-primary">{round(meal.total_calories || 0)} cal</p>
+                  <p class="text-lg font-bold text-primary">
+                    {display_number(meal.total_calories)} cal
+                  </p>
                   <p class="text-sm text-base-content/70">
-                    {round(meal.total_protein_g || 0)}g P • {round(meal.total_carbs_g || 0)}g C • {round(
-                      meal.total_fats_g || 0
+                    {display_number(meal.total_protein_g)}g P • {display_number(meal.total_carbs_g)}g C • {display_number(
+                      meal.total_fats_g
                     )}g F
                   </p>
                 </div>
@@ -210,4 +212,9 @@ defmodule FittrackWeb.NutritionLive.Index do
   defp load_recent_meals(scope) do
     Nutrition.list_meals(scope, %{limit: 5})
   end
+
+  defp display_number(nil), do: 0
+  defp display_number(%Decimal{} = value), do: value |> Decimal.to_float() |> round()
+  defp display_number(value) when is_integer(value), do: value
+  defp display_number(value) when is_float(value), do: round(value)
 end

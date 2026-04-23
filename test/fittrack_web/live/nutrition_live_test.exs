@@ -22,28 +22,40 @@ defmodule FittrackWeb.NutritionLiveTest do
     {:ok, view, _} = live(conn, ~p"/meals/new")
 
     assert has_element?(view, "#meal-form")
+    assert has_element?(view, "#food-library-form")
 
-    view
-    |> form("#food-library-form", %{
-      "food_id" => to_string(food.id),
-      "quantity" => "100",
-      "unit" => "g"
-    })
-    |> render_submit()
+    html =
+      view
+      |> form("#food-library-form", %{
+        "food_library" => %{
+          "food_id" => to_string(food.id),
+          "quantity" => "100",
+          "unit" => "g"
+        }
+      })
+      |> render_submit()
+
+    assert html =~ "Apple"
 
     # Save meal with required name/eaten_at
-    {:ok, _, _} =
+    eaten_at =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.truncate(:second)
+      |> Calendar.strftime("%Y-%m-%dT%H:%M:%S")
+
+    {:ok, _index_view, index_html} =
       view
       |> form("#meal-form", %{
         "meal" => %{
           "name" => "Breakfast",
-          "eaten_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+          "eaten_at" => eaten_at
         }
       })
       |> render_submit()
       |> follow_redirect(conn, ~p"/meals")
 
-    assert render(view) =~ "Meal created successfully"
+    assert index_html =~ "Meal created successfully"
+    assert index_html =~ "Breakfast"
   end
 
   test "can create a meal plan via LiveView", %{conn: conn} do
@@ -56,7 +68,7 @@ defmodule FittrackWeb.NutritionLiveTest do
 
     assert has_element?(view, "#meal-plan-form")
 
-    {:ok, _, _} =
+    {:ok, _index_view, index_html} =
       view
       |> form("#meal-plan-form", %{
         "meal_plan" => %{
@@ -68,7 +80,8 @@ defmodule FittrackWeb.NutritionLiveTest do
       |> render_submit()
       |> follow_redirect(conn, ~p"/meal-plans")
 
-    assert render(view) =~ "Meal plan created successfully"
+    assert index_html =~ "Meal plan created successfully"
+    assert index_html =~ "Weekly"
   end
 
   test "workout history shows calendar and counts", %{conn: conn} do

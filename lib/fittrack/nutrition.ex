@@ -6,6 +6,7 @@ defmodule Fittrack.Nutrition do
   import Ecto.Query, warn: false
 
   alias Fittrack.Accounts.Scope
+  alias Ecto.Multi
   alias Fittrack.Repo
   alias Fittrack.Nutrition.Meal
   alias Fittrack.Nutrition.MealItem
@@ -123,7 +124,7 @@ defmodule Fittrack.Nutrition do
   """
   def build_meal_item_from_food(%Scope{} = scope, food_id, quantity) do
     with %Food{} = food <- get_food(scope, food_id),
-         qty when not is_nil(qty) <- Decimal.new(quantity || 0) do
+         qty when not is_nil(qty) <- cast_decimal(quantity) do
       factor =
         if Decimal.compare(food.unit_amount, 0) == :gt,
           do: Decimal.div(qty, food.unit_amount),
@@ -161,7 +162,8 @@ defmodule Fittrack.Nutrition do
   Creates a meal scoped to the current user.
   """
   def create_meal(%Scope{user: user}, attrs) do
-    totals = calculate_meal_totals(Map.get(attrs, "meal_items", []))
+    meal_items = Map.get(attrs, "meal_items", [])
+    totals = calculate_meal_totals(meal_items)
 
     attrs =
       attrs
@@ -172,29 +174,49 @@ defmodule Fittrack.Nutrition do
         "total_fats_g" => totals.total_fats_g
       })
       |> Map.put("user_id", user.id)
+      |> Map.delete("meal_items")
 
-    %Meal{}
-    |> Meal.changeset(attrs)
-    |> Repo.insert()
+    Multi.new()
+    |> Multi.insert(:meal, Meal.changeset(%Meal{}, attrs))
+    |> persist_meal_items(:meal_items, meal_items)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{meal: meal}} -> {:ok, Repo.preload(meal, :meal_items)}
+      {:error, :meal, changeset, _changes} -> {:error, changeset}
+      {:error, :meal_items, changeset, _changes} -> {:error, changeset}
+    end
   end
 
   @doc """
   Updates a meal.
   """
   def update_meal(%Scope{}, %Meal{} = meal, attrs) do
-    totals = calculate_meal_totals(Map.get(attrs, "meal_items", []))
+    meal_items = Map.get(attrs, "meal_items", [])
+    totals = calculate_meal_totals(meal_items)
 
     attrs =
-      Map.merge(attrs, %{
+      attrs
+      |> Map.merge(%{
         "total_calories" => totals.total_calories,
         "total_protein_g" => totals.total_protein_g,
         "total_carbs_g" => totals.total_carbs_g,
         "total_fats_g" => totals.total_fats_g
       })
+      |> Map.delete("meal_items")
 
-    meal
-    |> Meal.changeset(attrs)
-    |> Repo.update()
+    Multi.new()
+    |> Multi.update(:meal, Meal.changeset(meal, attrs))
+    |> Multi.delete_all(
+      :delete_meal_items,
+      from(meal_item in MealItem, where: meal_item.meal_id == ^meal.id)
+    )
+    |> persist_meal_items(:meal_items, meal_items)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{meal: updated_meal}} -> {:ok, Repo.preload(updated_meal, :meal_items)}
+      {:error, :meal, changeset, _changes} -> {:error, changeset}
+      {:error, :meal_items, changeset, _changes} -> {:error, changeset}
+    end
   end
 
   @doc """
@@ -289,6 +311,7 @@ defmodule Fittrack.Nutrition do
     %MealPlan{}
     |> MealPlan.changeset(attrs)
     |> Repo.insert()
+    |> preload_meal_plan()
   end
 
   @doc """
@@ -298,6 +321,7 @@ defmodule Fittrack.Nutrition do
     meal_plan
     |> MealPlan.changeset(attrs)
     |> Repo.update()
+    |> preload_meal_plan()
   end
 
   @doc """
@@ -346,6 +370,56 @@ defmodule Fittrack.Nutrition do
   def change_meal_plan_meal(%MealPlanMeal{} = meal_plan_meal, attrs \\ %{}) do
     MealPlanMeal.changeset(meal_plan_meal, attrs)
   end
+
+  defp persist_meal_items(multi, step_name, meal_items) do
+    Multi.run(multi, step_name, fn repo, %{meal: meal} ->
+      Enum.reduce_while(meal_items, {:ok, []}, fn attrs, {:ok, inserted_items} ->
+        attrs = put_meal_id(normalize_meal_item_attrs(attrs), meal.id)
+
+        case %MealItem{} |> MealItem.changeset(attrs) |> repo.insert() do
+          {:ok, meal_item} -> {:cont, {:ok, [meal_item | inserted_items]}}
+          {:error, changeset} -> {:halt, {:error, changeset}}
+        end
+      end)
+    end)
+  end
+
+  defp normalize_meal_item_attrs(attrs) when is_map(attrs) do
+    attrs
+    |> rename_meal_item_key("meal_name", "food_name")
+    |> rename_meal_item_key(:meal_name, :food_name)
+  end
+
+  defp put_meal_id(attrs, meal_id) do
+    cond do
+      Enum.any?(Map.keys(attrs), &is_binary/1) -> Map.put(attrs, "meal_id", meal_id)
+      true -> Map.put(attrs, :meal_id, meal_id)
+    end
+  end
+
+  defp rename_meal_item_key(attrs, from, to) do
+    case Map.fetch(attrs, from) do
+      {:ok, value} -> attrs |> Map.put(to, value) |> Map.delete(from)
+      :error -> attrs
+    end
+  end
+
+  defp cast_decimal(nil), do: Decimal.new(0)
+  defp cast_decimal(value) when is_struct(value, Decimal), do: value
+  defp cast_decimal(value) when is_integer(value), do: Decimal.new(value)
+  defp cast_decimal(value) when is_float(value), do: Decimal.from_float(value)
+
+  defp cast_decimal(value) when is_binary(value) do
+    case Decimal.parse(value) do
+      {decimal, ""} -> decimal
+      _ -> nil
+    end
+  end
+
+  defp cast_decimal(_), do: nil
+
+  defp preload_meal_plan({:ok, meal_plan}), do: {:ok, Repo.preload(meal_plan, :meal_plan_meals)}
+  defp preload_meal_plan(other), do: other
 
   @doc """
   Returns nutrition stats for the current user.

@@ -28,7 +28,7 @@ defmodule Fittrack.NutritionTest do
 
       meal = meal_fixture(scope)
       assert meal.total_calories == Decimal.new("52")
-      assert has = Enum.any?(meal.meal_items, fn i -> i.meal_name == "Apple" end)
+      assert has = Enum.any?(meal.meal_items, fn item -> item.food_name == "Apple" end)
       assert has
     end
   end

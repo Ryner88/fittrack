@@ -92,5 +92,76 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
       assert is_nil(reloaded.source_id)
       assert reloaded.notes == "Legacy notes"
     end
+
+    test "adopts a legacy template from a production-like WGER payload using muscle name_en" do
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          name: "commando pull-ups",
+          primary_muscle: "Shoulders",
+          equipment: "Pull-up bar",
+          notes: "Legacy notes"
+        })
+        |> Repo.insert()
+
+      attrs =
+        ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+          "id" => 4004,
+          "translations" => [
+            %{
+              "language" => 2,
+              "name" => "commando pull-ups",
+              "description" => "<p>Fresh notes</p>"
+            }
+          ],
+          "muscles" => [
+            %{"name" => "Anterior deltoid", "name_en" => "Shoulders"}
+          ],
+          "equipment" => [%{"name" => "Pull-up bar"}]
+        })
+
+      assert {:ok, :updated, updated_template} = ExerciseTemplateImporter.upsert_template(attrs)
+
+      assert updated_template.id == template.id
+      assert updated_template.source_id == 4004
+      assert updated_template.primary_muscle == "Shoulders"
+      assert updated_template.notes == "Fresh notes"
+    end
+  end
+
+  describe "insert_templates/1" do
+    test "returns detailed failure metadata while keeping successful records" do
+      result =
+        ExerciseTemplateImporter.insert_templates([
+          %{
+            source_id: 5005,
+            name: "Cable Row",
+            primary_muscle: "Back",
+            equipment: "Cable",
+            notes: "Good record"
+          },
+          %{
+            source_id: 5006,
+            name: nil,
+            primary_muscle: "Back",
+            equipment: "Cable",
+            notes: "Missing name"
+          }
+        ])
+
+      assert result.inserted == 1
+      assert result.updated == 0
+      assert result.failed == 1
+
+      assert [
+               %{
+                 source_id: 5006,
+                 name: nil,
+                 errors: %{name: "can't be blank"}
+               }
+             ] = result.failures
+
+      assert Repo.get_by!(ExerciseTemplate, source_id: 5005).name == "Cable Row"
+    end
   end
 end

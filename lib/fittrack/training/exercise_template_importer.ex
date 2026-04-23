@@ -48,7 +48,10 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
 
     with {:ok, exercises} <- fetch_exercises_from_wger(api_key, limit, http_client),
          normalized <- normalize_exercises_from_wger(exercises) do
-      insert_templates(normalized)
+      normalized
+      |> insert_templates()
+      |> Map.put(:fetched, length(exercises))
+      |> Map.put(:attempted, length(normalized))
     end
   end
 
@@ -122,16 +125,32 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   Returns a map with counts for inserted, updated, and failed operations.
   """
   def insert_templates(templates) do
-    {inserted, updated, failed} =
-      Enum.reduce(templates, {0, 0, 0}, fn attrs, {ins, upd, fail} ->
+    {inserted, updated, failed, failures} =
+      Enum.reduce(templates, {0, 0, 0, []}, fn attrs, {ins, upd, fail, failures} ->
         case upsert_template(attrs) do
-          {:ok, :inserted, _template} -> {ins + 1, upd, fail}
-          {:ok, :updated, _template} -> {ins, upd + 1, fail}
-          {:error, _changeset} -> {ins, upd, fail + 1}
+          {:ok, :inserted, _template} ->
+            {ins + 1, upd, fail, failures}
+
+          {:ok, :updated, _template} ->
+            {ins, upd + 1, fail, failures}
+
+          {:error, changeset} ->
+            failure = %{
+              source_id: Map.get(attrs, :source_id),
+              name: Map.get(attrs, :name),
+              errors: changeset_errors(changeset)
+            }
+
+            {ins, upd, fail + 1, [failure | failures]}
         end
       end)
 
-    %{inserted: inserted, updated: updated, failed: failed}
+    %{
+      inserted: inserted,
+      updated: updated,
+      failed: failed,
+      failures: Enum.reverse(failures)
+    }
   end
 
   @doc """
@@ -224,21 +243,21 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   defp fetch_wger_page(url, headers, remaining, acc, http_client) do
     case http_client.get(url, headers: headers) do
       {:ok, %{status: 200, body: body}} ->
-        results = body["results"] || []
-        page_items = Enum.take(results, remaining)
-        next_url = body["next"]
-        updated_acc = acc ++ page_items
-        next_remaining = remaining - length(page_items)
+        with {:ok, results, next_url} <- extract_wger_page(body) do
+          page_items = Enum.take(results, remaining)
+          updated_acc = acc ++ page_items
+          next_remaining = remaining - length(page_items)
 
-        cond do
-          next_remaining <= 0 ->
-            {:ok, updated_acc}
+          cond do
+            next_remaining <= 0 ->
+              {:ok, updated_acc}
 
-          is_binary(next_url) and next_url != "" and length(page_items) == length(results) ->
-            fetch_wger_page(next_url, headers, next_remaining, updated_acc, http_client)
+            is_binary(next_url) and next_url != "" and length(page_items) == length(results) ->
+              fetch_wger_page(next_url, headers, next_remaining, updated_acc, http_client)
 
-          true ->
-            {:ok, updated_acc}
+            true ->
+              {:ok, updated_acc}
+          end
         end
 
       {:ok, %{status: status}} ->
@@ -247,6 +266,14 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
       {:error, error} ->
         {:error, "Request failed: #{inspect(error)}"}
     end
+  end
+
+  defp extract_wger_page(%{"results" => results} = body) when is_list(results) do
+    {:ok, results, body["next"]}
+  end
+
+  defp extract_wger_page(body) do
+    {:error, "Unexpected WGER response shape: #{inspect(body)}"}
   end
 
   defp normalize_muscle_group(nil), do: nil
@@ -289,8 +316,16 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
 
   defp get_first_name(nil), do: nil
   defp get_first_name([]), do: nil
-  defp get_first_name([%{"name" => name} | _]), do: name
-  defp get_first_name(_), do: nil
+  defp get_first_name([item | _]), do: extract_name(item)
+  defp get_first_name(value), do: extract_name(value)
+
+  defp extract_name(%{"name_en" => name_en, "name" => name}) do
+    present_string(name_en) || present_string(name)
+  end
+
+  defp extract_name(%{"name" => name}), do: present_string(name)
+  defp extract_name(value) when is_binary(value), do: present_string(value)
+  defp extract_name(_), do: nil
 
   defp replace_block_tags_with_breaks(text) do
     text
@@ -363,6 +398,17 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   end
 
   defp normalize_source_id(_), do: nil
+
+  defp changeset_errors(changeset) do
+    Enum.into(changeset.errors, %{}, fn {field, {message, opts}} ->
+      rendered =
+        Enum.reduce(opts, message, fn {key, value}, acc ->
+          String.replace(acc, "%{#{key}}", to_string(value))
+        end)
+
+      {field, rendered}
+    end)
+  end
 
   defp preferred_translated_field(translations, field, fallback) do
     english_value =

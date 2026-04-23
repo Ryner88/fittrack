@@ -13,56 +13,85 @@ defmodule FittrackWeb.MealLive.Form do
         <:subtitle>Use this form to log your meals and track nutritional intake.</:subtitle>
       </.header>
 
-      <.form for={@form} id="meal-form" phx-change="validate" phx-submit="save">
+      <div class="space-y-6">
         <div class="grid gap-4 md:grid-cols-2">
-          <.input field={@form[:name]} type="text" label="Meal Name" required />
-          <.input field={@form[:eaten_at]} type="datetime-local" label="Date & Time" required />
+          <.form for={@form} id="meal-form" phx-change="validate" phx-submit="save" class="contents">
+            <.input field={@form[:name]} type="text" label="Meal Name" required />
+            <.input field={@form[:eaten_at]} type="datetime-local" label="Date & Time" required />
+
+            <.input
+              field={@form[:notes]}
+              type="textarea"
+              label="Notes (optional)"
+              class="md:col-span-2"
+            />
+
+            <div class="md:col-span-2 mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div class="rounded-lg border border-base-200 p-3 text-center">
+                <p class="text-sm text-base-content/70">Total Calories</p>
+                <p class="text-2xl font-bold text-base-content">
+                  {Decimal.to_string(@total_calories || Decimal.new(0))}
+                </p>
+              </div>
+              <div class="rounded-lg border border-base-200 p-3 text-center">
+                <p class="text-sm text-base-content/70">Protein</p>
+                <p class="text-2xl font-bold text-base-content">
+                  {Decimal.to_string(@total_protein_g || Decimal.new(0))}g
+                </p>
+              </div>
+              <div class="rounded-lg border border-base-200 p-3 text-center">
+                <p class="text-sm text-base-content/70">Carbs</p>
+                <p class="text-2xl font-bold text-base-content">
+                  {Decimal.to_string(@total_carbs_g || Decimal.new(0))}g
+                </p>
+              </div>
+              <div class="rounded-lg border border-base-200 p-3 text-center">
+                <p class="text-sm text-base-content/70">Fats</p>
+                <p class="text-2xl font-bold text-base-content">
+                  {Decimal.to_string(@total_fats_g || Decimal.new(0))}g
+                </p>
+              </div>
+            </div>
+
+            <footer class="mt-6 flex gap-2 md:col-span-2">
+              <.button phx-disable-with="Saving..." variant="primary">Save Meal</.button>
+              <.button navigate={return_path(@return_to, @meal)}>Cancel</.button>
+            </footer>
+          </.form>
         </div>
 
-        <.input field={@form[:notes]} type="textarea" label="Notes (optional)" />
+        <.form for={@food_library_form} id="food-library-form" phx-submit="add_food_item">
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-4">
+            <h3 class="text-lg font-semibold mb-3">Add from Food Library</h3>
 
-        <div class="rounded-2xl border border-base-200 bg-base-100 p-4 mt-6">
-          <h3 class="text-lg font-semibold mb-3">Add from Food Library</h3>
-
-          <form
-            id="food-library-form"
-            phx-submit="add_food_item"
-            class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end"
-          >
-            <div>
-              <label class="label"><span class="label-text">Food</span></label>
-              <select name="food_id" class="select select-bordered w-full" required>
-                <option value="">Select food</option>
-                <%= for food <- @foods do %>
-                  <option value={food.id}>{food.name} ({food.unit_amount}{food.unit})</option>
-                <% end %>
-              </select>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end">
+              <div>
+                <.input
+                  field={@food_library_form[:food_id]}
+                  type="select"
+                  label="Food"
+                  options={food_options(@foods)}
+                  prompt="Select food"
+                  required
+                />
+              </div>
+              <div>
+                <.input
+                  field={@food_library_form[:quantity]}
+                  type="number"
+                  label="Quantity"
+                  min="0.1"
+                  step="0.1"
+                  required
+                />
+              </div>
+              <div>
+                <.input field={@food_library_form[:unit]} type="text" label="Unit" required />
+              </div>
+              <button type="submit" class="btn btn-primary w-full">Add Item</button>
             </div>
-            <div>
-              <label class="label"><span class="label-text">Quantity</span></label>
-              <input
-                name="quantity"
-                type="number"
-                min="0.1"
-                step="0.1"
-                value={@new_item_quantity}
-                class="input input-bordered w-full"
-                required
-              />
-            </div>
-            <div>
-              <label class="label"><span class="label-text">Unit</span></label>
-              <input
-                name="unit"
-                type="text"
-                value={@new_item_unit}
-                class="input input-bordered w-full"
-                required
-              />
-            </div>
-            <button type="submit" class="btn btn-primary w-full">Add Item</button>
-          </form>
-        </div>
+          </div>
+        </.form>
 
         <div class="mt-6">
           <h3 class="text-lg font-semibold">Meal Items</h3>
@@ -70,7 +99,7 @@ defmodule FittrackWeb.MealLive.Form do
             <p class="p-4 text-base-content/70">No items added yet.</p>
           <% else %>
             <div class="space-y-2">
-              <%= for {id, item} <- Enum.with_index(@meal_items) do %>
+              <%= for {item, id} <- Enum.with_index(@meal_items) do %>
                 <div class="grid grid-cols-12 gap-2 p-3 rounded-lg border border-base-200 bg-base-50">
                   <div class="col-span-12 md:col-span-3">
                     <p class="font-semibold">{item.food_name}</p>
@@ -97,39 +126,7 @@ defmodule FittrackWeb.MealLive.Form do
             </div>
           <% end %>
         </div>
-
-        <div class="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div class="rounded-lg border border-base-200 p-3 text-center">
-            <p class="text-sm text-base-content/70">Total Calories</p>
-            <p class="text-2xl font-bold text-base-content">
-              {Decimal.to_string(@total_calories || Decimal.new(0))}
-            </p>
-          </div>
-          <div class="rounded-lg border border-base-200 p-3 text-center">
-            <p class="text-sm text-base-content/70">Protein</p>
-            <p class="text-2xl font-bold text-base-content">
-              {Decimal.to_string(@total_protein_g || Decimal.new(0))}g
-            </p>
-          </div>
-          <div class="rounded-lg border border-base-200 p-3 text-center">
-            <p class="text-sm text-base-content/70">Carbs</p>
-            <p class="text-2xl font-bold text-base-content">
-              {Decimal.to_string(@total_carbs_g || Decimal.new(0))}g
-            </p>
-          </div>
-          <div class="rounded-lg border border-base-200 p-3 text-center">
-            <p class="text-sm text-base-content/70">Fats</p>
-            <p class="text-2xl font-bold text-base-content">
-              {Decimal.to_string(@total_fats_g || Decimal.new(0))}g
-            </p>
-          </div>
-        </div>
-
-        <footer class="mt-6 flex gap-2">
-          <.button phx-disable-with="Saving..." variant="primary">Save Meal</.button>
-          <.button navigate={return_path(@return_to, @meal)}>Cancel</.button>
-        </footer>
-      </.form>
+      </div>
     </Layouts.app>
     """
   end
@@ -142,6 +139,7 @@ defmodule FittrackWeb.MealLive.Form do
      socket
      |> assign(:return_to, "index")
      |> assign(:foods, Nutrition.list_foods(current_scope))
+     |> assign(:food_library_form, food_library_form())
      |> assign(:meal_items, [])
      |> assign(:new_item_quantity, 100)
      |> assign(:new_item_unit, "g")
@@ -181,6 +179,7 @@ defmodule FittrackWeb.MealLive.Form do
     |> assign(:page_title, "Edit Meal")
     |> assign(:meal, meal)
     |> assign(:form, to_form(Nutrition.change_meal(meal)))
+    |> assign(:food_library_form, food_library_form())
     |> assign(:meal_items, meal_items)
     |> assign(:selected_food_id, nil)
     |> assign(:total_calories, totals.total_calories)
@@ -196,6 +195,7 @@ defmodule FittrackWeb.MealLive.Form do
     |> assign(:page_title, "Log Meal")
     |> assign(:meal, meal)
     |> assign(:form, to_form(Nutrition.change_meal(meal)))
+    |> assign(:food_library_form, food_library_form())
     |> assign(:meal_items, [])
     |> assign(:selected_food_id, nil)
     |> assign(:total_calories, Decimal.new(0))
@@ -214,11 +214,9 @@ defmodule FittrackWeb.MealLive.Form do
     {:noreply, assign(socket, selected_food_id: food_id)}
   end
 
-  def handle_event(
-        "add_food_item",
-        %{"food_id" => food_id, "quantity" => quantity, "unit" => unit},
-        socket
-      ) do
+  def handle_event("add_food_item", %{"food_library" => food_library_params}, socket) do
+    %{"food_id" => food_id, "quantity" => quantity, "unit" => unit} = food_library_params
+
     with %Fittrack.Nutrition.Food{} = food <-
            Nutrition.get_food(socket.assigns.current_scope, food_id),
          {qty, _} <- Float.parse(to_string(quantity)) do
@@ -232,17 +230,20 @@ defmodule FittrackWeb.MealLive.Form do
 
         {:noreply,
          socket
+         |> assign(:food_library_form, food_library_form(%{"unit" => unit}))
          |> assign(:meal_items, meal_items)
          |> assign(:total_calories, totals.total_calories)
          |> assign(:total_protein_g, totals.total_protein_g)
          |> assign(:total_carbs_g, totals.total_carbs_g)
          |> assign(:total_fats_g, totals.total_fats_g)}
       else
-        {:noreply, socket}
+        {:noreply,
+         assign(socket, :food_library_form, to_form(food_library_params, as: :food_library))}
       end
     else
       _ ->
-        {:noreply, socket}
+        {:noreply,
+         assign(socket, :food_library_form, to_form(food_library_params, as: :food_library))}
     end
   end
 
@@ -276,11 +277,6 @@ defmodule FittrackWeb.MealLive.Form do
            meal_params
          ) do
       {:ok, meal} ->
-        # recreate items as needed
-        Enum.each(socket.assigns.meal_items, fn item ->
-          Nutrition.create_meal_item(socket.assigns.current_scope, meal, item)
-        end)
-
         {:noreply,
          socket
          |> put_flash(:info, "Meal updated successfully")
@@ -294,13 +290,9 @@ defmodule FittrackWeb.MealLive.Form do
   defp save_meal(socket, :new, meal_params) do
     case Nutrition.create_meal(socket.assigns.current_scope, meal_params) do
       {:ok, meal} ->
-        Enum.each(socket.assigns.meal_items, fn item ->
-          Nutrition.create_meal_item(socket.assigns.current_scope, meal, item)
-        end)
-
         {:noreply,
          socket
-         |> put_flash(:info, "Meal logged successfully")
+         |> put_flash(:info, "Meal created successfully")
          |> push_navigate(to: return_path(socket.assigns.return_to, meal))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -310,4 +302,16 @@ defmodule FittrackWeb.MealLive.Form do
 
   defp return_path("index", _meal), do: ~p"/meals"
   defp return_path("show", meal), do: ~p"/meals/#{meal}"
+
+  defp food_library_form(attrs \\ %{}) do
+    attrs
+    |> Enum.into(%{"food_id" => nil, "quantity" => 100, "unit" => "g"})
+    |> to_form(as: :food_library)
+  end
+
+  defp food_options(foods) do
+    Enum.map(foods, fn food ->
+      {"#{food.name} (#{food.unit_amount}#{food.unit})", food.id}
+    end)
+  end
 end

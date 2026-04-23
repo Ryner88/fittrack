@@ -25,10 +25,10 @@ defmodule FittrackWeb.MealLive.Show do
         <:item title="Date & Time">
           {Calendar.strftime(@meal.eaten_at, "%B %d, %Y at %I:%M %p")}
         </:item>
-        <:item title="Total Calories">{round(@meal.total_calories || 0)}</:item>
-        <:item title="Total Protein">{round(@meal.total_protein_g || 0)}g</:item>
-        <:item title="Total Carbs">{round(@meal.total_carbs_g || 0)}g</:item>
-        <:item title="Total Fats">{round(@meal.total_fats_g || 0)}g</:item>
+        <:item title="Total Calories">{display_number(@meal.total_calories)}</:item>
+        <:item title="Total Protein">{display_number(@meal.total_protein_g)}g</:item>
+        <:item title="Total Carbs">{display_number(@meal.total_carbs_g)}g</:item>
+        <:item title="Total Fats">{display_number(@meal.total_fats_g)}g</:item>
         <:item title="Notes">{@meal.notes || "No notes"}</:item>
       </.list>
       
@@ -50,10 +50,10 @@ defmodule FittrackWeb.MealLive.Show do
                     </p>
                   </div>
                   <div class="text-right">
-                    <p class="font-bold">{round(item.calories || 0)} cal</p>
+                    <p class="font-bold">{display_number(item.calories)} cal</p>
                     <p class="text-sm text-base-content/70">
-                      {round(item.protein_g || 0)}g P • {round(item.carbs_g || 0)}g C • {round(
-                        item.fats_g || 0
+                      {display_number(item.protein_g)}g P • {display_number(item.carbs_g)}g C • {display_number(
+                        item.fats_g
                       )}g F
                     </p>
                   </div>
@@ -74,4 +74,9 @@ defmodule FittrackWeb.MealLive.Show do
      |> assign(:page_title, "Show Meal")
      |> assign(:meal, Nutrition.get_meal!(socket.assigns.current_scope, id))}
   end
+
+  defp display_number(nil), do: 0
+  defp display_number(%Decimal{} = value), do: value |> Decimal.to_float() |> round()
+  defp display_number(value) when is_integer(value), do: value
+  defp display_number(value) when is_float(value), do: round(value)
 end

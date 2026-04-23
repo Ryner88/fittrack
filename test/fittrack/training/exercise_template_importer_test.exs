@@ -37,6 +37,12 @@ defmodule Fittrack.Training.ExerciseTemplateImporterTest do
     end
   end
 
+  defmodule InvalidWgerHttpClientStub do
+    def get(_url, headers: _headers) do
+      {:ok, %{status: 200, body: %{"count" => 1, "next" => nil}}}
+    end
+  end
+
   describe "fetch_exercises_from_wger/3" do
     test "follows pagination until the requested limit is reached" do
       assert {:ok, exercises} =
@@ -63,6 +69,17 @@ defmodule Fittrack.Training.ExerciseTemplateImporterTest do
                        [
                          {"Authorization", "Token secret-token"}
                        ]}
+    end
+
+    test "returns an error when the response body does not contain a result list" do
+      assert {:error, message} =
+               ExerciseTemplateImporter.fetch_exercises_from_wger(
+                 nil,
+                 5,
+                 InvalidWgerHttpClientStub
+               )
+
+      assert message =~ "Unexpected WGER response shape"
     end
   end
 
@@ -223,6 +240,34 @@ defmodule Fittrack.Training.ExerciseTemplateImporterTest do
 
       assert normalized.notes ==
                "Using a medicine ball as an overload will make the exercise heavier."
+    end
+
+    test "prefers muscle name_en from live WGER payloads when present" do
+      exercise = %{
+        "id" => 980,
+        "translations" => [
+          %{
+            "language" => 2,
+            "name" => "commando pull-ups",
+            "description" =>
+              "<p>variation of the pull-up exercise, it is performed with a grip of one hand supine and one hand prone,&nbsp;do not twist the torso</p>\n"
+          }
+        ],
+        "muscles" => [
+          %{"name" => "Anterior deltoid", "name_en" => "Shoulders"},
+          %{"name" => "Biceps brachii", "name_en" => "Biceps"}
+        ],
+        "equipment" => [%{"id" => 6, "name" => "Pull-up bar"}]
+      }
+
+      normalized = ExerciseTemplateImporter.normalize_exercise_from_wger(exercise)
+
+      assert normalized.source_id == 980
+      assert normalized.name == "commando pull-ups"
+      assert normalized.primary_muscle == "Shoulders"
+      assert normalized.equipment == "Pull-up bar"
+      assert normalized.notes =~ "variation of the pull-up exercise"
+      refute normalized.notes =~ "&nbsp;"
     end
   end
 
