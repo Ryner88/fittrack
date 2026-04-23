@@ -550,6 +550,7 @@ defmodule Fittrack.Nutrition do
     %MealPlan{}
     |> MealPlan.changeset(attrs)
     |> Repo.insert()
+    |> preload_meal_plan()
   end
 
   @doc """
@@ -559,6 +560,7 @@ defmodule Fittrack.Nutrition do
     meal_plan
     |> MealPlan.changeset(attrs)
     |> Repo.update()
+    |> preload_meal_plan()
   end
 
   @doc """
@@ -834,6 +836,9 @@ defmodule Fittrack.Nutrition do
 
   defp persist_meal_record(changeset, %Meal{id: nil}), do: Repo.insert(changeset)
   defp persist_meal_record(changeset, %Meal{}), do: Repo.update(changeset)
+
+  defp preload_meal_plan({:ok, meal_plan}), do: {:ok, Repo.preload(meal_plan, :meal_plan_meals)}
+  defp preload_meal_plan(other), do: other
 
   defp normalize_meal_items(items) when is_list(items) do
     Enum.map(items, &normalize_meal_item/1)

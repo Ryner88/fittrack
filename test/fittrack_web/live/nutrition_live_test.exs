@@ -106,18 +106,24 @@ defmodule FittrackWeb.NutritionLiveTest do
     |> element("button[phx-click=\"add_food_item\"]")
     |> render_click()
 
-    {:ok, redirected_view, _html} =
+    eaten_at =
+      NaiveDateTime.utc_now()
+      |> NaiveDateTime.truncate(:second)
+      |> Calendar.strftime("%Y-%m-%dT%H:%M:%S")
+
+    {:ok, _redirected_view, redirected_html} =
       view
       |> form("#meal-form", %{
         "meal" => %{
           "name" => "Breakfast",
-          "eaten_at" => DateTime.utc_now() |> DateTime.to_iso8601()
+          "eaten_at" => eaten_at
         }
       })
       |> render_submit()
       |> follow_redirect(conn, ~p"/meals")
 
-    assert render(redirected_view) =~ "Meal logged successfully"
+    assert redirected_html =~ "Meal logged successfully"
+    assert redirected_html =~ "Breakfast"
   end
 
   test "can import a barcode and add it to the current meal", %{conn: conn} do
@@ -439,7 +445,7 @@ defmodule FittrackWeb.NutritionLiveTest do
 
     assert has_element?(view, "#meal-plan-form")
 
-    {:ok, redirected_view, _html} =
+    {:ok, _redirected_view, redirected_html} =
       view
       |> form("#meal-plan-form", %{
         "meal_plan" => %{
@@ -451,7 +457,8 @@ defmodule FittrackWeb.NutritionLiveTest do
       |> render_submit()
       |> follow_redirect(conn, ~p"/meal-plans")
 
-    assert render(redirected_view) =~ "Meal plan created successfully"
+    assert redirected_html =~ "Meal plan created successfully"
+    assert redirected_html =~ "Weekly"
   end
 
   test "workout history shows calendar and counts", %{conn: conn} do

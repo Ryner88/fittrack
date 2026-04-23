@@ -18,13 +18,17 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- `[blocked]` Stabilize the nutrition test suite and LiveView flows.
+- `[done]` Stabilize the nutrition test suite and LiveView flows.
   Target:
   - `Fittrack.NutritionTest`
   - `FittrackWeb.NutritionLiveTest`
   Done when:
   - nutrition flows pass reliably
   - `mix precommit` is green without unrelated workaround changes
+  Completed:
+  - meal persistence and LiveView redirects stabilized
+  - targeted nutrition suites pass
+  - `mix precommit` is green
 
 - `[todo]` Reconcile outstanding worktree edits before stacking more feature work.
   Files previously called out:
@@ -36,7 +40,7 @@ This file is the execution queue for the highest-priority work.
   - each edit is either intentionally kept in the branch or split out
   - branch scope is clear
 
-- `[in-progress]` Finish hardening the WGER exercise template importer.
+- `[done]` Finish hardening the WGER exercise template importer.
   Remaining focus:
   - validate behavior against real WGER payload variations
   - improve importer reporting for failed records
@@ -44,6 +48,10 @@ This file is the execution queue for the highest-priority work.
   Done when:
   - importer is safe to rerun
   - importer output is trustworthy
+  Completed:
+  - natural failure reporting verified with a broader live sample
+  - deterministic CLI failure fixture added for repeatable inspection
+  - importer behavior covered with focused tests
 
 ## Next
 
