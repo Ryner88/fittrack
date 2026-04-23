@@ -12,6 +12,31 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Nutrition Stabilization And Importer Follow-Through
+
+- Commit references:
+  - `64ec96c` Harden WGER importer pagination and legacy adoption
+  - `1d5263d` Stabilize nutrition flows and importer diagnostics
+  - `bab822c` Merge nutrition stabilization and importer fixes
+  - `65d98ff` Update priority fix tracker
+
+- Stabilized nutrition context behavior so meal persistence and associated meal items save and reload consistently.
+- Fixed nutrition LiveView flows so meal and meal-plan creation redirect paths are reliable and testable.
+- Cleared the nutrition-specific test failures in:
+  - `Fittrack.NutritionTest`
+  - `FittrackWeb.NutritionLiveTest`
+- Verified `mix precommit` passes on the merged `main` branch without workaround changes.
+- Closed out the previously flagged worktree reconciliation item:
+  - `README.md`
+  - `config/runtime.exs`
+  - `lib/fittrack/training/exercise_template_importer.ex`
+  - `test/fittrack_web/live/exercise_live_test.exs`
+  all ended up intentionally integrated with a clean worktree on `main`.
+- Hardened importer diagnostics further by:
+  - verifying real failure reporting against a broader live sample
+  - adding a deterministic CLI failure fixture for repeatable inspection
+  - extending importer coverage for failure metadata and production-like adoption paths
+
 ### WGER Importer
 
 - Commit references:

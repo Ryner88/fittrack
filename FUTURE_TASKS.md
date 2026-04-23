@@ -11,8 +11,25 @@ This file is the broader roadmap beyond the immediate execution queue.
 
 ## Now
 
-- No items here.
-  Immediate execution work lives in `PRIORITY_FIXES.md`.
+- Complete the full nutrition module.
+  Scope:
+  - meal logging
+  - weekly planner
+  - nutrition dashboard
+
+- Expand workout logging to capture performed:
+  - sets
+  - reps
+  - weight
+
+- Complete Workout History with a dependable calendar view of completed sessions.
+
+- Finish the nutrition import checklist.
+  Remaining scope:
+  - barcode-based nutrition import polish
+  - supported-website nutrition import flow polish
+  - import review/confirmation UX refinement
+  - source tracking for imported food data end-to-end validation
 
 ## Next
 
@@ -20,6 +37,13 @@ This file is the broader roadmap beyond the immediate execution queue.
 - Add a rest timer between sets.
 - Add exercise video links for form reference.
 - Add a 1RM calculator and strength standards by bodyweight.
+
+- Remember frequently imported campus foods.
+- Auto-suggest recent dining hall items.
+- Favorite cafeteria meals.
+- Add custom macro goals based on TDEE.
+- Add water intake tracking.
+- Add nutrition/workout export.
 
 - Create a gallery page for dated progress photos.
 - Add side-by-side progress photo comparison.
