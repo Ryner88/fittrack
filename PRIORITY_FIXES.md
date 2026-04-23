@@ -30,7 +30,7 @@ This file is the execution queue for the highest-priority work.
   - targeted nutrition suites pass
   - `mix precommit` is green
 
-- `[todo]` Reconcile outstanding worktree edits before stacking more feature work.
+- `[done]` Reconcile outstanding worktree edits before stacking more feature work.
   Files previously called out:
   - `README.md`
   - `config/runtime.exs`
@@ -38,6 +38,10 @@ This file is the execution queue for the highest-priority work.
   - `test/fittrack_web/live/exercise_live_test.exs`
   Done when:
   - each edit is either intentionally kept in the branch or split out
+  - branch scope is clear
+  Completed:
+  - worktree is clean on `main`
+  - the previously called-out files have no outstanding diffs
   - branch scope is clear
 
 - `[done]` Finish hardening the WGER exercise template importer.
