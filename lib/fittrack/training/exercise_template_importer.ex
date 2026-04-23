@@ -43,9 +43,10 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   """
   def import_from_wger(opts \\ []) do
     limit = Keyword.get(opts, :limit, 100)
-    api_key = Keyword.get(opts, :api_key) || raise "API key required"
+    api_key = Keyword.get(opts, :api_key)
+    http_client = Keyword.get(opts, :http_client, Req)
 
-    with {:ok, exercises} <- fetch_exercises_from_wger(api_key, limit),
+    with {:ok, exercises} <- fetch_exercises_from_wger(api_key, limit, http_client),
          normalized <- normalize_exercises_from_wger(exercises) do
       insert_templates(normalized)
     end
@@ -54,22 +55,14 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   @doc """
   Fetches exercises from the WGER API.
   """
-  def fetch_exercises_from_wger(api_key, limit) do
-    url = @wger_url
+  def fetch_exercises_from_wger(api_key, limit, http_client \\ Req)
 
+  def fetch_exercises_from_wger(_api_key, limit, _http_client) when limit <= 0, do: {:ok, []}
+
+  def fetch_exercises_from_wger(api_key, limit, http_client) do
     headers = if api_key, do: [{"Authorization", "Token #{api_key}"}], else: []
 
-    case Req.get(url, headers: headers) do
-      {:ok, %{status: 200, body: body}} ->
-        exercises = Enum.take(body["results"], limit)
-        {:ok, exercises}
-
-      {:ok, %{status: status}} ->
-        {:error, "API request failed with status #{status}"}
-
-      {:error, error} ->
-        {:error, "Request failed: #{inspect(error)}"}
-    end
+    fetch_wger_page(@wger_url, headers, limit, [], http_client)
   end
 
   @doc """
@@ -163,6 +156,12 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
           {:ok, updated_template} -> {:ok, :updated, updated_template}
           {:error, changeset} -> {:error, changeset}
         end
+
+      {:error, :ambiguous_legacy_match} ->
+        {:error, ambiguous_legacy_match_changeset(attrs)}
+
+      {:error, :unsafe_legacy_match} ->
+        {:error, ambiguous_legacy_match_changeset(attrs)}
     end
   end
 
@@ -177,14 +176,77 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   defp find_legacy_template_match(attrs) do
     normalized_name = Normalizer.normalize_text(attrs.name)
     normalized_equipment = Normalizer.normalize_text(attrs.equipment)
+    normalized_primary_muscle = normalize_legacy_value(attrs.primary_muscle)
 
-    Repo.one(
-      from template in ExerciseTemplate,
-        where:
-          is_nil(template.source_id) and
-            template.normalized_name == ^normalized_name and
-            template.normalized_equipment == ^normalized_equipment
+    matches =
+      Repo.all(
+        from template in ExerciseTemplate,
+          where:
+            is_nil(template.source_id) and
+              template.normalized_name == ^normalized_name and
+              template.normalized_equipment == ^normalized_equipment
+      )
+
+    case Enum.filter(matches, &legacy_template_safe_to_adopt?(&1, normalized_primary_muscle)) do
+      [template] -> template
+      [] when matches == [] -> nil
+      [] -> {:error, :unsafe_legacy_match}
+      _templates -> {:error, :ambiguous_legacy_match}
+    end
+  end
+
+  defp legacy_template_safe_to_adopt?(template, normalized_primary_muscle) do
+    normalize_legacy_value(template.primary_muscle) == normalized_primary_muscle
+  end
+
+  defp normalize_legacy_value(nil), do: nil
+
+  defp normalize_legacy_value(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "" -> nil
+      trimmed -> String.downcase(trimmed)
+    end
+  end
+
+  defp ambiguous_legacy_match_changeset(attrs) do
+    %ExerciseTemplate{}
+    |> ExerciseTemplate.changeset(attrs)
+    |> Ecto.Changeset.add_error(
+      :source_id,
+      "cannot safely adopt an existing legacy template for this source; resolve the legacy template manually"
     )
+  end
+
+  defp fetch_wger_page(_url, _headers, 0, acc, _http_client), do: {:ok, acc}
+
+  defp fetch_wger_page(url, headers, remaining, acc, http_client) do
+    case http_client.get(url, headers: headers) do
+      {:ok, %{status: 200, body: body}} ->
+        results = body["results"] || []
+        page_items = Enum.take(results, remaining)
+        next_url = body["next"]
+        updated_acc = acc ++ page_items
+        next_remaining = remaining - length(page_items)
+
+        cond do
+          next_remaining <= 0 ->
+            {:ok, updated_acc}
+
+          is_binary(next_url) and next_url != "" and length(page_items) == length(results) ->
+            fetch_wger_page(next_url, headers, next_remaining, updated_acc, http_client)
+
+          true ->
+            {:ok, updated_acc}
+        end
+
+      {:ok, %{status: status}} ->
+        {:error, "API request failed with status #{status}"}
+
+      {:error, error} ->
+        {:error, "Request failed: #{inspect(error)}"}
+    end
   end
 
   defp normalize_muscle_group(nil), do: nil

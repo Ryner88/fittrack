@@ -61,5 +61,36 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
       assert updated_template.notes == "Fresh notes"
       assert Repo.aggregate(ExerciseTemplate, :count, :id) == initial_count + 1
     end
+
+    test "does not adopt a legacy template when the primary muscle differs" do
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          name: "Push-up",
+          primary_muscle: "Triceps",
+          equipment: "Bodyweight",
+          notes: "Legacy notes"
+        })
+        |> Repo.insert()
+
+      assert is_nil(template.source_id)
+
+      assert {:error, changeset} =
+               ExerciseTemplateImporter.upsert_template(%{
+                 source_id: 3003,
+                 name: "Push-up",
+                 primary_muscle: "Chest",
+                 equipment: "Bodyweight",
+                 notes: "Fresh notes"
+               })
+
+      assert {"cannot safely adopt an existing legacy template for this source; resolve the legacy template manually",
+              _opts} =
+               changeset.errors[:source_id]
+
+      reloaded = Repo.get!(ExerciseTemplate, template.id)
+      assert is_nil(reloaded.source_id)
+      assert reloaded.notes == "Legacy notes"
+    end
   end
 end
