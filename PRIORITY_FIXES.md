@@ -18,5 +18,7 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- No active priority fixes.
+- [todo] Add image_url field to exercise_templates
+- [todo] Extend WGER importer to fetch exercise images
+- [todo] Display images in exercise UI
   Promote the next urgent item from `FUTURE_TASKS.md` when execution should resume.
