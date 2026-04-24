@@ -11,6 +11,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
     field :secondary_muscles, {:array, :string}, default: []
     field :equipment, :string
     field :difficulty, :string
+    field :image_url, :string
     field :notes, :string
     field :normalized_name, :string
     field :normalized_equipment, :string
@@ -35,6 +36,7 @@ defmodule Fittrack.Training.ExerciseTemplate do
       :secondary_muscles,
       :equipment,
       :difficulty,
+      :image_url,
       :notes,
       :movement_pattern,
       :exercise_category,
@@ -49,6 +51,9 @@ defmodule Fittrack.Training.ExerciseTemplate do
     |> update_change(:primary_muscle, &String.trim/1)
     |> update_change(:equipment, &String.trim/1)
     |> update_change(:difficulty, &String.trim/1)
+    |> update_change(:image_url, fn value ->
+      if is_binary(value), do: String.trim(value), else: value
+    end)
     |> update_change(:notes, &String.trim/1)
     |> normalize_fields()
     |> unique_constraint(:source_id)

@@ -137,45 +137,57 @@ defmodule FittrackWeb.LibraryLive.Index do
 
   defp exercise_card(assigns) do
     ~H"""
-    <div class="group relative rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm transition hover:shadow-md hover:border-primary/20">
-      <div class="flex items-start justify-between">
-        <div class="flex-1">
-          <h3 class="font-semibold text-base-content group-hover:text-primary transition">
-            {@template.name}
-          </h3>
-          <p class="text-sm text-base-content/70 mt-1">
-            {@template.primary_muscle}
-          </p>
-        </div>
-        <div class="flex flex-col items-end gap-2">
-          <span class={[
-            "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium",
-            difficulty_badge_classes(@template.difficulty)
-          ]}>
-            {@template.difficulty}
-          </span>
-        </div>
-      </div>
-
-      <div class="mt-4 flex items-center justify-between">
-        <div class="flex items-center gap-2 text-sm text-base-content/60">
-          <.icon name="hero-wrench-screwdriver" class="h-4 w-4" />
-          {@template.equipment}
-        </div>
-        <button
-          phx-click="add_to_library"
-          phx-value-template_id={@template.id}
-          class="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-primary/90"
-        >
-          <.icon name="hero-plus" class="h-3 w-3" /> Add to My Exercises
-        </button>
-      </div>
-
-      <%= if @template.notes do %>
-        <div class="mt-4 rounded-lg bg-base-200/50 p-3">
-          <p class="text-sm text-base-content/80">{@template.notes}</p>
+    <div class="group relative overflow-hidden rounded-2xl border border-base-200 bg-base-100 shadow-sm transition hover:border-primary/20 hover:shadow-md">
+      <%= if @template.image_url do %>
+        <div class="aspect-[4/3] bg-base-200">
+          <img
+            src={@template.image_url}
+            alt={"#{@template.name} exercise reference"}
+            class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
         </div>
       <% end %>
+      <div class="p-6">
+        <div class="flex items-start justify-between">
+          <div class="flex-1">
+            <h3 class="font-semibold text-base-content group-hover:text-primary transition">
+              {@template.name}
+            </h3>
+            <p class="text-sm text-base-content/70 mt-1">
+              {@template.primary_muscle}
+            </p>
+          </div>
+          <div class="flex flex-col items-end gap-2">
+            <span class={[
+              "inline-flex items-center rounded-full px-2 py-1 text-xs font-medium",
+              difficulty_badge_classes(@template.difficulty)
+            ]}>
+              {@template.difficulty}
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between">
+          <div class="flex items-center gap-2 text-sm text-base-content/60">
+            <.icon name="hero-wrench-screwdriver" class="h-4 w-4" />
+            {@template.equipment}
+          </div>
+          <button
+            phx-click="add_to_library"
+            phx-value-template_id={@template.id}
+            class="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-primary/90"
+          >
+            <.icon name="hero-plus" class="h-3 w-3" /> Add to My Exercises
+          </button>
+        </div>
+
+        <%= if @template.notes do %>
+          <div class="mt-4 rounded-lg bg-base-200/50 p-3">
+            <p class="text-sm text-base-content/80">{@template.notes}</p>
+          </div>
+        <% end %>
+      </div>
     </div>
     """
   end

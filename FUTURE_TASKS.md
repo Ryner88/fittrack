@@ -22,8 +22,6 @@ This file is the broader roadmap beyond the immediate execution queue.
   - reps
   - weight
 
-- Complete Workout History with a dependable calendar view of completed sessions.
-
 - Finish the nutrition import checklist.
   Remaining scope:
   - barcode-based nutrition import polish
@@ -32,6 +30,12 @@ This file is the broader roadmap beyond the immediate execution queue.
   - source tracking for imported food data end-to-end validation
 
 ## Next
+
+- Add advanced Workout History filters after the data model supports them.
+  Scope:
+  - filter by linked plan once workouts persist plan origin
+  - filter by muscle split once completed-session muscle aggregation is reliable
+  - preserve the current date/calendar selection behavior as the primary date filter
 
 - Add workout streaks and achievement badges.
 - Add a rest timer between sets.

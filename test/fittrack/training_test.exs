@@ -5,6 +5,7 @@ defmodule Fittrack.TrainingTest do
 
   describe "exercises" do
     alias Fittrack.Training.Exercise
+    alias Fittrack.Training.ExerciseTemplate
 
     import Fittrack.TrainingFixtures
     import Fittrack.AccountsFixtures
@@ -83,6 +84,25 @@ defmodule Fittrack.TrainingTest do
       assert %Ecto.Changeset{} = Training.change_exercise(exercise)
     end
 
+    test "add_template_to_user/2 links the exercise to the source template", %{scope: scope} do
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          name: "Push-up",
+          primary_muscle: "Chest",
+          equipment: "Bodyweight",
+          image_url: "https://wger.de/media/exercise-images/1001/main.jpg",
+          notes: "Template notes"
+        })
+        |> Fittrack.Repo.insert()
+
+      assert {:ok, exercise} = Training.add_template_to_user(scope, template.id)
+      assert exercise.source_template_id == template.id
+
+      reloaded = Training.get_exercise!(scope, exercise.id, preload_source_template: true)
+      assert reloaded.source_template.image_url == template.image_url
+    end
+
     test "get_exercise/2 returns the exercise when found", %{scope: scope} do
       exercise = exercise_fixture(scope)
       assert Training.get_exercise(scope, exercise.id) == exercise
@@ -138,6 +158,57 @@ defmodule Fittrack.TrainingTest do
 
       data = Training.workout_dates_in_month_with_counts(scope, start_date, end_date)
       assert is_list(data)
+    end
+
+    test "get_active_workout/1 returns the latest workout without sets", %{scope: scope} do
+      {:ok, completed_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.utc_now() |> DateTime.add(-3600, :second)
+        })
+
+      {:ok, active_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.utc_now()
+        })
+
+      {:ok, _set} =
+        Training.create_workout_set(scope, completed_workout, %{
+          exercise_id: exercise_fixture(scope).id,
+          weight: "100",
+          reps: "5",
+          kind: "normal"
+        })
+
+      assert Training.get_active_workout(scope).id == active_workout.id
+    end
+
+    test "completed workout queries ignore active workouts without sets", %{scope: scope} do
+      today = Date.utc_today()
+      started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
+
+      {:ok, _active_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.add(started_at, 3600, :second)
+        })
+
+      {:ok, completed_workout} =
+        Training.create_workout(scope, %{
+          started_at: started_at
+        })
+
+      {:ok, _set} =
+        Training.create_workout_set(scope, completed_workout, %{
+          exercise_id: exercise_fixture(scope).id,
+          weight: "100",
+          reps: "5",
+          kind: "normal"
+        })
+
+      assert [%{date: ^today, count: 1}] =
+               Training.completed_workout_dates_with_counts(scope, today, today)
+
+      assert [workout] = Training.list_completed_workouts_in_date_range(scope, today, today)
+      assert workout.id == completed_workout.id
     end
 
     test "log_exercise_set/2 rejects unauthorized exercise", %{scope: scope} do

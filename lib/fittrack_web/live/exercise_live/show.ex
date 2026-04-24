@@ -20,6 +20,17 @@ defmodule FittrackWeb.ExerciseLive.Show do
         </:actions>
       </.header>
 
+      <%= if exercise_image_url(@exercise) do %>
+        <div class="mb-6 overflow-hidden rounded-2xl border border-base-200 bg-base-200 shadow-sm">
+          <img
+            id="exercise-image"
+            src={exercise_image_url(@exercise)}
+            alt={"#{@exercise.name} exercise reference"}
+            class="max-h-[28rem] w-full object-cover"
+          />
+        </div>
+      <% end %>
+
       <.list>
         <:item title="Name">{@exercise.name}</:item>
         <:item title="Primary muscle">{@exercise.primary_muscle}</:item>
@@ -35,6 +46,12 @@ defmodule FittrackWeb.ExerciseLive.Show do
     {:ok,
      socket
      |> assign(:page_title, "Show Exercise")
-     |> assign(:exercise, Training.get_exercise!(socket.assigns.current_scope, id))}
+     |> assign(
+       :exercise,
+       Training.get_exercise!(socket.assigns.current_scope, id, preload_source_template: true)
+     )}
   end
+
+  defp exercise_image_url(%{source_template: %{image_url: image_url}}), do: image_url
+  defp exercise_image_url(_exercise), do: nil
 end

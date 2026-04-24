@@ -9,7 +9,7 @@ defmodule FittrackWeb.LibraryLive.Show do
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="max-w-4xl mx-auto space-y-8">
         <!-- Header -->
-        <div class="flex items-start justify-between">
+        <div class="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div>
             <h1 class="text-3xl font-bold text-base-content">{@template.name}</h1>
             <p class="text-lg text-base-content/70 mt-2">
@@ -32,6 +32,17 @@ defmodule FittrackWeb.LibraryLive.Show do
             </button>
           </div>
         </div>
+
+        <%= if @template.image_url do %>
+          <div class="overflow-hidden rounded-2xl border border-base-200 bg-base-200 shadow-sm">
+            <img
+              id="exercise-template-image"
+              src={@template.image_url}
+              alt={"#{@template.name} exercise reference"}
+              class="max-h-[28rem] w-full object-cover"
+            />
+          </div>
+        <% end %>
         
     <!-- Exercise Details -->
         <div class="grid gap-8 md:grid-cols-2">

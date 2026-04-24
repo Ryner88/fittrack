@@ -15,6 +15,7 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
                  name: "Push-up",
                  primary_muscle: "Chest",
                  equipment: "Bodyweight",
+                 image_url: "https://wger.de/media/exercise-images/1001/original.jpg",
                  notes: "Original notes"
                })
 
@@ -24,10 +25,15 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
                  name: "Push-up",
                  primary_muscle: "Chest",
                  equipment: "Bodyweight",
+                 image_url: "https://wger.de/media/exercise-images/1001/updated.jpg",
                  notes: "Updated notes"
                })
 
       assert updated_template.id == template.id
+
+      assert updated_template.image_url ==
+               "https://wger.de/media/exercise-images/1001/updated.jpg"
+
       assert updated_template.notes == "Updated notes"
       assert Repo.aggregate(ExerciseTemplate, :count, :id) == initial_count + 1
     end

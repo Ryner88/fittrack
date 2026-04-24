@@ -269,6 +269,29 @@ defmodule Fittrack.Training.ExerciseTemplateImporterTest do
       assert normalized.notes =~ "variation of the pull-up exercise"
       refute normalized.notes =~ "&nbsp;"
     end
+
+    test "prefers the main WGER image URL" do
+      exercise = %{
+        "id" => 981,
+        "translations" => [
+          %{
+            "language" => 2,
+            "name" => "Push-up",
+            "description" => "Bodyweight press."
+          }
+        ],
+        "muscles" => [%{"name_en" => "Chest"}],
+        "equipment" => [%{"name" => "body weight"}],
+        "images" => [
+          %{"image" => "https://wger.de/media/exercise-images/981/side.jpg", "is_main" => false},
+          %{"image" => "https://wger.de/media/exercise-images/981/main.jpg", "is_main" => true}
+        ]
+      }
+
+      normalized = ExerciseTemplateImporter.normalize_exercise_from_wger(exercise)
+
+      assert normalized.image_url == "https://wger.de/media/exercise-images/981/main.jpg"
+    end
   end
 
   describe "sanitize_notes/1" do

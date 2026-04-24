@@ -57,6 +57,7 @@ defmodule Fittrack.Training do
     |> maybe_filter_exercises(search)
     |> maybe_filter_exercises_by_equipment(equipment)
     |> order_by([exercise], asc: exercise.name)
+    |> maybe_preload_source_template(Map.get(opts, :preload_source_template, false))
     |> Repo.all()
   end
 
@@ -65,8 +66,13 @@ defmodule Fittrack.Training do
   @doc """
   Gets a single exercise for the current user.
   """
-  def get_exercise!(%Scope{user: user}, id) do
-    Repo.get_by!(Exercise, id: id, user_id: user.id)
+  def get_exercise!(scope, id, opts \\ [])
+
+  def get_exercise!(%Scope{user: user}, id, opts) do
+    Exercise
+    |> where([exercise], exercise.id == ^id and exercise.user_id == ^user.id)
+    |> maybe_preload_source_template(Keyword.get(opts, :preload_source_template, false))
+    |> Repo.one!()
   end
 
   def get_exercise(%Scope{user: user}, id) do
@@ -150,7 +156,8 @@ defmodule Fittrack.Training do
             name: template.name,
             primary_muscle: template.primary_muscle,
             equipment: template.equipment,
-            notes: template.notes
+            notes: template.notes,
+            source_template_id: template.id
           }
 
           %Exercise{}
@@ -177,6 +184,26 @@ defmodule Fittrack.Training do
   end
 
   def list_workouts(_), do: []
+
+  @doc """
+  Returns the most recent active workout for the current user.
+
+  Until workouts have an explicit finished state, a workout with no logged sets is treated as
+  active/in-progress.
+  """
+  def get_active_workout(%Scope{user: user}) do
+    Workout
+    |> where([workout], workout.user_id == ^user.id)
+    |> join(:left, [workout], workout_set in assoc(workout, :workout_sets))
+    |> group_by([workout], workout.id)
+    |> having([_workout, workout_set], count(workout_set.id) == 0)
+    |> order_by([workout], desc: workout.started_at)
+    |> limit(1)
+    |> preload(workout_sets: [:exercise])
+    |> Repo.one()
+  end
+
+  def get_active_workout(_), do: nil
 
   @doc """
   Gets a workout with sets for the current user.
@@ -275,6 +302,9 @@ defmodule Fittrack.Training do
   end
 
   defp maybe_filter_exercises_by_equipment(query, _), do: query
+
+  defp maybe_preload_source_template(query, true), do: preload(query, :source_template)
+  defp maybe_preload_source_template(query, _), do: query
 
   defp maybe_filter_templates(query, search) when search in [nil, ""], do: query
 
@@ -1128,4 +1158,61 @@ defmodule Fittrack.Training do
   end
 
   def list_workouts_in_date_range(_, _, _), do: []
+
+  @doc """
+  Returns completed workout dates and session counts for a given date range.
+  """
+  def completed_workout_dates_with_counts(%Scope{user: user}, start_date, end_date) do
+    from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
+      where:
+        w.user_id == ^user.id and
+          fragment("DATE(?)", w.started_at) >= ^start_date and
+          fragment("DATE(?)", w.started_at) <= ^end_date,
+      group_by: fragment("DATE(?)", w.started_at),
+      select: %{date: fragment("DATE(?)", w.started_at), count: count(w.id, :distinct)}
+    )
+    |> Repo.all()
+  end
+
+  def completed_workout_dates_with_counts(_, _start_date, _end_date), do: []
+
+  @doc """
+  Lists completed workouts for a current user within a date range.
+  """
+  def list_completed_workouts_in_date_range(
+        %Scope{user: user},
+        %Date{} = start_date,
+        %Date{} = end_date
+      ) do
+    from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
+      where:
+        w.user_id == ^user.id and
+          fragment("DATE(?)", w.started_at) >= ^start_date and
+          fragment("DATE(?)", w.started_at) <= ^end_date,
+      distinct: w.id,
+      order_by: [desc: w.started_at],
+      preload: [workout_sets: :exercise]
+    )
+    |> Repo.all()
+  end
+
+  def list_completed_workouts_in_date_range(_, _, _), do: []
+
+  @doc """
+  Returns distinct completed workout dates for the current user.
+  """
+  def list_completed_workout_dates(%Scope{user: user}) do
+    from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
+      where: w.user_id == ^user.id,
+      distinct: true,
+      select: fragment("DATE(?)", w.started_at),
+      order_by: [desc: fragment("DATE(?)", w.started_at)]
+    )
+    |> Repo.all()
+  end
+
+  def list_completed_workout_dates(_), do: []
 end

@@ -102,6 +102,7 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
       name: name,
       primary_muscle: normalize_muscle_group(primary_muscle),
       equipment: normalize_equipment(equipment),
+      image_url: image_url_from_wger(exercise),
       notes: description
     }
   end
@@ -326,6 +327,35 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   defp extract_name(%{"name" => name}), do: present_string(name)
   defp extract_name(value) when is_binary(value), do: present_string(value)
   defp extract_name(_), do: nil
+
+  defp image_url_from_wger(exercise) do
+    exercise
+    |> Map.get("images", [])
+    |> List.wrap()
+    |> Enum.sort_by(&image_sort_rank/1)
+    |> Enum.find_value(&extract_image_url/1)
+  end
+
+  defp image_sort_rank(%{"is_main" => true}), do: 0
+  defp image_sort_rank(%{"main" => true}), do: 0
+  defp image_sort_rank(_image), do: 1
+
+  defp extract_image_url(%{"image" => image_url}), do: valid_image_url(image_url)
+  defp extract_image_url(%{"url" => image_url}), do: valid_image_url(image_url)
+  defp extract_image_url(image_url) when is_binary(image_url), do: valid_image_url(image_url)
+  defp extract_image_url(_image), do: nil
+
+  defp valid_image_url(value) when is_binary(value) do
+    value
+    |> String.trim()
+    |> case do
+      "http://" <> _ = url -> url
+      "https://" <> _ = url -> url
+      _ -> nil
+    end
+  end
+
+  defp valid_image_url(_value), do: nil
 
   defp replace_block_tags_with_breaks(text) do
     text

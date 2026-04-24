@@ -55,6 +55,9 @@ defmodule FittrackWeb.ExerciseLive.Index do
           rows={@streams.exercises}
           row_click={fn {_id, exercise} -> JS.navigate(~p"/exercises/#{exercise}") end}
         >
+          <:col :let={{_id, exercise}} label="">
+            <.exercise_thumbnail exercise={exercise} />
+          </:col>
           <:col :let={{_id, exercise}} label="Name">{exercise.name}</:col>
           <:col :let={{_id, exercise}} label="Primary muscle">{exercise.primary_muscle}</:col>
           <:col :let={{_id, exercise}} label="Equipment">{exercise.equipment}</:col>
@@ -108,6 +111,28 @@ defmodule FittrackWeb.ExerciseLive.Index do
   end
 
   defp list_exercises(current_scope, search) do
-    Training.list_exercises(current_scope, %{search: search})
+    Training.list_exercises(current_scope, %{search: search, preload_source_template: true})
   end
+
+  attr :exercise, :map, required: true
+
+  defp exercise_thumbnail(assigns) do
+    ~H"""
+    <%= if exercise_image_url(@exercise) do %>
+      <div class="h-12 w-12 overflow-hidden rounded-lg bg-base-200">
+        <img
+          src={exercise_image_url(@exercise)}
+          alt={"#{@exercise.name} exercise reference"}
+          class="h-full w-full object-cover"
+          loading="lazy"
+        />
+      </div>
+    <% else %>
+      <span class="block h-12 w-12" aria-hidden="true"></span>
+    <% end %>
+    """
+  end
+
+  defp exercise_image_url(%{source_template: %{image_url: image_url}}), do: image_url
+  defp exercise_image_url(_exercise), do: nil
 end

@@ -12,6 +12,39 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Workout History IA And Completed-Only Calendar
+
+- Commit references:
+  - uncommitted worktree changes
+
+- Renamed the authenticated top navigation entry from `Workouts` to `History` and pointed it at the completed-workout History page.
+- Kept History in the existing authenticated router scope:
+  - `scope "/", FittrackWeb`
+  - `pipe_through [:browser, :require_authenticated_user]`
+  - `live_session :require_authenticated_user`
+  This is required because the page reads user-scoped workout data through `current_scope`.
+- Reworked Workout History so it is completed-record focused:
+  - active sessions without sets no longer appear in the completed calendar
+  - selected-day details list only completed workouts
+  - row-level action remains historical with `View details`
+  - no `Repeat` action appears on History
+- Added contextual header CTA behavior:
+  - no active workout: `Start workout` and `Browse plans`
+  - active workout: `Resume workout`
+- Added summary stats to History:
+  - workouts this week
+  - average duration
+  - total volume
+  - streak
+- Fixed calendar edge handling for months that begin without leading padding.
+- Added regression coverage for:
+  - History nav label and destination
+  - Start/Browse vs Resume CTA behavior
+  - completed-only History calendar and selected-day details
+  - active-workout context query
+  - completed-workout date/range queries
+- Deferred plan and muscle-split filters until workout records have explicit plan linkage and reliable per-session muscle aggregation.
+
 ### Nutrition Stabilization And Importer Follow-Through
 
 - Commit references:
