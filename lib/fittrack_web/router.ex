@@ -34,6 +34,7 @@ defmodule FittrackWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/exercise-template-images/:id", ExerciseTemplateImageController, :show
   end
 
   if Application.compile_env(:fittrack, :dev_routes) do
@@ -68,7 +69,6 @@ defmodule FittrackWeb.Router do
       # Exercise Library
       live "/library", LibraryLive.Index, :index
       live "/library/:id", LibraryLive.Show, :show
-      get "/exercise-template-images/:id", ExerciseTemplateImageController, :show
 
       # Workout Plans
       live "/workout-plans", WorkoutPlanLive.Index, :index

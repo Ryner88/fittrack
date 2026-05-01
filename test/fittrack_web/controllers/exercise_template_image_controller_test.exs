@@ -1,8 +1,6 @@
 defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
   use FittrackWeb.ConnCase
 
-  import Fittrack.AccountsFixtures
-
   alias Fittrack.Training.ExerciseTemplate
   alias Fittrack.Repo
 
@@ -34,8 +32,6 @@ defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
   end
 
   test "proxies template image bytes through the app", %{conn: conn} do
-    user = user_fixture()
-
     {:ok, template} =
       %ExerciseTemplate{}
       |> ExerciseTemplate.changeset(%{
@@ -46,10 +42,7 @@ defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
       })
       |> Repo.insert()
 
-    conn =
-      conn
-      |> log_in_user(user)
-      |> get(~p"/exercise-template-images/#{template.id}")
+    conn = get(conn, ~p"/exercise-template-images/#{template.id}")
 
     assert response(conn, 200) == "fake-image"
     assert get_resp_header(conn, "content-type") == ["image/jpeg; charset=utf-8"]
@@ -58,9 +51,7 @@ defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
                      "https://wger.de/media/exercise-images/1001/main.jpg"}
   end
 
-  test "returns not found when template has no image", %{conn: conn} do
-    user = user_fixture()
-
+  test "returns svg fallback when template has no image", %{conn: conn} do
     {:ok, template} =
       %ExerciseTemplate{}
       |> ExerciseTemplate.changeset(%{
@@ -70,11 +61,32 @@ defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
       })
       |> Repo.insert()
 
-    conn =
-      conn
-      |> log_in_user(user)
-      |> get(~p"/exercise-template-images/#{template.id}")
+    conn = get(conn, ~p"/exercise-template-images/#{template.id}")
 
-    assert response(conn, 404) == "Not Found"
+    assert response = response(conn, 200)
+    assert response =~ "<svg"
+    assert response =~ "Squat"
+    assert get_resp_header(conn, "content-type") == ["image/svg+xml; charset=utf-8"]
+  end
+
+  test "returns svg fallback when remote image request fails", %{conn: conn} do
+    Application.put_env(:fittrack, :exercise_image_test_response, {:error, :econnrefused})
+
+    {:ok, template} =
+      %ExerciseTemplate{}
+      |> ExerciseTemplate.changeset(%{
+        name: "Broken Image",
+        primary_muscle: "Back",
+        equipment: "Cable",
+        image_url: "https://wger.de/media/exercise-images/missing.jpg"
+      })
+      |> Repo.insert()
+
+    conn = get(conn, ~p"/exercise-template-images/#{template.id}")
+
+    assert response = response(conn, 200)
+    assert response =~ "<svg"
+    assert response =~ "Broken Image"
+    assert get_resp_header(conn, "content-type") == ["image/svg+xml; charset=utf-8"]
   end
 end
