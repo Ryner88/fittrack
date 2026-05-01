@@ -12,6 +12,96 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Workout Command Bar
+
+- Commit references:
+  - uncommitted worktree changes
+
+- Added an authenticated command bar to the shared app layout.
+- Added a header trigger with `Ctrl K`/`Cmd K` keyboard support.
+- Included context-aware workout commands:
+  - no active workout: `Start empty workout`, `Start from plan`
+  - active workout: `Resume workout`, `Log set`
+- Included quick navigation commands:
+  - Dashboard
+  - Nutrition
+  - Exercises
+  - Plans
+  - History
+- Included creation shortcuts:
+  - Log meal
+  - Build weekly meal plan
+  - AI workout generator
+- Added client-side filtering, arrow-key movement, escape-to-close, backdrop close, and empty search state in the existing `assets/js/app.js` bundle.
+- Added regression coverage for inactive and active workout command sets.
+
+### Nutrition Core, Performed Workout Logging, And Import Polish
+
+- Commit references:
+  - uncommitted worktree changes
+
+- Completed core nutrition flow coverage:
+  - meal logging supports create, edit/update, view/list, and delete paths
+  - meal plans support create, edit/update, view/list, duplicate, and delete paths
+  - the nutrition dashboard already summarizes today's intake, weekly plan context, and recent meals
+  - nutrition routes remain in the existing authenticated route placement:
+    - `scope "/", FittrackWeb`
+    - `pipe_through [:browser, :require_authenticated_user]`
+    - `live_session :require_authenticated_user`
+    This is required because nutrition data is user-scoped through `current_scope`.
+- Clarified workout logging around performed data:
+  - `Start from plan` now starts an active workout shell instead of pre-creating performed sets
+  - workout set fields now label logged values as `Performed weight` and `Performed reps`
+  - workout detail shows performed set and volume summaries separately from template source context
+  - dashboard workout counts and month markers now ignore active workouts without performed sets
+  - completed History remains based on workouts with performed sets
+- Finished nutrition import polish:
+  - barcode, dining URL, and screenshot imports all feed into the review/confirmation panel before saving
+  - added persistent import status states for ready-to-review, empty, and failure outcomes
+  - screenshot unavailable state gives `OPENAI_API_KEY` setup guidance
+  - source image metadata and parsed field mappings remain persisted through food and meal item save paths
+- Added regression coverage for:
+  - meal and meal-plan CRUD context behavior
+  - completed-only workout counts and calendar markers
+  - `Start from plan` remaining active until performed sets are logged
+  - barcode success, empty, and failure import states
+  - unsupported dining URL import state
+  - screenshot review state
+
+### Workout Plans, Active Workout CTAs, And Header IA
+
+- Commit references:
+  - uncommitted worktree changes
+
+- Clarified Workout Plans as reusable training templates:
+  - header remains `Workout Plans`
+  - supporting copy is `Create and manage reusable workout templates for consistent training.`
+  - page actions are `AI Generator` and `Create plan`
+  - plan cards show plan name, goal/type, days per week, and exercise count
+  - plan actions use `Start from plan`, `Edit`, and `Duplicate`
+  - `Repeat` and same-page `Browse plans` actions are not used on Plans
+- Standardized active workout CTAs:
+  - no active workout: `Start workout` plus `Browse plans` on Dashboard and History
+  - active workout: `Resume workout` on Dashboard, History, and the app header
+  - active sessions remain excluded from completed History records
+- Refined header IA:
+  - main navigation remains Dashboard, Nutrition, Exercises, Plans, History
+  - `Start workout` is a primary header CTA instead of a main nav item
+  - account, settings, logout, and theme controls are grouped in one profile menu
+  - the duplicate root-level account strip was removed
+- Kept the affected LiveViews in the existing authenticated router placement:
+  - `scope "/", FittrackWeb`
+  - `pipe_through [:browser, :require_authenticated_user]`
+  - `live_session :require_authenticated_user`
+  This is required because these pages read user-owned workout data through `current_scope`.
+- Added regression coverage for:
+  - reusable-template copy, metadata, and actions on Plans
+  - Dashboard Start/Browse vs Resume states
+  - header Start vs Resume states
+  - consolidated profile menu links
+- Verified `mix precommit` passes.
+- Deferred explicit `Finish workout`, `Discard workout`, and quick-start dropdown behavior until workouts have an explicit lifecycle state beyond the current no-sets active heuristic.
+
 ### Workout History IA And Completed-Only Calendar
 
 - Commit references:

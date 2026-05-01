@@ -1,0 +1,357 @@
+' Fittrack architecture diagrams.
+' Render with PlantUML, or import into Astah via a PlantUML-compatible workflow.
+
+@startuml Fittrack_System_Context
+title Fittrack - System Context
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "Authenticated user" as User
+node "Web browser" as Browser
+component "Fittrack Phoenix app" as App
+database "PostgreSQL database" as DB
+cloud "Open Food Facts API" as OFF
+cloud "Supported dining/menu pages" as Dining
+cloud "OpenAI image parser" as OpenAI
+
+User --> Browser
+Browser --> App : HTTP / LiveView websocket
+App --> DB : Ecto queries
+App --> OFF : Barcode lookup via Req
+App --> Dining : Nutrition URL import via Req
+App --> OpenAI : Screenshot nutrition extraction
+@enduml
+
+@startuml Fittrack_Phoenix_Containers
+title Fittrack - Phoenix Container Architecture
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+package "fittrack_web" {
+  component "Router" as Router
+  component "UserAuth\nplugs + LiveView on_mount" as Auth
+  component "Layouts + CoreComponents" as Layouts
+  component "DashboardLive" as DashboardLive
+  component "WorkoutLive\nWorkoutHistoryLive" as WorkoutLive
+  component "WorkoutPlanLive" as WorkoutPlanLive
+  component "NutritionLive" as NutritionLive
+  component "MealLive\nFoodLive\nMealPlanLive" as MealLive
+  component "assets/js app.js hooks" as AppJS
+}
+
+package "fittrack contexts" {
+  component "Accounts" as Accounts
+  component "Training" as Training
+  component "Nutrition" as Nutrition
+}
+
+package "Persistence" {
+  component "Fittrack.Repo" as Repo
+  database "Database tables" as Tables
+}
+
+Router --> Auth
+Auth --> DashboardLive
+Auth --> WorkoutLive
+Auth --> WorkoutPlanLive
+Auth --> NutritionLive
+Auth --> MealLive
+
+DashboardLive --> Layouts
+WorkoutLive --> Layouts
+WorkoutPlanLive --> Layouts
+NutritionLive --> Layouts
+MealLive --> Layouts
+Layouts --> AppJS
+
+DashboardLive --> Training
+WorkoutLive --> Training
+WorkoutPlanLive --> Training
+NutritionLive --> Nutrition
+MealLive --> Nutrition
+Router --> Accounts
+
+Accounts --> Repo
+Training --> Repo
+Nutrition --> Repo
+Repo --> Tables
+@enduml
+
+@startuml Fittrack_Authenticated_Routing
+title Fittrack - Authenticated Route Flow
+
+skinparam shadowing false
+
+start
+:Browser request;
+:browser pipeline;
+:fetch_current_scope_for_user;
+if (authenticated?) then (yes)
+  :require_authenticated_user;
+  :live_session :require_authenticated_user;
+  :Mount LiveView with @current_scope;
+  :Call context with current_scope;
+  :Run user-scoped query;
+else (no)
+  :Redirect to log in;
+endif
+stop
+
+note right
+Authenticated app routes are under:
+- scope "/", FittrackWeb
+- pipe_through [:browser, :require_authenticated_user]
+- live_session :require_authenticated_user
+
+Use @current_scope.user in templates.
+Do not use @current_user.
+end note
+@enduml
+
+@startuml Fittrack_Training_Domain
+title Fittrack - Training Domain Model
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+class User {
+  id
+  email
+}
+
+class Exercise {
+  id
+  user_id
+  name
+  primary_muscle
+  equipment
+  notes
+  source_template_id
+}
+
+class ExerciseTemplate {
+  id
+  source_id
+  name
+  primary_muscle
+  equipment
+  image_url
+  notes
+}
+
+class WorkoutPlan {
+  id
+  user_id
+  name
+  description
+  goal
+  primary_style
+  primary_goal
+  difficulty
+  estimated_duration_minutes
+}
+
+class WorkoutPlanExercise {
+  id
+  workout_plan_id
+  exercise_id
+  position
+  scheduled_day
+  target_sets
+  target_reps_min
+  target_reps_max
+  rest_seconds
+}
+
+class Workout {
+  id
+  user_id
+  started_at
+  notes
+}
+
+class WorkoutSet {
+  id
+  workout_session_id
+  exercise_id
+  weight
+  reps
+  kind
+  rpe
+  rest_seconds
+  notes
+}
+
+User "1" --> "*" Exercise
+User "1" --> "*" WorkoutPlan
+User "1" --> "*" Workout
+ExerciseTemplate "1" --> "*" Exercise
+WorkoutPlan "1" --> "*" WorkoutPlanExercise
+Exercise "1" --> "*" WorkoutPlanExercise
+Workout "1" --> "*" WorkoutSet
+Exercise "1" --> "*" WorkoutSet
+@enduml
+
+@startuml Fittrack_Nutrition_Domain
+title Fittrack - Nutrition Domain Model
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+class User {
+  id
+  email
+}
+
+class Food {
+  id
+  user_id
+  name
+  unit
+  unit_amount
+  calories_per_unit
+  protein_per_unit
+  carbs_per_unit
+  fats_per_unit
+  source_image_metadata
+  parsed_values
+}
+
+class Meal {
+  id
+  user_id
+  name
+  eaten_at
+  notes
+  total_calories
+  total_protein_g
+  total_carbs_g
+  total_fats_g
+}
+
+class MealItem {
+  id
+  meal_id
+  food_name
+  quantity
+  unit
+  calories
+  protein_g
+  carbs_g
+  fats_g
+  source_image_metadata
+  parsed_values
+}
+
+class MealPlan {
+  id
+  user_id
+  name
+  goal
+  daily_calories_target
+  daily_protein_g_target
+  daily_carbs_g_target
+  daily_fats_g_target
+}
+
+class MealPlanMeal {
+  id
+  meal_plan_id
+  day_of_week
+  meal_name
+  serving_count
+  calories_per_serving
+  protein_g_per_serving
+  carbs_g_per_serving
+  fats_g_per_serving
+}
+
+User "1" --> "*" Food
+User "1" --> "*" Meal
+User "1" --> "*" MealPlan
+Meal "1" --> "*" MealItem
+MealPlan "1" --> "*" MealPlanMeal
+@enduml
+
+@startuml Fittrack_Workout_Flow
+title Fittrack - Workout Start And Logging Flow
+
+skinparam shadowing false
+
+actor User
+participant "Shared Layout /\nCommand Bar" as Layout
+participant "WorkoutPlanLive" as PlanLive
+participant "WorkoutLive" as WorkoutLive
+participant "Training context" as Training
+participant "Repo" as Repo
+
+User -> Layout : Start empty workout or Start from plan
+
+alt Start from plan
+  Layout -> PlanLive : Navigate to plans
+  User -> PlanLive : Start from plan
+  PlanLive -> Training : create_workout_from_plan(current_scope, plan_id)
+else Start empty workout
+  Layout -> WorkoutLive : Navigate to /workouts/new
+  WorkoutLive -> Training : create_workout(current_scope, attrs)
+end
+
+Training -> Repo : Insert workout session
+Repo --> Training : Workout
+Training --> WorkoutLive : Active workout
+
+User -> WorkoutLive : Log performed set
+WorkoutLive -> Training : create_workout_set(current_scope, workout, attrs)
+Training -> Repo : Insert performed set
+Repo --> WorkoutLive : WorkoutSet
+@enduml
+
+@startuml Fittrack_Nutrition_Import_Flow
+title Fittrack - Nutrition Import Review Flow
+
+skinparam shadowing false
+
+actor User
+participant "MealLive.Form" as MealLive
+participant "Nutrition context" as Nutrition
+participant "External parser/API" as External
+participant "Repo" as Repo
+
+User -> MealLive : Import barcode, URL, or screenshot
+MealLive -> Nutrition : lookup/import request
+Nutrition -> External : Fetch or parse nutrition data
+External --> Nutrition : Parsed food attributes
+Nutrition --> MealLive : Review payload
+MealLive --> User : Confirmation panel + import status
+
+alt Save to meal
+  User -> MealLive : Save to meal
+  MealLive -> Nutrition : build_meal_item(attrs)
+else Save to library
+  User -> MealLive : Save to library
+  MealLive -> Nutrition : create_food(current_scope, attrs)
+  Nutrition -> Repo : Insert food with source metadata
+end
+@enduml
+
+@startuml Fittrack_Client_Hooks
+title Fittrack - Client-Side Hook Map
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+component "assets/js/app.js" as AppJS
+component "CommandBar" as CommandBar
+component "PersonalBestsChart\nVolumeChart\nExerciseProgressChart" as Charts
+component "BarcodeImport\nScreenshotImport" as ImportHooks
+component "RestTimer" as RestTimer
+component "WorkoutPlanDragDrop\nDropZone" as DragDrop
+
+AppJS --> CommandBar
+AppJS --> Charts
+AppJS --> ImportHooks
+AppJS --> RestTimer
+AppJS --> DragDrop
+@enduml

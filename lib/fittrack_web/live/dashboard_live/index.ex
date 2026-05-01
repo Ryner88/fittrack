@@ -15,6 +15,32 @@ defmodule FittrackWeb.DashboardLive.Index do
               Track your progress and visualize your fitness journey.
             </p>
           </div>
+          <div class="flex flex-wrap gap-3">
+            <%= if @active_workout do %>
+              <.link
+                id="dashboard-resume-workout-link"
+                navigate={~p"/workouts/#{@active_workout}"}
+                class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+              >
+                <.icon name="hero-play" class="mr-2 h-4 w-4" /> Resume workout
+              </.link>
+            <% else %>
+              <.link
+                id="dashboard-start-workout-link"
+                navigate={~p"/workouts/new"}
+                class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+              >
+                <.icon name="hero-plus" class="mr-2 h-4 w-4" /> Start workout
+              </.link>
+              <.link
+                id="dashboard-browse-plans-link"
+                navigate={~p"/workout-plans"}
+                class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2.5 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+              >
+                <.icon name="hero-clipboard-document-list" class="mr-2 h-4 w-4" /> Browse plans
+              </.link>
+            <% end %>
+          </div>
         </div>
         
     <!-- Stats Overview -->
@@ -229,6 +255,7 @@ defmodule FittrackWeb.DashboardLive.Index do
     {:ok,
      socket
      |> assign(:page_title, "Dashboard")
+     |> assign(:active_workout, Training.get_active_workout(current_scope))
      |> assign(:stats, load_stats(current_scope))
      |> assign(:exercises, exercises)
      |> assign(:selected_exercise_id, selected_exercise_id)

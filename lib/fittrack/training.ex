@@ -872,20 +872,9 @@ defmodule Fittrack.Training do
     # Create a new workout
     {:ok, workout} =
       create_workout(%Scope{user: user}, %{
-        name: "#{workout_plan.name} - #{DateTime.utc_now() |> Calendar.strftime("%Y-%m-%d")}"
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+        notes: "Started from plan: #{workout_plan.name}"
       })
-
-    # Create workout sets for each exercise in the plan
-    Enum.each(workout_plan.workout_plan_exercises, fn plan_exercise ->
-      # Create sets based on the plan
-      Enum.each(1..(plan_exercise.target_sets || 1), fn _set_number ->
-        create_workout_set(%Scope{user: user}, workout, %{
-          exercise_id: plan_exercise.exercise_id,
-          reps: plan_exercise.target_reps_min || 8,
-          rest_seconds: plan_exercise.rest_seconds
-        })
-      end)
-    end)
 
     {:ok, workout}
   end
@@ -930,8 +919,9 @@ defmodule Fittrack.Training do
   """
   def count_workouts(%Scope{user: user}) do
     from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
       where: w.user_id == ^user.id,
-      select: count(w.id)
+      select: count(w.id, :distinct)
     )
     |> Repo.one()
   end
@@ -946,11 +936,12 @@ defmodule Fittrack.Training do
     end_of_week = Date.utc_today() |> Date.end_of_week()
 
     from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
       where:
         w.user_id == ^user.id and
           fragment("DATE(?)", w.started_at) >= ^start_of_week and
           fragment("DATE(?)", w.started_at) <= ^end_of_week,
-      select: count(w.id)
+      select: count(w.id, :distinct)
     )
     |> Repo.one()
   end
@@ -1097,6 +1088,7 @@ defmodule Fittrack.Training do
   """
   def workout_dates_in_month(%Scope{user: user}, start_date, end_date) do
     from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
       where:
         w.user_id == ^user.id and
           fragment("DATE(?)", w.started_at) >= ^start_date and
@@ -1113,12 +1105,13 @@ defmodule Fittrack.Training do
   """
   def workout_dates_in_month_with_counts(%Scope{user: user}, start_date, end_date) do
     from(w in Workout,
+      join: ws in assoc(w, :workout_sets),
       where:
         w.user_id == ^user.id and
           fragment("DATE(?)", w.started_at) >= ^start_date and
           fragment("DATE(?)", w.started_at) <= ^end_date,
       group_by: fragment("DATE(?)", w.started_at),
-      select: %{date: fragment("DATE(?)", w.started_at), count: count(w.id)}
+      select: %{date: fragment("DATE(?)", w.started_at), count: count(w.id, :distinct)}
     )
     |> Repo.all()
   end

@@ -301,6 +301,22 @@ defmodule Fittrack.NutritionTest do
       assert item.source_image_metadata["source"] == "upload"
       assert item.parsed_values["field_mapping"]["calories"] == "Calories 560"
     end
+
+    test "meal CRUD supports update, list, get, and delete" do
+      scope = user_scope_fixture()
+      meal = meal_fixture(scope)
+
+      assert [listed_meal] = Nutrition.list_meals(scope)
+      assert listed_meal.id == meal.id
+      assert Nutrition.get_meal!(scope, meal.id).name == "Test Meal"
+
+      assert {:ok, updated_meal} =
+               Nutrition.update_meal(scope, meal, %{"name" => "Updated Meal"})
+
+      assert updated_meal.name == "Updated Meal"
+      assert {:ok, _deleted_meal} = Nutrition.delete_meal(scope, updated_meal)
+      assert Nutrition.list_meals(scope) == []
+    end
   end
 
   describe "meal plans" do
@@ -310,6 +326,22 @@ defmodule Fittrack.NutritionTest do
 
       assert plan.name == "Weekly plan"
       assert length(plan.meal_plan_meals) == 1
+    end
+
+    test "meal plan CRUD supports update, list, get, and delete" do
+      scope = user_scope_fixture()
+      plan = meal_plan_fixture(scope)
+
+      assert [listed_plan] = Nutrition.list_meal_plans(scope)
+      assert listed_plan.id == plan.id
+      assert Nutrition.get_meal_plan!(scope, plan.id).name == "Weekly plan"
+
+      assert {:ok, updated_plan} =
+               Nutrition.update_meal_plan(scope, plan, %{"name" => "Updated plan"})
+
+      assert updated_plan.name == "Updated plan"
+      assert {:ok, _deleted_plan} = Nutrition.delete_meal_plan(scope, updated_plan)
+      assert Nutrition.list_meal_plans(scope) == []
     end
   end
 end

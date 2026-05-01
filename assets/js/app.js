@@ -396,6 +396,123 @@ const Hooks = {
     },
   },
 
+  CommandBar: {
+    mounted() {
+      this.input = this.el.querySelector("[data-command-input]")
+      this.empty = this.el.querySelector("[data-command-empty]")
+      this.items = Array.from(this.el.querySelectorAll("[data-command-item]"))
+      this.groups = Array.from(this.el.querySelectorAll("[data-command-group]"))
+      this.openButtons = Array.from(document.querySelectorAll("[data-command-open]"))
+      this.closeButtons = Array.from(this.el.querySelectorAll("[data-command-close]"))
+
+      this.handleKeydown = (event) => {
+        const wantsCommand = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k"
+
+        if (wantsCommand) {
+          event.preventDefault()
+          this.open()
+          return
+        }
+
+        if (event.key === "Escape" && this.isOpen()) {
+          event.preventDefault()
+          this.close()
+          return
+        }
+
+        if (event.key === "ArrowDown" && this.isOpen()) {
+          event.preventDefault()
+          this.focusNext()
+          return
+        }
+
+        if (event.key === "ArrowUp" && this.isOpen()) {
+          event.preventDefault()
+          this.focusPrevious()
+        }
+      }
+
+      this.handleInput = () => this.filter()
+      this.handleOpenClick = () => this.open()
+      this.handleCloseClick = () => this.close()
+
+      document.addEventListener("keydown", this.handleKeydown)
+      this.input?.addEventListener("input", this.handleInput)
+      this.openButtons.forEach((button) => button.addEventListener("click", this.handleOpenClick))
+      this.closeButtons.forEach((button) => button.addEventListener("click", this.handleCloseClick))
+      this.items.forEach((item) => item.addEventListener("click", this.handleCloseClick))
+    },
+
+    destroyed() {
+      document.removeEventListener("keydown", this.handleKeydown)
+      this.input?.removeEventListener("input", this.handleInput)
+      this.openButtons.forEach((button) => button.removeEventListener("click", this.handleOpenClick))
+      this.closeButtons.forEach((button) => button.removeEventListener("click", this.handleCloseClick))
+      this.items.forEach((item) => item.removeEventListener("click", this.handleCloseClick))
+    },
+
+    open() {
+      this.el.classList.remove("hidden")
+      document.body.classList.add("overflow-hidden")
+      this.input?.focus()
+      this.input?.select()
+    },
+
+    close() {
+      this.el.classList.add("hidden")
+      document.body.classList.remove("overflow-hidden")
+      if (this.input) this.input.value = ""
+      this.filter()
+    },
+
+    isOpen() {
+      return !this.el.classList.contains("hidden")
+    },
+
+    filter() {
+      const query = (this.input?.value || "").trim().toLowerCase()
+      let visibleCount = 0
+
+      this.items.forEach((item) => {
+        const text = (item.dataset.commandKeywords || item.textContent || "").toLowerCase()
+        const visible = query === "" || text.includes(query)
+
+        item.classList.toggle("hidden", !visible)
+        if (visible) visibleCount += 1
+      })
+
+      this.groups.forEach((group) => {
+        const hasVisibleItems = Array.from(group.querySelectorAll("[data-command-item]")).some(
+          (item) => !item.classList.contains("hidden")
+        )
+
+        group.classList.toggle("hidden", !hasVisibleItems)
+      })
+
+      this.empty?.classList.toggle("hidden", visibleCount > 0)
+    },
+
+    visibleItems() {
+      return this.items.filter((item) => !item.classList.contains("hidden"))
+    },
+
+    focusNext() {
+      const items = this.visibleItems()
+      if (items.length === 0) return
+
+      const index = items.indexOf(document.activeElement)
+      items[(index + 1) % items.length].focus()
+    },
+
+    focusPrevious() {
+      const items = this.visibleItems()
+      if (items.length === 0) return
+
+      const index = items.indexOf(document.activeElement)
+      items[(index <= 0 ? items.length : index) - 1].focus()
+    },
+  },
+
   RestTimer: {
     mounted() {
       const display = this.el.querySelector('[data-timer-display]')

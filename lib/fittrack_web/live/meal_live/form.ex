@@ -368,6 +368,21 @@ defmodule FittrackWeb.MealLive.Form do
                 </button>
               </.form>
 
+              <div
+                id="import-status"
+                class={[
+                  "mt-5 rounded-2xl border px-4 py-3 text-sm",
+                  @import_status == :idle && "border-base-200 bg-base-50 text-base-content/70",
+                  @import_status == :success &&
+                    "border-emerald-200 bg-emerald-50 text-emerald-900",
+                  @import_status == :empty && "border-amber-200 bg-amber-50 text-amber-900",
+                  @import_status == :failure && "border-rose-200 bg-rose-50 text-rose-900"
+                ]}
+              >
+                <p class="font-semibold">{import_status_title(@import_status)}</p>
+                <p class="mt-1">{@import_status_message}</p>
+              </div>
+
               <%= if @barcode_food do %>
                 <div class="mt-6 rounded-[1.75rem] border border-emerald-200 bg-[linear-gradient(160deg,rgba(236,253,245,0.95),rgba(255,255,255,0.98))] p-4 shadow-sm shadow-emerald-100/70">
                   <div class="flex items-start justify-between gap-3">
@@ -688,6 +703,11 @@ defmodule FittrackWeb.MealLive.Form do
      |> assign(:total_fats_g, Decimal.new(0))
      |> assign(:import_source_label, "Item")
      |> assign(:import_source_detail, "")
+     |> assign(:import_status, :idle)
+     |> assign(
+       :import_status_message,
+       "Import from a barcode, dining URL, or screenshot when you are ready to review nutrition data."
+     )
      |> assign(:screenshot_import_available?, Nutrition.screenshot_import_available?())
      |> assign_food_picker(%{"food_id" => "", "quantity" => "100", "unit" => "g"})
      |> assign_url_import(%{"url" => ""})
@@ -977,20 +997,32 @@ defmodule FittrackWeb.MealLive.Form do
         socket
         |> assign(:import_source_label, "Barcode")
         |> assign(:import_source_detail, "#{barcode}.")
+        |> assign_import_status(
+          :success,
+          "Barcode found. Review the imported serving basis and nutrition before saving."
+        )
         |> assign_barcode_food(Nutrition.barcode_food_defaults(attrs))
         |> put_flash(:info, "Barcode imported. Confirm the values before saving.")
 
       {:error, :blank_barcode} ->
-        put_flash(socket, :error, "Enter a barcode before importing.")
+        socket
+        |> assign_import_status(:empty, "Enter a barcode before importing.")
+        |> put_flash(:error, "Enter a barcode before importing.")
 
       {:error, :invalid_barcode} ->
-        put_flash(socket, :error, "Use digits only for barcode imports.")
+        socket
+        |> assign_import_status(:failure, "Barcode imports can only contain digits.")
+        |> put_flash(:error, "Use digits only for barcode imports.")
 
       {:error, :not_found} ->
-        put_flash(socket, :error, "No product was found for that barcode.")
+        socket
+        |> assign_import_status(:empty, "No product was found for that barcode.")
+        |> put_flash(:error, "No product was found for that barcode.")
 
       {:error, :lookup_failed} ->
-        put_flash(socket, :error, "Barcode lookup failed. Try again in a moment.")
+        socket
+        |> assign_import_status(:failure, "Barcode lookup failed. Try again in a moment.")
+        |> put_flash(:error, "Barcode lookup failed. Try again in a moment.")
     end
   end
 
@@ -1008,28 +1040,44 @@ defmodule FittrackWeb.MealLive.Form do
         socket
         |> assign(:import_source_label, "Dining URL")
         |> assign(:import_source_detail, "#{host}.")
+        |> assign_import_status(
+          :success,
+          "Dining URL imported. Review the parsed values before saving."
+        )
         |> assign_barcode_food(Nutrition.barcode_food_defaults(attrs))
         |> put_flash(:info, "Dining URL imported. Review and correct anything before saving.")
 
       {:error, :invalid_url} ->
-        put_flash(socket, :error, "Enter a valid http or https dining URL.")
+        socket
+        |> assign_import_status(:empty, "Enter a valid http or https dining URL.")
+        |> put_flash(:error, "Enter a valid http or https dining URL.")
 
       {:error, :unsupported_host} ->
-        put_flash(
-          socket,
+        socket
+        |> assign_import_status(
+          :empty,
+          "That site is not supported yet. Use a listed dining host or enter the food manually."
+        )
+        |> put_flash(
           :error,
           "That site is not supported yet. Use one of the listed dining hosts or correct it manually."
         )
 
       {:error, :nutrition_not_found} ->
-        put_flash(
-          socket,
+        socket
+        |> assign_import_status(
+          :empty,
+          "The page loaded, but no nutrition facts were found."
+        )
+        |> put_flash(
           :error,
           "We could load the page but could not parse nutrition from it. Try another item URL."
         )
 
       {:error, :fetch_failed} ->
-        put_flash(socket, :error, "The dining page could not be loaded right now.")
+        socket
+        |> assign_import_status(:failure, "The dining page could not be loaded right now.")
+        |> put_flash(:error, "The dining page could not be loaded right now.")
     end
   end
 
@@ -1039,27 +1087,52 @@ defmodule FittrackWeb.MealLive.Form do
         socket
         |> assign(:import_source_label, "Screenshot")
         |> assign(:import_source_detail, screenshot_import_detail(attrs))
+        |> assign_import_status(
+          :success,
+          "Screenshot parsed. Review extracted values and source metadata before saving."
+        )
         |> assign_barcode_food(attrs)
         |> put_flash(:info, "Screenshot imported. Review and correct anything before saving.")
 
       {:error, :invalid_image} ->
-        put_flash(socket, :error, "Choose or paste a valid screenshot image.")
+        socket
+        |> assign_import_status(:empty, "Choose or paste a valid screenshot image.")
+        |> put_flash(:error, "Choose or paste a valid screenshot image.")
 
       {:error, :not_configured} ->
-        put_flash(
-          socket,
+        socket
+        |> assign_import_status(
+          :failure,
+          "Screenshot import needs OPENAI_API_KEY. Set it in your environment and reload the app."
+        )
+        |> put_flash(
           :error,
           "Screenshot import needs OPENAI_API_KEY. Set it in your environment and reload the app."
         )
 
       {:error, :parse_failed} ->
-        put_flash(
-          socket,
+        socket
+        |> assign_import_status(
+          :failure,
+          "The screenshot could not be parsed cleanly. Try a clearer image or enter it manually."
+        )
+        |> put_flash(
           :error,
           "The screenshot could not be parsed cleanly. Try a clearer image or enter it manually."
         )
     end
   end
+
+  defp assign_import_status(socket, status, message) do
+    socket
+    |> assign(:import_status, status)
+    |> assign(:import_status_message, message)
+  end
+
+  defp import_status_title(:success), do: "Ready to review"
+  defp import_status_title(:empty), do: "Nothing imported"
+  defp import_status_title(:failure), do: "Import needs attention"
+  defp import_status_title(_status), do: "Import status"
 
   defp barcode_food_library_attrs(attrs) do
     Map.take(attrs, [

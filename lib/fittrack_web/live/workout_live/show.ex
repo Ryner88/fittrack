@@ -39,6 +39,37 @@ defmodule FittrackWeb.WorkoutLive.Show do
           </div>
         </div>
 
+        <section class="grid gap-4 md:grid-cols-4">
+          <div
+            id="workout-source-summary"
+            class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm md:col-span-2"
+          >
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/50">Workout source</p>
+            <h2 class="mt-2 text-lg font-semibold text-base-content">
+              {workout_source_label(@workout)}
+            </h2>
+            <p class="mt-1 text-sm text-base-content/70">
+              Plan targets stay with the template. Log only the sets, reps, and weight you actually perform here.
+            </p>
+          </div>
+          <div
+            id="performed-set-summary"
+            class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm"
+          >
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/50">Performed sets</p>
+            <p class="mt-2 text-3xl font-semibold text-base-content">{@performed_summary.sets}</p>
+          </div>
+          <div
+            id="performed-volume-summary"
+            class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm"
+          >
+            <p class="text-xs uppercase tracking-[0.18em] text-base-content/50">Performed volume</p>
+            <p class="mt-2 text-3xl font-semibold text-base-content">
+              {@performed_summary.volume} lbs
+            </p>
+          </div>
+        </section>
+
         <section class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -83,14 +114,14 @@ defmodule FittrackWeb.WorkoutLive.Show do
                     field={@form[:weight]}
                     type="number"
                     step="0.5"
-                    label="Weight"
+                    label="Performed weight"
                     required
                     placeholder="e.g. 135"
                   />
                   <.input
                     field={@form[:reps]}
                     type="number"
-                    label="Reps"
+                    label="Performed reps"
                     required
                     placeholder="e.g. 8"
                   />
@@ -294,7 +325,10 @@ defmodule FittrackWeb.WorkoutLive.Show do
             phx-update="stream"
             class="mt-4 grid gap-4 sm:grid-cols-2"
           >
-            <div class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-center text-sm text-base-content/70">
+            <div
+              id="workout-sets-empty"
+              class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-center text-sm text-base-content/70"
+            >
               No sets yet — add your first set above.
             </div>
             <div
@@ -349,6 +383,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
      socket
      |> assign(:page_title, "Workout")
      |> assign(:workout, workout)
+     |> assign(:performed_summary, performed_summary(workout.workout_sets))
      |> assign(:exercise_options, exercise_options)
      |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))
      |> assign(:kind_options, WorkoutSet.kind_options())
@@ -424,9 +459,13 @@ defmodule FittrackWeb.WorkoutLive.Show do
            params
          ) do
       {:ok, workout_set} ->
+        workout = Training.get_workout!(socket.assigns.current_scope, socket.assigns.workout.id)
+
         {:noreply,
          socket
          |> stream_insert(:workout_sets, workout_set, at: -1)
+         |> assign(:workout, workout)
+         |> assign(:performed_summary, performed_summary(workout.workout_sets))
          |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))}
 
       {:error, :invalid_exercise} ->
@@ -483,6 +522,26 @@ defmodule FittrackWeb.WorkoutLive.Show do
     weight
     |> Decimal.normalize()
     |> Decimal.to_string(:normal)
+  end
+
+  defp workout_source_label(%{notes: "Started from plan: " <> plan_name}), do: plan_name
+  defp workout_source_label(_workout), do: "Empty workout"
+
+  defp performed_summary(workout_sets) do
+    volume =
+      workout_sets
+      |> Enum.reduce(Decimal.new(0), fn set, acc ->
+        Decimal.add(acc, Decimal.mult(set.weight || Decimal.new(0), Decimal.new(set.reps || 0)))
+      end)
+      |> Decimal.round(1)
+      |> Decimal.normalize()
+      |> Decimal.to_string(:normal)
+
+    %{
+      sets: length(workout_sets),
+      reps: Enum.reduce(workout_sets, 0, &(&2 + (&1.reps || 0))),
+      volume: volume
+    }
   end
 
   defp format_rest_seconds(total_seconds) when is_integer(total_seconds) do

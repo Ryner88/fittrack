@@ -11,23 +11,7 @@ This file is the broader roadmap beyond the immediate execution queue.
 
 ## Now
 
-- Complete the full nutrition module.
-  Scope:
-  - meal logging
-  - weekly planner
-  - nutrition dashboard
-
-- Expand workout logging to capture performed:
-  - sets
-  - reps
-  - weight
-
-- Finish the nutrition import checklist.
-  Remaining scope:
-  - barcode-based nutrition import polish
-  - supported-website nutrition import flow polish
-  - import review/confirmation UX refinement
-  - source tracking for imported food data end-to-end validation
+No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` when it becomes active.
 
 ## Next
 
@@ -41,6 +25,23 @@ This file is the broader roadmap beyond the immediate execution queue.
 - Add a rest timer between sets.
 - Add exercise video links for form reference.
 - Add a 1RM calculator and strength standards by bodyweight.
+- Create a post-workout summary page.
+  Scope:
+  - calories burned estimate
+  - muscle groups worked
+  - session volume, sets, reps, and duration summary
+  - link back to completed workout details
+- Update workout library and plan cards with premium visual polish.
+  Scope:
+  - cleaner shadows
+  - consistent rounded corners
+  - consistent spacing
+  - aligned card actions and metadata
+- Add Google Sheets export for saved workout plans.
+  Scope:
+  - export button on saved plans
+  - Google Sheets-compatible structure for printing or sharing
+  - authentication/export permission flow if direct Google integration is used
 
 - Remember frequently imported campus foods.
 - Auto-suggest recent dining hall items.
@@ -48,6 +49,12 @@ This file is the broader roadmap beyond the immediate execution queue.
 - Add custom macro goals based on TDEE.
 - Add water intake tracking.
 - Add nutrition/workout export.
+- Add automated email reminders for training and nutrition adherence.
+  Scope:
+  - daily workout logging reminders
+  - meal plan adherence reminders
+  - user opt-in/opt-out controls
+  - delivery schedule preferences
 
 - Create a gallery page for dated progress photos.
 - Add side-by-side progress photo comparison.
@@ -61,7 +68,20 @@ This file is the broader roadmap beyond the immediate execution queue.
   - arms
   with trend charts and progress photo integration.
 
+- Add user preferences for goals, body metrics, and measurement units.
+  Scope:
+  - fitness goals
+  - body metrics
+  - default measurement units
+  - preference-driven defaults across workout and nutrition flows
+
 ## Later
+
+- Create dashboard progress charts.
+  Scope:
+  - line charts for muscle group growth over time
+  - line charts for weight lifting progress over time
+  - dashboard summary cards tied to the chart trends
 
 - Create an interactive human body heat map on the dashboard.
   Goal:

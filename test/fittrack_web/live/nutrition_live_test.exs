@@ -157,6 +157,8 @@ defmodule FittrackWeb.NutritionLiveTest do
     |> render_submit()
 
     assert has_element?(view, "#barcode-confirmation-form")
+    assert has_element?(view, "#import-status", "Ready to review")
+    assert has_element?(view, "#import-status", "Barcode found")
     refute has_element?(view, "#meal-item-0")
 
     view
@@ -216,7 +218,29 @@ defmodule FittrackWeb.NutritionLiveTest do
     |> render_hook("barcode_detected", %{"barcode" => "3213213213210"})
 
     assert has_element?(view, "#barcode-confirmation-form")
+    assert has_element?(view, "#import-status", "Ready to review")
     assert render(view) =~ "Trail Mix"
+  end
+
+  test "barcode import shows empty and failure states", %{conn: conn} do
+    user = user_fixture()
+    conn = log_in_user(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/meals/new")
+
+    view
+    |> form("#barcode-lookup-form", %{"barcode_lookup" => %{"barcode" => ""}})
+    |> render_submit()
+
+    assert has_element?(view, "#import-status", "Nothing imported")
+    assert has_element?(view, "#import-status", "Enter a barcode")
+
+    view
+    |> form("#barcode-lookup-form", %{"barcode_lookup" => %{"barcode" => "abc"}})
+    |> render_submit()
+
+    assert has_element?(view, "#import-status", "Import needs attention")
+    assert has_element?(view, "#import-status", "digits")
   end
 
   test "can import a barcode and save it to the food library", %{conn: conn} do
@@ -313,6 +337,7 @@ defmodule FittrackWeb.NutritionLiveTest do
     |> render_submit()
 
     assert has_element?(view, "#barcode-confirmation-form")
+    assert has_element?(view, "#import-status", "Ready to review")
     assert render(view) =~ "McDouble"
     assert render(view) =~ "Dining URL imported"
 
@@ -322,6 +347,22 @@ defmodule FittrackWeb.NutritionLiveTest do
 
     assert has_element?(view, "#meal-item-0")
     assert render(view) =~ "McDouble"
+  end
+
+  test "unsupported dining URL shows an empty import state", %{conn: conn} do
+    user = user_fixture()
+    conn = log_in_user(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/meals/new")
+
+    view
+    |> form("#url-import-form", %{
+      "url_import" => %{"url" => "https://example.com/not-supported"}
+    })
+    |> render_submit()
+
+    assert has_element?(view, "#import-status", "Nothing imported")
+    assert has_element?(view, "#import-status", "not supported")
   end
 
   test "can import a nutrition screenshot and review extended nutrients", %{conn: conn} do
@@ -381,6 +422,7 @@ defmodule FittrackWeb.NutritionLiveTest do
     })
 
     assert has_element?(view, "#barcode-confirmation-form")
+    assert has_element?(view, "#import-status", "Ready to review")
     assert render(view) =~ "Turkey Sandwich"
     assert render(view) =~ "Fiber (g)"
     assert render(view) =~ "Sodium (mg)"

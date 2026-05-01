@@ -211,6 +211,44 @@ defmodule Fittrack.TrainingTest do
       assert workout.id == completed_workout.id
     end
 
+    test "workout counts and calendar dates ignore active workouts without performed sets", %{
+      scope: scope
+    } do
+      today = Date.utc_today()
+      started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
+
+      {:ok, _active_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.add(started_at, 3600, :second)
+        })
+
+      {:ok, completed_workout} = Training.create_workout(scope, %{started_at: started_at})
+
+      {:ok, _set} =
+        Training.create_workout_set(scope, completed_workout, %{
+          exercise_id: exercise_fixture(scope).id,
+          weight: "100",
+          reps: "5",
+          kind: "normal"
+        })
+
+      assert Training.count_workouts(scope) == 1
+      assert Training.count_weekly_workouts(scope) == 1
+
+      assert Training.workout_dates_in_month(
+               scope,
+               Date.beginning_of_month(today),
+               Date.end_of_month(today)
+             ) == [today]
+
+      assert [%{date: ^today, count: 1}] =
+               Training.workout_dates_in_month_with_counts(
+                 scope,
+                 Date.beginning_of_month(today),
+                 Date.end_of_month(today)
+               )
+    end
+
     test "log_exercise_set/2 rejects unauthorized exercise", %{scope: scope} do
       assert {:error, :unauthorized} =
                Training.log_exercise_set(scope, %{

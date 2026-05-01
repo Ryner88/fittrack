@@ -16,6 +16,65 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
 
     assert has_element?(view, ~s(a[href="/workout-history"]), "History")
     refute has_element?(view, ~s(a[href="/workouts"]), "Workouts")
+    assert has_element?(view, "#header-start-workout-link")
+    assert has_element?(view, "#profile-menu-button")
+    assert has_element?(view, "#profile-settings-link")
+    assert has_element?(view, "#profile-log-out-link")
+    assert has_element?(view, "#command-bar")
+    assert has_element?(view, "#command-bar-open")
+
+    assert has_element?(
+             view,
+             ~s(a[data-command-item][href="/workouts/new"]),
+             "Start empty workout"
+           )
+
+    assert has_element?(view, ~s(a[data-command-item][href="/workout-plans"]), "Start from plan")
+    assert has_element?(view, ~s(a[data-command-item][href="/nutrition"]), "Nutrition")
+    assert has_element?(view, ~s(a[data-command-item][href="/meals/new"]), "Log meal")
+  end
+
+  test "dashboard shows start and browse plan CTAs when no active workout exists", %{conn: conn} do
+    user = user_fixture()
+    conn = log_in_user(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+    assert has_element?(view, "#dashboard-start-workout-link")
+    assert has_element?(view, "#dashboard-browse-plans-link")
+    refute has_element?(view, "#dashboard-resume-workout-link")
+  end
+
+  test "dashboard and header show resume CTA when an active workout exists", %{conn: conn} do
+    user = user_fixture()
+    scope = %Scope{user: user}
+
+    {:ok, _active_workout} =
+      Training.create_workout(scope, %{
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+    assert has_element?(view, "#dashboard-resume-workout-link")
+    assert has_element?(view, "#header-resume-workout-link")
+
+    assert has_element?(
+             view,
+             ~s(a[data-command-item][href="/workouts/#{Training.get_active_workout(scope).id}"]),
+             "Resume workout"
+           )
+
+    assert has_element?(
+             view,
+             ~s(a[data-command-item][href="/workouts/#{Training.get_active_workout(scope).id}"]),
+             "Log set"
+           )
+
+    refute has_element?(view, "#dashboard-start-workout-link")
+    refute has_element?(view, "#dashboard-browse-plans-link")
+    refute has_element?(view, "#command-bar", "Start empty workout")
   end
 
   test "shows start and browse plan CTAs when no active workout exists", %{conn: conn} do

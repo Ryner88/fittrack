@@ -5,6 +5,8 @@ defmodule FittrackWeb.Layouts do
   """
   use FittrackWeb, :html
 
+  alias Fittrack.Training
+
   # Embed all files in layouts/* within this module.
   # The default root.html.heex file contains the HTML
   # skeleton of your application, namely HTML headers
@@ -34,6 +36,9 @@ defmodule FittrackWeb.Layouts do
   slot :inner_block, required: true
 
   def app(assigns) do
+    assigns =
+      assign(assigns, :active_workout, active_workout(assigns[:current_scope]))
+
     ~H"""
     <div class="min-h-screen relative bg-gradient-to-b from-base-200 via-base-200 to-base-100">
       <div class="pointer-events-none fixed inset-0 opacity-[0.04]
@@ -98,16 +103,57 @@ defmodule FittrackWeb.Layouts do
 
             <div class="flex items-center gap-3">
               <%= if @current_scope && @current_scope.user do %>
-                <span class="hidden text-xs text-base-content/60 sm:inline">
-                  {@current_scope.user.email}
-                </span>
-                <.link
-                  href={~p"/users/log-out"}
-                  method="delete"
-                  class="inline-flex items-center justify-center rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary"
+                <button
+                  id="command-bar-open"
+                  type="button"
+                  data-command-open
+                  class="hidden items-center gap-2 rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary lg:inline-flex"
                 >
-                  Log out
-                </.link>
+                  <.icon name="hero-magnifying-glass" class="h-4 w-4" />
+                  <span>Search</span>
+                  <kbd class="rounded bg-base-200 px-1.5 py-0.5 text-[0.65rem] font-semibold text-base-content/60">
+                    Ctrl K
+                  </kbd>
+                </button>
+                <.workout_cta active_workout={@active_workout} id_prefix="header" />
+                <details class="group relative">
+                  <summary
+                    id="profile-menu-button"
+                    class="flex cursor-pointer list-none items-center gap-2 rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary"
+                  >
+                    <.icon name="hero-user-circle" class="h-4 w-4" />
+                    <span class="hidden sm:inline">Profile</span>
+                    <.icon name="hero-chevron-down" class="h-3 w-3 transition group-open:rotate-180" />
+                  </summary>
+                  <div class="absolute right-0 z-20 mt-3 w-64 rounded-xl border border-base-200 bg-base-100 p-2 shadow-xl">
+                    <div class="border-b border-base-200 px-3 py-2">
+                      <p class="truncate text-sm font-semibold text-base-content">
+                        {@current_scope.user.email}
+                      </p>
+                    </div>
+                    <.link
+                      id="profile-settings-link"
+                      navigate={~p"/users/settings"}
+                      class="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200"
+                    >
+                      <.icon name="hero-cog-6-tooth" class="h-4 w-4" /> Settings
+                    </.link>
+                    <div class="mt-2 px-3 py-2">
+                      <p class="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
+                        Theme
+                      </p>
+                      <.theme_toggle />
+                    </div>
+                    <.link
+                      id="profile-log-out-link"
+                      href={~p"/users/log-out"}
+                      method="delete"
+                      class="mt-2 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-base-content transition hover:bg-base-200 hover:text-primary"
+                    >
+                      <.icon name="hero-arrow-right-on-rectangle" class="h-4 w-4" /> Log out
+                    </.link>
+                  </div>
+                </details>
               <% else %>
                 <.link
                   navigate={~p"/users/log-in"}
@@ -119,10 +165,10 @@ defmodule FittrackWeb.Layouts do
                   navigate={~p"/users/register"}
                   class="inline-flex items-center justify-center rounded-full bg-primary px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
                 >
-                  Create account
+                  Register
                 </.link>
+                <.theme_toggle />
               <% end %>
-              <.theme_toggle />
             </div>
           </div>
         </header>
@@ -133,9 +179,234 @@ defmodule FittrackWeb.Layouts do
           </div>
         </main>
 
+        <%= if @current_scope && @current_scope.user do %>
+          <.command_bar active_workout={@active_workout} />
+        <% end %>
+
         <.flash_group flash={@flash} />
       </div>
     </div>
+    """
+  end
+
+  attr :active_workout, :map, default: nil
+  attr :id_prefix, :string, required: true
+
+  defp workout_cta(assigns) do
+    ~H"""
+    <%= if @active_workout do %>
+      <.link
+        id={"#{@id_prefix}-resume-workout-link"}
+        navigate={~p"/workouts/#{@active_workout}"}
+        class="hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 sm:inline-flex"
+      >
+        <.icon name="hero-play" class="mr-2 h-4 w-4" /> Resume workout
+      </.link>
+    <% else %>
+      <.link
+        id={"#{@id_prefix}-start-workout-link"}
+        navigate={~p"/workouts/new"}
+        class="hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 sm:inline-flex"
+      >
+        <.icon name="hero-plus" class="mr-2 h-4 w-4" /> Start workout
+      </.link>
+    <% end %>
+    """
+  end
+
+  defp active_workout(%{user: %{}} = current_scope),
+    do: Training.get_active_workout(current_scope)
+
+  defp active_workout(_current_scope), do: nil
+
+  attr :active_workout, :map, default: nil
+
+  defp command_bar(assigns) do
+    ~H"""
+    <div
+      id="command-bar"
+      phx-hook="CommandBar"
+      phx-update="ignore"
+      class="fixed inset-0 z-40 hidden"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="command-bar-title"
+    >
+      <button
+        type="button"
+        data-command-close
+        class="absolute inset-0 h-full w-full cursor-default bg-base-content/30 backdrop-blur-sm"
+        aria-label="Close command bar"
+      >
+      </button>
+      <div class="relative mx-auto mt-20 w-[min(42rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-base-200 bg-base-100 shadow-2xl">
+        <div class="border-b border-base-200 p-4">
+          <div class="flex items-center gap-3">
+            <.icon name="hero-magnifying-glass" class="h-5 w-5 text-base-content/45" />
+            <div class="min-w-0 flex-1">
+              <h2 id="command-bar-title" class="sr-only">Command bar</h2>
+              <input
+                id="command-bar-input"
+                data-command-input
+                type="search"
+                autocomplete="off"
+                placeholder="Search actions, pages, and tools"
+                class="w-full border-0 bg-transparent text-base font-semibold text-base-content outline-none placeholder:text-base-content/40"
+              />
+            </div>
+            <kbd class="rounded-md border border-base-200 bg-base-50 px-2 py-1 text-xs font-semibold text-base-content/50">
+              Esc
+            </kbd>
+          </div>
+        </div>
+
+        <div class="max-h-[70vh] overflow-y-auto p-3">
+          <.command_group title="Workout">
+            <%= if @active_workout do %>
+              <.command_item
+                href={~p"/workouts/#{@active_workout}"}
+                icon="hero-play"
+                title="Resume workout"
+                description="Continue the active workout in progress"
+                keywords="active continue workout log set"
+              />
+              <.command_item
+                href={~p"/workouts/#{@active_workout}"}
+                icon="hero-plus-circle"
+                title="Log set"
+                description="Jump to the active workout set form"
+                keywords="performed reps weight set"
+              />
+            <% else %>
+              <.command_item
+                href={~p"/workouts/new"}
+                icon="hero-plus"
+                title="Start empty workout"
+                description="Begin a blank workout session"
+                keywords="start workout empty session"
+              />
+              <.command_item
+                href={~p"/workout-plans"}
+                icon="hero-clipboard-document-list"
+                title="Start from plan"
+                description="Choose a reusable workout template"
+                keywords="plans templates routine"
+              />
+            <% end %>
+          </.command_group>
+
+          <.command_group title="Navigate">
+            <.command_item
+              href={~p"/dashboard"}
+              icon="hero-chart-bar"
+              title="Dashboard"
+              description="Progress, summaries, and charts"
+              keywords="home stats progress"
+            />
+            <.command_item
+              href={~p"/nutrition"}
+              icon="hero-fire"
+              title="Nutrition"
+              description="Meals, weekly planner, and intake dashboard"
+              keywords="meals food calories macros"
+            />
+            <.command_item
+              href={~p"/exercises"}
+              icon="hero-bolt"
+              title="Exercises"
+              description="Manage personal exercise library"
+              keywords="movements lifts library"
+            />
+            <.command_item
+              href={~p"/workout-plans"}
+              icon="hero-clipboard-document-list"
+              title="Plans"
+              description="Reusable workout templates"
+              keywords="templates routines plans"
+            />
+            <.command_item
+              href={~p"/workout-history"}
+              icon="hero-calendar-days"
+              title="History"
+              description="Completed workouts and calendar"
+              keywords="completed calendar records"
+            />
+          </.command_group>
+
+          <.command_group title="Create">
+            <.command_item
+              href={~p"/meals/new"}
+              icon="hero-plus"
+              title="Log meal"
+              description="Create a meal and import nutrition"
+              keywords="nutrition food barcode screenshot"
+            />
+            <.command_item
+              href={~p"/meal-plans/new"}
+              icon="hero-calendar"
+              title="Build weekly meal plan"
+              description="Create a reusable nutrition plan"
+              keywords="weekly nutrition planner"
+            />
+            <.command_item
+              href={~p"/workout-plans/generator"}
+              icon="hero-sparkles"
+              title="AI workout generator"
+              description="Generate a workout plan from goals and equipment"
+              keywords="ai generate plan"
+            />
+          </.command_group>
+
+          <div
+            data-command-empty
+            class="hidden rounded-xl border border-dashed border-base-300 p-6 text-center text-sm text-base-content/65"
+          >
+            No commands match that search.
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  slot :inner_block, required: true
+  attr :title, :string, required: true
+
+  defp command_group(assigns) do
+    ~H"""
+    <section data-command-group class="mb-3">
+      <h3 class="px-3 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-base-content/45">
+        {@title}
+      </h3>
+      <div class="space-y-1">
+        {render_slot(@inner_block)}
+      </div>
+    </section>
+    """
+  end
+
+  attr :href, :string, required: true
+  attr :icon, :string, required: true
+  attr :title, :string, required: true
+  attr :description, :string, required: true
+  attr :keywords, :string, default: ""
+
+  defp command_item(assigns) do
+    ~H"""
+    <.link
+      navigate={@href}
+      data-command-item
+      data-command-keywords={"#{@title} #{@description} #{@keywords}"}
+      class="group flex items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-base-200 focus:bg-base-200 focus:outline-none"
+    >
+      <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-base-200 bg-base-50 text-base-content/70 group-hover:border-primary/30 group-hover:text-primary">
+        <.icon name={@icon} class="h-4 w-4" />
+      </span>
+      <span class="min-w-0">
+        <span class="block text-sm font-semibold text-base-content">{@title}</span>
+        <span class="mt-0.5 block truncate text-xs text-base-content/60">{@description}</span>
+      </span>
+    </.link>
     """
   end
 

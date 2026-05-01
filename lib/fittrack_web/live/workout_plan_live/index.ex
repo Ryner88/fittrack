@@ -12,7 +12,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
           <div>
             <h1 class="text-2xl font-semibold text-base-content">Workout Plans</h1>
             <p class="text-sm text-base-content/70">
-              Create and manage workout templates for consistent training routines.
+              Create and manage reusable workout templates for consistent training.
             </p>
           </div>
           <div class="flex gap-2">
@@ -136,7 +136,10 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
 
   defp workout_plan_card(assigns) do
     ~H"""
-    <div class="group relative rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm transition hover:shadow-md hover:border-primary/20">
+    <div
+      id={"workout-plan-#{@workout_plan.id}"}
+      class="group relative rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm transition hover:shadow-md hover:border-primary/20"
+    >
       <div class="flex items-start justify-between">
         <div class="flex-1">
           <h3 class="font-semibold text-base-content group-hover:text-primary transition">
@@ -156,14 +159,36 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
         </div>
       </div>
 
-      <div class="mt-6 flex items-center justify-between">
-        <div class="flex gap-2">
-          <.link
-            navigate={~p"/workout-plans/#{@workout_plan}"}
-            class="inline-flex items-center gap-2 rounded-lg border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
-          >
-            <.icon name="hero-eye" class="h-3 w-3" /> View
-          </.link>
+      <div class="mt-4 grid gap-2 text-sm text-base-content/70">
+        <div class="flex items-center gap-2">
+          <.icon name="hero-flag" class="h-4 w-4 text-primary" />
+          <span>{plan_goal_or_type(@workout_plan)}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <.icon name="hero-calendar-days" class="h-4 w-4 text-primary" />
+          <span>{days_per_week(@workout_plan)} days per week</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <.icon name="hero-queue-list" class="h-4 w-4 text-primary" />
+          <span>{length(@workout_plan.workout_plan_exercises)} exercises</span>
+        </div>
+        <%= if last_used_at(@workout_plan) do %>
+          <div class="flex items-center gap-2">
+            <.icon name="hero-clock" class="h-4 w-4 text-primary" />
+            <span>Last used {last_used_at(@workout_plan)}</span>
+          </div>
+        <% end %>
+      </div>
+
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          phx-click="start_session"
+          phx-value-id={@workout_plan.id}
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
+        >
+          <.icon name="hero-play" class="h-3 w-3" /> Start from plan
+        </button>
+        <div class="flex flex-wrap gap-2">
           <.link
             navigate={~p"/workout-plans/#{@workout_plan}/edit"}
             class="inline-flex items-center gap-2 rounded-lg border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
@@ -177,15 +202,6 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
           >
             <.icon name="hero-document-duplicate" class="h-3 w-3" /> Duplicate
           </button>
-        </div>
-        <div class="flex gap-2">
-          <button
-            phx-click="start_session"
-            phx-value-id={@workout_plan.id}
-            class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-primary/90"
-          >
-            <.icon name="hero-play" class="h-3 w-3" /> Start workout
-          </button>
           <button
             phx-click="delete"
             phx-value-id={@workout_plan.id}
@@ -198,6 +214,31 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
       </div>
     </div>
     """
+  end
+
+  defp plan_goal_or_type(workout_plan) do
+    (workout_plan.primary_goal || workout_plan.goal || workout_plan.primary_style || "General")
+    |> humanize_choice()
+  end
+
+  defp days_per_week(workout_plan) do
+    workout_plan.workout_plan_exercises
+    |> Enum.map(& &1.scheduled_day)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.uniq()
+    |> case do
+      [] -> "Flexible"
+      days -> length(days)
+    end
+  end
+
+  defp last_used_at(_workout_plan), do: nil
+
+  defp humanize_choice(value) when is_binary(value) do
+    value
+    |> String.replace("_", " ")
+    |> String.split(" ", trim: true)
+    |> Enum.map_join(" ", &String.capitalize/1)
   end
 
   defp estimate_duration(workout_plan) do
