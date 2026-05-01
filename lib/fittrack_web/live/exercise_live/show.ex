@@ -52,6 +52,10 @@ defmodule FittrackWeb.ExerciseLive.Show do
      )}
   end
 
-  defp exercise_image_url(%{source_template: %{image_url: image_url}}), do: image_url
+  defp exercise_image_url(%{source_template: %{id: id, image_url: image_url}})
+       when is_binary(image_url) do
+    ~p"/exercise-template-images/#{id}"
+  end
+
   defp exercise_image_url(_exercise), do: nil
 end

@@ -4,6 +4,10 @@ defmodule FittrackWeb.ExerciseLiveTest do
   import Phoenix.LiveViewTest
   import Fittrack.TrainingFixtures
 
+  alias Fittrack.Repo
+  alias Fittrack.Training
+  alias Fittrack.Training.ExerciseTemplate
+
   @create_attrs %{
     name: "some name",
     primary_muscle: "some primary_muscle",
@@ -34,6 +38,32 @@ defmodule FittrackWeb.ExerciseLiveTest do
 
       assert html =~ "Listing Exercises"
       assert html =~ exercise.name
+    end
+
+    test "renders exercise images through the local proxy", %{conn: conn, user: user} do
+      scope = %Fittrack.Accounts.Scope{user: user}
+
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          name: "Pull-up",
+          primary_muscle: "Back",
+          equipment: "Pull-up bar",
+          image_url: "https://wger.de/media/exercise-images/2002/main.jpg"
+        })
+        |> Repo.insert()
+
+      {:ok, exercise} = Training.add_template_to_user(scope, template.id)
+
+      conn = log_in_user(conn, user)
+      {:ok, _index_live, html} = live(conn, ~p"/exercises")
+
+      assert html =~ ~s(src="/exercise-template-images/#{template.id}")
+      refute html =~ template.image_url
+
+      {:ok, _show_live, show_html} = live(conn, ~p"/exercises/#{exercise}")
+      assert show_html =~ ~s(src="/exercise-template-images/#{template.id}")
+      refute show_html =~ template.image_url
     end
 
     test "saves new exercise", %{conn: conn, user: user} do

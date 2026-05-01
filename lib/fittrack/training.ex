@@ -133,6 +133,13 @@ defmodule Fittrack.Training do
   end
 
   @doc """
+  Gets a shared exercise template by id.
+  """
+  def get_exercise_template(id) do
+    Repo.get(ExerciseTemplate, id)
+  end
+
+  @doc """
   Creates a user exercise from a shared template.
   """
   def add_template_to_user(scope, template_id)

@@ -141,7 +141,7 @@ defmodule FittrackWeb.LibraryLive.Index do
       <%= if @template.image_url do %>
         <div class="aspect-[4/3] bg-base-200">
           <img
-            src={@template.image_url}
+            src={~p"/exercise-template-images/#{@template.id}"}
             alt={"#{@template.name} exercise reference"}
             class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
             loading="lazy"

@@ -37,7 +37,7 @@ defmodule FittrackWeb.LibraryLive.Show do
           <div class="overflow-hidden rounded-2xl border border-base-200 bg-base-200 shadow-sm">
             <img
               id="exercise-template-image"
-              src={@template.image_url}
+              src={~p"/exercise-template-images/#{@template.id}"}
               alt={"#{@template.name} exercise reference"}
               class="max-h-[28rem] w-full object-cover"
             />
