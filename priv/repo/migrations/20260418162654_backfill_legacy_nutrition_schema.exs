@@ -99,11 +99,27 @@ defmodule Fittrack.Repo.Migrations.BackfillLegacyNutritionSchema do
     """)
 
     execute("""
-    UPDATE meal_items AS items
-    SET food_name = foods.name
-    FROM foods
-    WHERE items.food_name IS NULL
-      AND items.food_id = foods.id
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_name = 'foods'
+      ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'meal_items'
+          AND column_name = 'food_id'
+      ) THEN
+        EXECUTE '
+          UPDATE meal_items AS items
+          SET food_name = foods.name
+          FROM foods
+          WHERE items.food_name IS NULL
+            AND items.food_id = foods.id
+        ';
+      END IF;
+    END $$;
     """)
 
     execute("""

@@ -7,6 +7,9 @@ defmodule Fittrack.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize the FitnessClient token cache
+    Fittrack.FitnessClient.init_token_cache()
+
     children = [
       FittrackWeb.Telemetry,
       Fittrack.Repo,
