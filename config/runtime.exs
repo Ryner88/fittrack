@@ -29,8 +29,8 @@ end
 # SparkyFitness API client configuration
 config :fittrack, Fittrack.FitnessClient,
   base_url: System.get_env("SPARKY_BASE_URL", "http://127.0.0.1:3010"),
-  email: System.get_env("SPARKY_EMAIL"),
-  password: System.get_env("SPARKY_PASSWORD")
+  api_key: System.get_env("SPARKY_API_KEY")
+ 
 
 if config_env() == :prod do
   database_url =

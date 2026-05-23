@@ -4,185 +4,100 @@ defmodule Fittrack.FitnessClientTest do
   alias Fittrack.FitnessClient
 
   defmodule HttpClientStub do
-    def post("http://127.0.0.1:3010/api/auth/login", body, headers) do
-      send(self(), {:login_request, body, headers})
-
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 200,
-         body: ~s({"token":"stub-token"})
-       }}
-    end
-
-    def get("http://127.0.0.1:3010/api/health", headers) do
-      send(self(), {:health_request, headers})
-
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 200,
-         body: ~s({"status":"UP"})
-       }}
-    end
-
-    def get("http://127.0.0.1:3010/api/exercises/diary/2026-05-22", headers) do
-      send(self(), {:diary_request, headers})
-
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 200,
-         body: ~s({"entries":[]})
-       }}
-    end
-
-    def get("http://127.0.0.1:3010/api/exercises", headers) do
-      send(self(), {:exercises_request, headers})
-
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 200,
-         body: ~s([{"id":1,"name":"Bench Press"}])
-       }}
-    end
-
     def get(url, _headers) do
-      {:error, {:unexpected_url, url}}
+      send(self(), {:http_get, url})
+      {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"ok":true})}}
+    end
+    def post(url, _body, _headers) do
+      send(self(), {:http_post, url})
+      {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"ok":true})}}
     end
   end
 
-  defmodule HttpClientRetryStub do
-    def post("http://127.0.0.1:3010/api/auth/login", body, headers) do
-      send(self(), {:login_request, body, headers})
-
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 200,
-         body: ~s({"token":"retry-token"})
-       }}
+  defmodule HttpClientExercisesStub do
+    def get(_url, _headers) do
+      body = ~s({"exercises":[],"pagination":{"page":1,"pageSize":20,"totalCount":0,"hasMore":false}})
+      {:ok, %HTTPoison.Response{status_code: 200, body: body}}
     end
+    def post(_url, _body, _headers), do: {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"ok":true})}}
+  end
 
-    def get("http://127.0.0.1:3010/api/exercises", headers) do
-      count = Process.get(:exercise_request_count, 0)
-      Process.put(:exercise_request_count, count + 1)
+  defmodule HttpClientDiaryStub do
+    def get(_url, _headers), do: {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"entries":[]})}}
+    def post(_url, _body, _headers), do: {:ok, %HTTPoison.Response{status_code: 200, body: ~s({"ok":true})}}
+  end
 
-      if count == 0 do
-        {:ok,
-         %HTTPoison.Response{
-           status_code: 401,
-           body: ~s({"error":"Authentication required."})
-         }}
-      else
-        send(self(), {:exercise_request_after_retry, headers})
-
-        {:ok,
-         %HTTPoison.Response{
-           status_code: 200,
-           body: ~s([{"id":2,"name":"Squat"}])
-         }}
-      end
-    end
-
-    def get(url, _headers) do
-      {:error, {:unexpected_url, url}}
-    end
+  defmodule HttpClientUnauthorizedStub do
+    def get(_url, _headers), do: {:ok, %HTTPoison.Response{status_code: 401, body: ~s({"error":"Authentication required."})}}
+    def post(_url, _body, _headers), do: {:ok, %HTTPoison.Response{status_code: 401, body: ~s({"error":"Authentication required."})}}
   end
 
   defmodule HttpClientErrorStub do
-    def post("http://127.0.0.1:3010/api/auth/login", body, headers) do
-      send(self(), {:login_request, body, headers})
-
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 200,
-         body: ~s({"token":"error-token"})
-       }}
-    end
-
-    def get("http://127.0.0.1:3010/api/exercises", _headers) do
-      {:ok,
-       %HTTPoison.Response{
-         status_code: 500,
-         body: ~s({"error":"Server error"})
-       }}
-    end
-
-    def get(url, _headers) do
-      {:error, {:unexpected_url, url}}
-    end
+    def get(_url, _headers), do: {:ok, %HTTPoison.Response{status_code: 500, body: ~s({"error":"Internal server error"})}}
+    def post(_url, _body, _headers), do: {:ok, %HTTPoison.Response{status_code: 500, body: ~s({"error":"Internal server error"})}}
   end
 
+  @test_key "test-api-key-that-is-long-enough-to-pass-64-char-check-xxxxxxxxxx"
+
   setup do
-    Application.put_env(:fittrack, Fittrack.FitnessClient, [
+    Application.put_env(:fittrack, FitnessClient,
       base_url: "http://127.0.0.1:3010",
-      email: "test@example.com",
-      password: "password",
+      api_key: @test_key,
       http_client: HttpClientStub
-    ])
-
-    FitnessClient.init_token_cache()
-    Agent.update(Fittrack.FitnessClient.TokenCache, fn _ -> nil end)
-
-    on_exit(fn -> Application.delete_env(:fittrack, Fittrack.FitnessClient) end)
-
+    )
+    on_exit(fn -> Application.delete_env(:fittrack, FitnessClient) end)
     :ok
   end
 
-  test "login posts to /api/auth/login" do
-    assert {:ok, "stub-token"} = FitnessClient.login()
-    assert_received {:login_request, body, headers}
-    assert headers == [{"Content-Type", "application/json"}]
-    assert body == Jason.encode!(%{email: "test@example.com", password: "password"})
-  end
-
   test "health_check uses /api/health" do
-    assert {:ok, %{"status" => "UP"}} = FitnessClient.health_check()
-    assert_received {:health_request, headers}
-    assert headers == [{"Content-Type", "application/json"}, {"Authorization", "Bearer stub-token"}]
+    {:ok, _} = FitnessClient.health_check()
+    assert_received {:http_get, url}
+    assert url == "http://127.0.0.1:3010/api/health"
   end
 
-  test "get_diary uses /api/exercises/diary/:date" do
-    assert {:ok, %{"entries" => []}} = FitnessClient.get_diary("2026-05-22")
-    assert_received {:diary_request, headers}
-    assert headers == [{"Content-Type", "application/json"}, {"Authorization", "Bearer stub-token"}]
+  test "get_exercises hits /api/v2/exercises/search" do
+    Application.put_env(:fittrack, FitnessClient, base_url: "http://127.0.0.1:3010", api_key: @test_key, http_client: HttpClientExercisesStub)
+    {:ok, result} = FitnessClient.get_exercises()
+    assert Map.has_key?(result, "exercises")
+    assert Map.has_key?(result, "pagination")
   end
 
-  test "get_exercises uses /api/exercises" do
-    assert {:ok, [%{"id" => 1, "name" => "Bench Press"}]} = FitnessClient.get_exercises()
-    assert_received {:exercises_request, headers}
-    assert headers == [{"Content-Type", "application/json"}, {"Authorization", "Bearer stub-token"}]
+  test "search_exercises passes query params to /api/v2/exercises/search" do
+    {:ok, _} = FitnessClient.search_exercises(search_term: "bench")
+    assert_received {:http_get, url}
+    assert url =~ "/api/v2/exercises/search"
+    assert url =~ "searchTerm=bench"
   end
 
-  test "401 response retries with re-login" do
-    Application.put_env(:fittrack, Fittrack.FitnessClient, [
-      base_url: "http://127.0.0.1:3010",
-      email: "test@example.com",
-      password: "password",
-      http_client: HttpClientRetryStub
-    ])
+  test "get_diary uses /api/v2/exercise-entries with date param" do
+    Application.put_env(:fittrack, FitnessClient, base_url: "http://127.0.0.1:3010", api_key: @test_key, http_client: HttpClientDiaryStub)
+    {:ok, result} = FitnessClient.get_diary("2026-05-23")
+    assert Map.has_key?(result, "entries")
+  end
 
-    FitnessClient.init_token_cache()
-    Agent.update(Fittrack.FitnessClient.TokenCache, fn _ -> nil end)
-    Process.delete(:exercise_request_count)
+  test "get_diary sends correct URL" do
+    {:ok, _} = FitnessClient.get_diary("2026-05-23")
+    assert_received {:http_get, url}
+    assert url =~ "/api/v2/exercise-entries"
+    assert url =~ "date=2026-05-23"
+  end
 
-    assert {:ok, [%{"id" => 2, "name" => "Squat"}]} = FitnessClient.get_exercises()
-    assert_received {:exercise_request_after_retry, headers}
-    assert headers == [{"Content-Type", "application/json"}, {"Authorization", "Bearer retry-token"}]
-    assert_received {:login_request, _body, _headers}
+  test "returns error tuple on 401 response" do
+    Application.put_env(:fittrack, FitnessClient, base_url: "http://127.0.0.1:3010", api_key: @test_key, http_client: HttpClientUnauthorizedStub)
+    assert {:error, reason} = FitnessClient.health_check()
+    assert reason =~ "Unauthorized"
   end
 
   test "returns error tuple on 500 response" do
-    Application.put_env(:fittrack, Fittrack.FitnessClient, [
-      base_url: "http://127.0.0.1:3010",
-      email: "test@example.com",
-      password: "password",
-      http_client: HttpClientErrorStub
-    ])
+    Application.put_env(:fittrack, FitnessClient, base_url: "http://127.0.0.1:3010", api_key: @test_key, http_client: HttpClientErrorStub)
+    assert {:error, reason} = FitnessClient.health_check()
+    assert reason =~ "500"
+  end
 
-    FitnessClient.init_token_cache()
-    Agent.update(Fittrack.FitnessClient.TokenCache, fn _ -> nil end)
-
-    assert {:error, message} = FitnessClient.get_exercises()
-    assert message =~ "HTTP 500"
-    assert message =~ "Server error"
-    assert_received {:login_request, _body, _headers}
+  test "raises if api_key is not configured" do
+    Application.put_env(:fittrack, FitnessClient, base_url: "http://127.0.0.1:3010", api_key: nil, http_client: HttpClientStub)
+    assert_raise RuntimeError, ~r/SPARKY_API_KEY/, fn ->
+      FitnessClient.health_check()
+    end
   end
 end
