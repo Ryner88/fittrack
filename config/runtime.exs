@@ -26,11 +26,9 @@ if screenshot_import_model = System.get_env("SCREENSHOT_IMPORT_MODEL") do
   config :fittrack, :screenshot_import_model, screenshot_import_model
 end
 
-# SparkyFitness API client configuration
-config :fittrack, Fittrack.FitnessClient,
-  base_url: System.get_env("SPARKY_BASE_URL", "http://127.0.0.1:3010"),
-  api_key: System.get_env("SPARKY_API_KEY")
- 
+if ai_workout_parser_model = System.get_env("AI_WORKOUT_PARSER_MODEL") do
+  config :fittrack, :ai_workout_parser_model, ai_workout_parser_model
+end
 
 if config_env() == :prod do
   database_url =

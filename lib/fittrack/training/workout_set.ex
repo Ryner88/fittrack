@@ -23,11 +23,18 @@ defmodule Fittrack.Training.WorkoutSet do
 
   @kinds [
     "normal",
+    "straight_set",
     "warm_up",
+    "working_set",
     "right",
     "left",
     "failure",
     "drop_set",
+    "superset",
+    "circuit",
+    "amrap",
+    "timed_set",
+    "rest_pause",
     "negative_reps",
     "partial_reps",
     "myo_reps",
@@ -37,33 +44,47 @@ defmodule Fittrack.Training.WorkoutSet do
   ]
 
   @kind_options [
-    {"N Normal", "normal"},
-    {"W Warm Up", "warm_up"},
-    {"R Right", "right"},
-    {"L Left", "left"},
-    {"F Failure", "failure"},
-    {"D Drop Set", "drop_set"},
-    {"N Negative Reps", "negative_reps"},
-    {"P Partial Reps", "partial_reps"},
-    {"M Myo Reps", "myo_reps"},
-    {"F Feeder Set", "feeder_set"},
-    {"T Top Set", "top_set"},
-    {"B Back Off Set", "back_off_set"}
+    {"Normal", "normal"},
+    {"Straight Sets", "straight_set"},
+    {"Warm-up Set", "warm_up"},
+    {"Working Set", "working_set"},
+    {"Right Side", "right"},
+    {"Left Side", "left"},
+    {"Failure Set", "failure"},
+    {"Drop Set", "drop_set"},
+    {"Superset", "superset"},
+    {"Circuit", "circuit"},
+    {"AMRAP Set", "amrap"},
+    {"Timed Set", "timed_set"},
+    {"Rest-pause Set", "rest_pause"},
+    {"Negative Reps", "negative_reps"},
+    {"Partial Reps", "partial_reps"},
+    {"Myo-reps", "myo_reps"},
+    {"Feeder Set", "feeder_set"},
+    {"Top Set", "top_set"},
+    {"Back-off Set", "back_off_set"}
   ]
 
   @kind_labels %{
     "normal" => "Normal",
+    "straight_set" => "Straight Sets",
     "warm_up" => "Warm Up",
+    "working_set" => "Working Set",
     "right" => "Right",
     "left" => "Left",
     "failure" => "Failure",
     "drop_set" => "Drop Set",
+    "superset" => "Superset",
+    "circuit" => "Circuit",
+    "amrap" => "AMRAP",
+    "timed_set" => "Timed Set",
+    "rest_pause" => "Rest-pause Set",
     "negative_reps" => "Negative Reps",
     "partial_reps" => "Partial Reps",
-    "myo_reps" => "Myo Reps",
+    "myo_reps" => "Myo-reps",
     "feeder_set" => "Feeder Set",
     "top_set" => "Top Set",
-    "back_off_set" => "Back Off Set"
+    "back_off_set" => "Back-off Set"
   }
 
   @doc false

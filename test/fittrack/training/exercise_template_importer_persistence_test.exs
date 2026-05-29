@@ -2,7 +2,15 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
   use Fittrack.DataCase, async: true
 
   alias Fittrack.Repo
+  alias Fittrack.Training
+  alias Fittrack.Training.ExerciseAlias
+  alias Fittrack.Training.ExerciseEquipment
+  alias Fittrack.Training.ExerciseMedia
+  alias Fittrack.Training.ExerciseMuscle
   alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.ExerciseTemplateEquipment
+  alias Fittrack.Training.ExerciseTemplateMuscle
+  alias Fittrack.Training.ExerciseTemplateSource
   alias Fittrack.Training.ExerciseTemplateImporter
 
   describe "upsert_template/1" do
@@ -36,6 +44,100 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
 
       assert updated_template.notes == "Updated notes"
       assert Repo.aggregate(ExerciseTemplate, :count, :id) == initial_count + 1
+    end
+
+    test "persists normalized muscles equipment media and source metadata" do
+      attrs =
+        ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+          "id" => 7007,
+          "translations" => [
+            %{
+              "language" => 2,
+              "name" => "Incline dumbbell press",
+              "description" => "<p>Press with control.</p>"
+            }
+          ],
+          "muscles" => [
+            %{"name_en" => "Chest"},
+            %{"name_en" => "Shoulders"},
+            %{"name_en" => "Triceps"}
+          ],
+          "equipment" => [%{"name" => "Dumbbell"}, %{"name" => "Bench"}],
+          "images" => [
+            %{
+              "id" => 9001,
+              "image" => "https://wger.de/media/exercise-images/7007/main.jpg",
+              "is_main" => true,
+              "license_author" => "wger"
+            }
+          ]
+        })
+
+      assert {:ok, :inserted, template} = ExerciseTemplateImporter.upsert_template(attrs)
+
+      assert Repo.get_by!(ExerciseTemplateSource, source: "wger", external_id: "7007")
+      assert Repo.get_by!(ExerciseMuscle, normalized_name: "chest")
+      assert Repo.get_by!(ExerciseMuscle, normalized_name: "shoulders")
+      assert Repo.get_by!(ExerciseEquipment, normalized_name: "dumbbell")
+      assert Repo.get_by!(ExerciseEquipment, normalized_name: "bench")
+
+      assert Repo.aggregate(ExerciseTemplateMuscle, :count, :id) == 3
+      assert Repo.aggregate(ExerciseTemplateEquipment, :count, :id) == 2
+
+      media = Repo.get_by!(ExerciseMedia, source: "wger", source_id: "9001")
+      assert media.exercise_template_id == template.id
+      assert media.is_primary
+      assert media.source_url == "https://wger.de/media/exercise-images/7007/main.jpg"
+      assert media.provider_attribution == "wger"
+      assert media.cache_status == "remote_only"
+      assert media.metadata == %{"license_author" => "wger"}
+    end
+
+    test "persists canonical slugs aliases quality flags and searchable tags" do
+      attrs =
+        ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+          "id" => 7107,
+          "translations" => [
+            %{
+              "language" => 2,
+              "name" => "Bench Press",
+              "description" => "<p>Press from a flat bench.</p>"
+            }
+          ],
+          "muscles" => [%{"name_en" => "Chest"}, %{"name_en" => "Triceps"}],
+          "equipment" => [%{"name" => "Barbell"}]
+        })
+
+      assert {:ok, :inserted, template} = ExerciseTemplateImporter.upsert_template(attrs)
+
+      template = Repo.reload!(template)
+      assert template.slug == "bench-press"
+      assert template.canonical_slug == "barbell-bench-press"
+
+      assert template.weighted_tags == [
+               "bench press",
+               "bench-press",
+               "chest",
+               "triceps",
+               "barbell"
+             ]
+
+      assert template.quality_score > 0
+      refute template.is_verified
+      refute template.is_ai_generated
+      refute template.is_deprecated
+
+      alias_names =
+        ExerciseAlias
+        |> Repo.all()
+        |> Enum.map(& &1.name)
+
+      assert "Bench Press" in alias_names
+      assert "Barbell Bench Press" in alias_names
+      assert "BB Bench Press" in alias_names
+
+      assert [result] = Training.search_exercise_templates("BB Bench", limit: 5)
+      assert result.id == template.id
     end
 
     test "adopts a legacy template without source_id when the normalized identity matches" do

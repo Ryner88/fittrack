@@ -2,6 +2,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Show do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  alias Fittrack.Training.WorkoutSet
 
   @impl true
   def render(assigns) do
@@ -139,10 +140,16 @@ defmodule FittrackWeb.WorkoutPlanLive.Show do
           </p>
           
     <!-- Sets, reps, rest -->
-          <div class="mt-4 grid grid-cols-3 gap-4">
+          <div class="mt-4 grid grid-cols-4 gap-4">
             <div class="text-center">
               <div class="text-2xl font-bold text-primary">{@exercise.target_sets}</div>
               <div class="text-xs text-base-content/60 uppercase tracking-wide">Sets</div>
+            </div>
+            <div class="text-center">
+              <div class="text-sm font-bold text-primary">
+                {WorkoutSet.kind_label(@exercise.target_kind)}
+              </div>
+              <div class="text-xs text-base-content/60 uppercase tracking-wide">Type</div>
             </div>
             <div class="text-center">
               <div class="text-2xl font-bold text-primary">

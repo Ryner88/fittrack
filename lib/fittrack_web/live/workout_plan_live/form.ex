@@ -2,6 +2,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  alias Fittrack.Training.WorkoutSet
 
   @impl true
   def render(assigns) do
@@ -132,16 +133,16 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
                 <div class="rounded-lg border border-base-200 bg-base-50 p-4">
                   <h4 class="text-sm font-semibold text-base-content mb-2">Weekly Calendar</h4>
                   <div class="grid grid-cols-7 gap-2">
-                    {plan_exercises_by_day =
+                    <% plan_exercises_by_day =
                       (@form[:workout_plan_exercises].value || [])
-                      |> Enum.group_by(fn ex -> ex.scheduled_day || "Unscheduled" end)}
+                      |> Enum.group_by(fn ex -> ex.scheduled_day || "Unscheduled" end) %>
 
-                    {exercise_map =
-                      Map.new(@exercises, fn exercise -> {exercise.id, exercise.name} end)}
-                    {exercise_name = fn id ->
+                    <% exercise_map =
+                      Map.new(@exercises, fn exercise -> {exercise.id, exercise.name} end) %>
+                    <% exercise_name = fn id ->
                       id = if is_binary(id), do: String.to_integer(id), else: id
                       Map.get(exercise_map, id, "Unknown")
-                    end}
+                    end %>
 
                     <%= for day <- ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] do %>
                       <div
@@ -270,6 +271,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
       target_reps_min: 8,
       target_reps_max: 12,
       rest_seconds: 60,
+      target_kind: "normal",
       scheduled_day: nil,
       notes: ""
     }
@@ -299,6 +301,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
           target_reps_min: 8,
           target_reps_max: 12,
           rest_seconds: 60,
+          target_kind: "normal",
           scheduled_day: day,
           notes: ""
         }
@@ -470,6 +473,12 @@ defmodule FittrackWeb.WorkoutPlanLive.Form do
         <.input field={@form[:target_reps_min]} type="number" label="Min Reps" min="1" required />
         <.input field={@form[:target_reps_max]} type="number" label="Max Reps" min="1" required />
         <.input field={@form[:rest_seconds]} type="number" label="Rest (sec)" min="0" />
+        <.input
+          field={@form[:target_kind]}
+          type="select"
+          label="Set Type"
+          options={WorkoutSet.kind_options()}
+        />
       </div>
       
     <!-- Notes -->

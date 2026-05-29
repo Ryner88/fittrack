@@ -9,8 +9,16 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   import Ecto.Query, only: [from: 2]
 
   alias Fittrack.Repo
+  alias Fittrack.Training.ExerciseAlias
+  alias Fittrack.Training.ExerciseEquipment
+  alias Fittrack.Training.ExerciseMedia
+  alias Fittrack.Training.ExerciseMuscle
   alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.ExerciseTemplateEquipment
+  alias Fittrack.Training.ExerciseTemplateMuscle
+  alias Fittrack.Training.ExerciseTemplateSource
   alias Fittrack.Training.Normalizer
+  alias Fittrack.Training.Slug
 
   @wger_url "https://wger.de/api/v2/exerciseinfo/"
   @wger_english_language_ids MapSet.new([2])
@@ -94,15 +102,33 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
       |> preferred_translated_field("description", exercise["description"])
       |> sanitize_notes()
 
-    primary_muscle = get_first_name(exercise["muscles"])
-    equipment = get_first_name(exercise["equipment"])
+    muscles =
+      exercise["muscles"] |> List.wrap() |> Enum.map(&extract_name/1) |> Enum.reject(&is_nil/1)
+
+    equipment =
+      exercise["equipment"] |> List.wrap() |> Enum.map(&extract_name/1) |> Enum.reject(&is_nil/1)
+
+    primary_muscle = List.first(muscles)
+    primary_equipment = List.first(equipment)
 
     %{
       source_id: normalize_source_id(exercise["id"]),
       name: name,
+      slug: Slug.slugify(name),
+      canonical_slug: Slug.slugify(canonical_name(name, primary_equipment)),
       primary_muscle: normalize_muscle_group(primary_muscle),
-      equipment: normalize_equipment(equipment),
+      secondary_muscles: muscles |> Enum.drop(1) |> Enum.map(&normalize_muscle_group/1),
+      equipment: normalize_equipment(primary_equipment),
+      equipment_names: Enum.map(equipment, &normalize_equipment/1),
+      weighted_tags: weighted_tags(name, muscles, equipment),
+      is_verified: false,
+      is_ai_generated: false,
+      is_deprecated: false,
+      quality_score: quality_score(name, primary_muscle, primary_equipment, description),
+      is_compound: length(muscles) > 1,
       image_url: image_url_from_wger(exercise),
+      media_items: media_items_from_wger(exercise),
+      source_payload: exercise,
       notes: description
     }
   end
@@ -164,8 +190,12 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
         |> ExerciseTemplate.changeset(attrs)
         |> Repo.insert()
         |> case do
-          {:ok, template} -> {:ok, :inserted, template}
-          {:error, changeset} -> {:error, changeset}
+          {:ok, template} ->
+            persist_normalized_catalog(template, attrs)
+            {:ok, :inserted, template}
+
+          {:error, changeset} ->
+            {:error, changeset}
         end
 
       %ExerciseTemplate{} = template ->
@@ -173,8 +203,12 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
         |> ExerciseTemplate.changeset(attrs)
         |> Repo.update()
         |> case do
-          {:ok, updated_template} -> {:ok, :updated, updated_template}
-          {:error, changeset} -> {:error, changeset}
+          {:ok, updated_template} ->
+            persist_normalized_catalog(updated_template, attrs)
+            {:ok, :updated, updated_template}
+
+          {:error, changeset} ->
+            {:error, changeset}
         end
 
       {:error, :ambiguous_legacy_match} ->
@@ -186,6 +220,260 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   end
 
   # Private helpers
+
+  defp persist_normalized_catalog(%ExerciseTemplate{} = template, attrs) do
+    persist_template_source(template, attrs)
+    persist_template_aliases(template, attrs)
+    persist_template_muscles(template, attrs)
+    persist_template_equipment(template, attrs)
+    persist_template_media(template, attrs)
+  end
+
+  defp persist_template_aliases(template, attrs) do
+    attrs
+    |> alias_names()
+    |> Enum.with_index()
+    |> Enum.each(fn {name, position} ->
+      normalized_name = Normalizer.normalize_text(name)
+
+      exercise_alias =
+        Repo.get_by(ExerciseAlias,
+          exercise_template_id: template.id,
+          normalized_name: normalized_name
+        ) || %ExerciseAlias{}
+
+      exercise_alias
+      |> ExerciseAlias.changeset(%{
+        exercise_template_id: template.id,
+        name: name,
+        kind: if(position == 0, do: "canonical", else: "alias"),
+        source: "wger",
+        weight: max(10 - position, 1)
+      })
+      |> Repo.insert_or_update()
+    end)
+  end
+
+  defp alias_names(attrs) do
+    [
+      Map.get(attrs, :name),
+      canonical_name(Map.get(attrs, :name), Map.get(attrs, :equipment))
+    ]
+    |> Enum.concat(generated_aliases(Map.get(attrs, :name), Map.get(attrs, :equipment)))
+    |> Enum.reject(&blank?/1)
+    |> Enum.uniq_by(&Normalizer.normalize_text/1)
+  end
+
+  defp generated_aliases(name, equipment) do
+    normalized_equipment = Normalizer.normalize_text(equipment)
+
+    cond do
+      blank?(name) ->
+        []
+
+      normalized_equipment == "barbell" ->
+        ["Barbell #{name}", "BB #{name}"]
+
+      normalized_equipment == "dumbbell" ->
+        ["Dumbbell #{name}", "DB #{name}"]
+
+      true ->
+        []
+    end
+  end
+
+  defp persist_template_source(_template, attrs) when not is_map(attrs), do: :ok
+
+  defp persist_template_source(template, attrs) do
+    with source_id when not is_nil(source_id) <- Map.get(attrs, :source_id) do
+      external_id = to_string(source_id)
+
+      template_source =
+        Repo.get_by(ExerciseTemplateSource, source: "wger", external_id: external_id) ||
+          %ExerciseTemplateSource{}
+
+      template_source
+      |> ExerciseTemplateSource.changeset(%{
+        exercise_template_id: template.id,
+        source: "wger",
+        external_id: external_id,
+        source_url: "#{@wger_url}#{external_id}/",
+        payload: Map.get(attrs, :source_payload, %{}),
+        imported_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+      |> Repo.insert_or_update()
+    end
+
+    :ok
+  end
+
+  defp persist_template_muscles(template, attrs) do
+    muscles =
+      [
+        {"primary", 0, Map.get(attrs, :primary_muscle)}
+        | attrs
+          |> Map.get(:secondary_muscles, [])
+          |> List.wrap()
+          |> Enum.with_index(1)
+          |> Enum.map(fn {muscle, position} -> {"secondary", position, muscle} end)
+      ]
+      |> Enum.reject(fn {_role, _position, name} -> blank?(name) end)
+      |> Enum.uniq_by(fn {role, _position, name} -> {role, Normalizer.normalize_text(name)} end)
+
+    Repo.delete_all(
+      from template_muscle in ExerciseTemplateMuscle,
+        where: template_muscle.exercise_template_id == ^template.id
+    )
+
+    Enum.each(muscles, fn {role, position, name} ->
+      muscle = upsert_muscle(name)
+
+      %ExerciseTemplateMuscle{}
+      |> ExerciseTemplateMuscle.changeset(%{
+        exercise_template_id: template.id,
+        exercise_muscle_id: muscle.id,
+        role: role,
+        position: position
+      })
+      |> Repo.insert()
+    end)
+  end
+
+  defp persist_template_equipment(template, attrs) do
+    equipment_names =
+      attrs
+      |> Map.get(:equipment_names, [Map.get(attrs, :equipment)])
+      |> List.wrap()
+      |> Enum.reject(&blank?/1)
+      |> Enum.uniq_by(&Normalizer.normalize_text/1)
+
+    Repo.delete_all(
+      from template_equipment in ExerciseTemplateEquipment,
+        where: template_equipment.exercise_template_id == ^template.id
+    )
+
+    equipment_names
+    |> Enum.with_index()
+    |> Enum.each(fn {name, position} ->
+      equipment = upsert_equipment(name)
+
+      %ExerciseTemplateEquipment{}
+      |> ExerciseTemplateEquipment.changeset(%{
+        exercise_template_id: template.id,
+        exercise_equipment_id: equipment.id,
+        position: position
+      })
+      |> Repo.insert()
+    end)
+  end
+
+  defp persist_template_media(template, attrs) do
+    attrs
+    |> Map.get(:media_items, media_items_from_image_url(Map.get(attrs, :image_url)))
+    |> List.wrap()
+    |> Enum.reject(fn media -> blank?(Map.get(media, :source_url)) end)
+    |> Enum.each(fn media_attrs ->
+      source_url = Map.get(media_attrs, :source_url)
+
+      media =
+        Repo.get_by(ExerciseMedia, source_url: source_url) ||
+          %ExerciseMedia{}
+
+      media
+      |> ExerciseMedia.changeset(Map.put(media_attrs, :exercise_template_id, template.id))
+      |> Repo.insert_or_update()
+    end)
+  end
+
+  defp upsert_muscle(name) do
+    normalized_name = Normalizer.normalize_text(name)
+
+    Repo.get_by(ExerciseMuscle, normalized_name: normalized_name) ||
+      %ExerciseMuscle{}
+      |> ExerciseMuscle.changeset(%{name: name, region: muscle_region(name)})
+      |> Repo.insert!()
+  end
+
+  defp upsert_equipment(name) do
+    normalized_name = Normalizer.normalize_text(name)
+
+    Repo.get_by(ExerciseEquipment, normalized_name: normalized_name) ||
+      %ExerciseEquipment{}
+      |> ExerciseEquipment.changeset(%{name: name, category: equipment_category(name)})
+      |> Repo.insert!()
+  end
+
+  defp muscle_region(name) do
+    case Normalizer.normalize_text(name) do
+      normalized
+      when normalized in ["chest", "back", "shoulders", "biceps", "triceps", "traps"] ->
+        "upper_body"
+
+      normalized when normalized in ["quads", "quadriceps", "hamstrings", "glutes", "calves"] ->
+        "lower_body"
+
+      normalized when normalized in ["abs", "core", "abdominals", "rectus abdominis"] ->
+        "core"
+
+      _ ->
+        nil
+    end
+  end
+
+  defp equipment_category(name) do
+    case Normalizer.normalize_text(name) do
+      "bodyweight" -> "bodyweight"
+      normalized when normalized in ["barbell", "dumbbell", "kettlebell"] -> "free_weight"
+      normalized when normalized in ["machine", "cable"] -> "machine"
+      "band" -> "accessory"
+      _ -> nil
+    end
+  end
+
+  defp canonical_name(name, equipment) do
+    normalized_name = Normalizer.normalize_text(name)
+    normalized_equipment = Normalizer.normalize_text(equipment)
+
+    cond do
+      blank?(name) ->
+        nil
+
+      normalized_equipment in ["", normalized_name] ->
+        name
+
+      String.contains?(normalized_name, normalized_equipment) ->
+        name
+
+      normalized_equipment == "bodyweight" ->
+        name
+
+      true ->
+        "#{equipment} #{name}"
+    end
+  end
+
+  defp weighted_tags(name, muscles, equipment) do
+    [name | List.wrap(muscles) ++ List.wrap(equipment)]
+    |> Enum.reject(&blank?/1)
+    |> Enum.flat_map(fn value ->
+      normalized = Normalizer.normalize_text(value)
+      [normalized, Slug.slugify(value)]
+    end)
+    |> Enum.reject(&blank?/1)
+    |> Enum.uniq()
+  end
+
+  defp quality_score(name, primary_muscle, equipment, notes) do
+    [
+      {name, 25},
+      {primary_muscle, 25},
+      {equipment, 15},
+      {notes, 20}
+    ]
+    |> Enum.reduce(0, fn {value, score}, acc ->
+      if blank?(value), do: acc, else: acc + score
+    end)
+  end
 
   defp find_existing_template(%{source_id: source_id} = attrs) when not is_nil(source_id) do
     Repo.get_by(ExerciseTemplate, source_id: source_id) || find_legacy_template_match(attrs)
@@ -315,15 +603,11 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
     end
   end
 
-  defp get_first_name(nil), do: nil
-  defp get_first_name([]), do: nil
-  defp get_first_name([item | _]), do: extract_name(item)
-  defp get_first_name(value), do: extract_name(value)
-
   defp extract_name(%{"name_en" => name_en, "name" => name}) do
     present_string(name_en) || present_string(name)
   end
 
+  defp extract_name(%{"name_en" => name_en}), do: present_string(name_en)
   defp extract_name(%{"name" => name}), do: present_string(name)
   defp extract_name(value) when is_binary(value), do: present_string(value)
   defp extract_name(_), do: nil
@@ -345,6 +629,60 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   defp extract_image_url(image_url) when is_binary(image_url), do: valid_image_url(image_url)
   defp extract_image_url(_image), do: nil
 
+  defp media_items_from_wger(exercise) do
+    exercise
+    |> Map.get("images", [])
+    |> List.wrap()
+    |> Enum.sort_by(&image_sort_rank/1)
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {image, position} ->
+      case extract_image_url(image) do
+        nil ->
+          []
+
+        source_url ->
+          [
+            %{
+              kind: "image",
+              source: "wger",
+              source_id: image_source_id(image),
+              source_url: source_url,
+              provider_attribution: provider_attribution(image),
+              cache_status: "remote_only",
+              is_primary: position == 0,
+              metadata: image_metadata(image)
+            }
+          ]
+      end
+    end)
+  end
+
+  defp media_items_from_image_url(nil), do: []
+
+  defp media_items_from_image_url(source_url) do
+    [%{kind: "image", source_url: source_url, is_primary: true}]
+  end
+
+  defp image_source_id(%{"id" => id}) when not is_nil(id), do: to_string(id)
+  defp image_source_id(_image), do: nil
+
+  defp image_metadata(image) when is_map(image) do
+    image
+    |> Map.take(["license", "license_author", "author", "uuid"])
+    |> Enum.reject(fn {_key, value} -> blank?(value) end)
+    |> Map.new()
+  end
+
+  defp image_metadata(_image), do: %{}
+
+  defp provider_attribution(%{"license_author" => author}) when is_binary(author),
+    do: present_string(author)
+
+  defp provider_attribution(%{"author" => author}) when is_binary(author),
+    do: present_string(author)
+
+  defp provider_attribution(_image), do: nil
+
   defp valid_image_url(value) when is_binary(value) do
     value
     |> String.trim()
@@ -356,6 +694,9 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   end
 
   defp valid_image_url(_value), do: nil
+
+  defp blank?(value) when is_binary(value), do: String.trim(value) == ""
+  defp blank?(value), do: is_nil(value)
 
   defp replace_block_tags_with_breaks(text) do
     text

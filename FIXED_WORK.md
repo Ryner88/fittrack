@@ -12,6 +12,40 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### AI Workout Generation, 1RM Calculator, And Set Types
+
+- Commit references:
+  - uncommitted worktree changes
+
+- Expanded AI workout generation with a session duration input.
+- Wired generated plans to persist estimated duration and duration-aware exercise volume.
+- Added generated plan target set types based on goal context, including top sets, working sets, supersets, and AMRAP sets.
+- Added linked source support to the AI generator:
+  - users can paste a workout video, article, or training guide URL
+  - source content is fetched with `Req` through a configurable client
+  - readable page text is summarized into the generated plan notes
+  - when `OPENAI_API_KEY` is configured, linked content is parsed into structured FitTrack workout JSON
+  - parsed source exercises are matched against WGER-backed templates and converted into user exercises before draft review
+  - detected source cues can guide set types such as supersets, circuits, drop sets, AMRAP sets, timed sets, warm-up sets, failure sets, and rest-pause sets
+- Changed the AI generator from save-immediately to draft review:
+  - generated plans are shown in a review panel first
+  - users can edit plan name, notes, duration, sets, reps, rest, exercise notes, and set types before saving
+  - save persists the reviewed draft as the reusable workout plan
+- Added planned-exercise set type persistence with a `target_kind` column.
+- Added set type selection to workout plan editing and displayed target set type on plan details.
+- Expanded logged set types to include myo-reps, feeder sets, straight sets, warm-up sets, working sets, drop sets, supersets, circuits, AMRAP sets, timed sets, rest-pause sets, top sets, and back-off sets.
+- Added an authenticated `/one-rep-max` LiveView calculator with:
+  - Epley estimated 1RM
+  - percentage loading table
+  - optional bodyweight-relative strength standard
+- Kept the new 1RM route in the existing authenticated router placement:
+  - `scope "/", FittrackWeb`
+  - `pipe_through [:browser, :require_authenticated_user]`
+  - `live_session :require_authenticated_user`
+  This is required because the tool is part of the logged-in training workspace and receives `current_scope` through the authenticated LiveView session.
+- Added regression coverage for generator duration, source-guided drafts, generated set types, advanced logged set types, reviewed draft saving, and the 1RM calculator.
+- Verified `mix precommit` passes.
+
 ### Workout Command Bar
 
 - Commit references:

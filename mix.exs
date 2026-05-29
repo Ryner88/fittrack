@@ -63,9 +63,6 @@ defmodule Fittrack.MixProject do
       {:plug, "~> 1.16"},
       {:multipart, "~> 0.1"},
 
-      # HTTP client
-      {:httpoison, "~> 2.0"},
-
       # Data import
       {:nimble_csv, "~> 1.0"},
 

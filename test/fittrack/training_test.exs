@@ -182,6 +182,23 @@ defmodule Fittrack.TrainingTest do
       assert Training.get_active_workout(scope).id == active_workout.id
     end
 
+    test "create_workout_set/3 supports advanced set types", %{scope: scope} do
+      {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+      exercise = exercise_fixture(scope)
+
+      assert {:ok, set} =
+               Training.create_workout_set(scope, workout, %{
+                 exercise_id: exercise.id,
+                 weight: "100",
+                 reps: "12",
+                 kind: "myo_reps"
+               })
+
+      assert set.kind == "myo_reps"
+      assert "superset" in Fittrack.Training.WorkoutSet.kinds()
+      assert "amrap" in Fittrack.Training.WorkoutSet.kinds()
+    end
+
     test "completed workout queries ignore active workouts without sets", %{scope: scope} do
       today = Date.utc_today()
       started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
@@ -268,7 +285,8 @@ defmodule Fittrack.TrainingTest do
         "training_split" => ["full_body", "hybrid"],
         "experience" => "beginner",
         "equipment" => ["bodyweight"],
-        "days_per_week" => "3"
+        "days_per_week" => "3",
+        "duration_minutes" => "30"
       }
 
       assert {:ok, plan} = Training.generate_ai_workout_plan(scope, params)
@@ -279,7 +297,45 @@ defmodule Fittrack.TrainingTest do
       assert plan.training_styles == ["hypertrophy", "mobility"]
       assert plan.training_split == ["full_body", "hybrid"]
       assert plan.difficulty == "beginner"
+      assert plan.estimated_duration_minutes == 30
       assert length(plan.workout_plan_exercises) > 0
+
+      assert Enum.all?(
+               plan.workout_plan_exercises,
+               &(&1.target_kind in Fittrack.Training.WorkoutSet.kinds())
+             )
+    end
+
+    test "generate_ai_workout_plan/2 selects WGER-backed templates before personal exercises", %{
+      scope: scope
+    } do
+      exercise_fixture(scope, %{name: "Personal Push-up", equipment: "bodyweight"})
+
+      {:ok, _template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          source_id: 90_001,
+          name: "WGER Bench Press",
+          primary_muscle: "Chest",
+          equipment: "Bodyweight",
+          difficulty: "beginner",
+          notes: "Template imported from WGER"
+        })
+        |> Fittrack.Repo.insert()
+
+      params = %{
+        "primary_goal" => "strength",
+        "experience" => "beginner",
+        "equipment" => ["bodyweight"],
+        "days_per_week" => "2",
+        "duration_minutes" => "30"
+      }
+
+      assert {:ok, plan} = Training.generate_ai_workout_plan(scope, params)
+
+      assert Enum.any?(plan.workout_plan_exercises, fn plan_exercise ->
+               plan_exercise.exercise.source_template_id
+             end)
     end
 
     test "generate_ai_workout_plan/2 rejects duplicate goals", %{scope: scope} do

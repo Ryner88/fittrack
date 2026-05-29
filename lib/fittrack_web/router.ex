@@ -69,6 +69,7 @@ defmodule FittrackWeb.Router do
       # Exercise Library
       live "/library", LibraryLive.Index, :index
       live "/library/:id", LibraryLive.Show, :show
+      live "/admin/exercises", Admin.ExerciseLibraryLive, :index
 
       # Workout Plans
       live "/workout-plans", WorkoutPlanLive.Index, :index
@@ -82,6 +83,7 @@ defmodule FittrackWeb.Router do
       live "/workouts/:id", WorkoutLive.Show, :show
 
       live "/workout-history", WorkoutHistoryLive.Index, :index
+      live "/one-rep-max", OneRepMaxLive.Index, :index
       live "/nutrition", NutritionLive.Index, :index
 
       # Meals
@@ -100,11 +102,6 @@ defmodule FittrackWeb.Router do
       live "/foods", FoodLive.Index, :index
       live "/foods/new", FoodLive.Form, :new
       live "/foods/:id/edit", FoodLive.Form, :edit
-
-      # Backwards compatible redirects (old session URLs)
-      get "/sessions", RedirectController, :workouts_redirect
-      get "/sessions/new", RedirectController, :new_workout_redirect
-      get "/sessions/:id", RedirectController, :workout_redirect
     end
 
     post "/users/update-password", UserSessionController, :update_password

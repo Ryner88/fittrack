@@ -91,6 +91,12 @@ defmodule FittrackWeb.Layouts do
                 >
                   History
                 </.link>
+                <.link
+                  navigate={~p"/one-rep-max"}
+                  class="rounded-full px-3 py-2 transition hover:bg-base-200"
+                >
+                  1RM
+                </.link>
               <% else %>
                 <.link
                   navigate={~p"/"}
@@ -330,6 +336,13 @@ defmodule FittrackWeb.Layouts do
               title="History"
               description="Completed workouts and calendar"
               keywords="completed calendar records"
+            />
+            <.command_item
+              href={~p"/one-rep-max"}
+              icon="hero-calculator"
+              title="1RM Calculator"
+              description="Estimate max strength and training percentages"
+              keywords="one rep max strength percentage calculator"
             />
           </.command_group>
 

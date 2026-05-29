@@ -2,6 +2,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  alias Fittrack.Training.WorkoutSet
 
   @goal_fields ~w(primary_goal secondary_goal tertiary_goal additional_goal)
   @goal_field_names [:primary_goal, :secondary_goal, :tertiary_goal, :additional_goal]
@@ -13,6 +14,9 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
      socket
      |> assign(:page_title, "AI Workout Generator")
      |> assign(:header, "AI Workout Generator")
+     |> assign(:draft_plan, nil)
+     |> assign(:draft_form, nil)
+     |> assign(:exercise_name_by_id, %{})
      |> assign_form(default_form_data())}
   end
 
@@ -96,7 +100,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
             title="Profile"
             description="A few quick details help tune the weekly volume and pacing."
           >
-            <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem]">
+            <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_12rem_12rem]">
               <.input
                 field={@form[:experience]}
                 type="select"
@@ -117,6 +121,18 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
                   label="Days per Week"
                   class="select w-full min-h-14 text-sm"
                   options={Enum.map(1..7, &{"#{&1}", &1})}
+                  required
+                />
+              </div>
+
+              <div class="max-w-[12rem]">
+                <.input
+                  field={@form[:duration_minutes]}
+                  type="number"
+                  label="Duration"
+                  min="15"
+                  max="180"
+                  step="5"
                   required
                 />
               </div>
@@ -152,6 +168,29 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
             />
           </.section_card>
 
+          <.section_card
+            title="Source Guide"
+            description="Paste a workout video, article, or training guide if you want the generator to adapt its structure."
+          >
+            <.input
+              field={@form[:source_url]}
+              type="url"
+              label="Website or video link (optional)"
+              placeholder="https://www.youtube.com/watch?v=... or https://example.com/program"
+            />
+            <div class="flex justify-end">
+              <button
+                type="submit"
+                name="intent"
+                value="analyze_source"
+                class="btn btn-secondary"
+                phx-disable-with="Analyzing..."
+              >
+                Analyze Link
+              </button>
+            </div>
+          </.section_card>
+
           <div class="flex flex-col-reverse gap-3 border-t border-base-200 pt-6 sm:flex-row sm:justify-end">
             <button type="button" class="btn btn-ghost" phx-click="reset_form">
               Reset
@@ -162,10 +201,180 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
               class="btn btn-primary min-w-[14rem]"
               phx-disable-with="Generating..."
             >
-              Generate 4-Week Plan
+              Generate Draft
             </button>
           </div>
         </.form>
+
+        <section
+          :if={@draft_plan}
+          id="ai-workout-draft-review"
+          class="rounded-3xl border border-primary/20 bg-base-100 p-5 shadow-sm md:p-6"
+        >
+          <div class="flex flex-col gap-3 border-b border-base-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.24em] text-primary/80">
+                Review Draft
+              </p>
+              <h2 class="mt-2 text-xl font-semibold text-base-content">
+                Edit before saving
+              </h2>
+              <p class="mt-1 text-sm leading-6 text-base-content/70">
+                Check exercise order, volume, rest, and set types before this becomes a reusable plan.
+              </p>
+              <p
+                :if={draft_source_status(@draft_plan)}
+                class="mt-2 text-sm font-medium text-base-content/70"
+              >
+                {draft_source_status(@draft_plan)}
+              </p>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" phx-click="discard_draft">
+              Discard
+            </button>
+          </div>
+
+          <.form
+            for={@draft_form}
+            id="ai-workout-draft-form"
+            phx-submit="save_draft"
+            class="mt-6 space-y-6"
+          >
+            <div class="grid gap-4 md:grid-cols-2">
+              <.input field={@draft_form[:name]} type="text" label="Plan Name" required />
+              <.input
+                field={@draft_form[:estimated_duration_minutes]}
+                type="number"
+                label="Duration"
+                min="15"
+                max="180"
+                required
+              />
+              <div class="md:col-span-2">
+                <.input
+                  field={@draft_form[:description]}
+                  type="textarea"
+                  label="Plan Notes"
+                  rows="6"
+                />
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div
+                :for={{exercise, idx} <- Enum.with_index(@draft_plan["workout_plan_exercises"] || [])}
+                id={"ai-draft-exercise-#{idx}"}
+                class="rounded-2xl border border-base-200 bg-base-50 p-4"
+              >
+                <input
+                  type="hidden"
+                  name={"draft_plan[workout_plan_exercises][#{idx}][position]"}
+                  value={exercise[:position] || exercise["position"]}
+                />
+                <input
+                  type="hidden"
+                  name={"draft_plan[workout_plan_exercises][#{idx}][exercise_id]"}
+                  value={exercise[:exercise_id] || exercise["exercise_id"]}
+                />
+                <input
+                  type="hidden"
+                  name={"draft_plan[workout_plan_exercises][#{idx}][scheduled_day]"}
+                  value={exercise[:scheduled_day] || exercise["scheduled_day"]}
+                />
+
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p class="text-sm font-semibold text-base-content">
+                      {exercise_name(@exercise_name_by_id, exercise)}
+                    </p>
+                    <p class="text-xs uppercase tracking-[0.16em] text-base-content/50">
+                      {exercise[:scheduled_day] || exercise["scheduled_day"]}
+                    </p>
+                  </div>
+                  <span class="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    {WorkoutSet.kind_label(exercise[:target_kind] || exercise["target_kind"])}
+                  </span>
+                </div>
+
+                <div class="mt-4 grid gap-3 md:grid-cols-5">
+                  <label class="space-y-1 text-sm font-medium text-base-content">
+                    <span>Sets</span>
+                    <input
+                      type="number"
+                      min="1"
+                      name={"draft_plan[workout_plan_exercises][#{idx}][target_sets]"}
+                      value={exercise[:target_sets] || exercise["target_sets"]}
+                      class="input w-full"
+                    />
+                  </label>
+                  <label class="space-y-1 text-sm font-medium text-base-content">
+                    <span>Min reps</span>
+                    <input
+                      type="number"
+                      min="1"
+                      name={"draft_plan[workout_plan_exercises][#{idx}][target_reps_min]"}
+                      value={exercise[:target_reps_min] || exercise["target_reps_min"]}
+                      class="input w-full"
+                    />
+                  </label>
+                  <label class="space-y-1 text-sm font-medium text-base-content">
+                    <span>Max reps</span>
+                    <input
+                      type="number"
+                      min="1"
+                      name={"draft_plan[workout_plan_exercises][#{idx}][target_reps_max]"}
+                      value={exercise[:target_reps_max] || exercise["target_reps_max"]}
+                      class="input w-full"
+                    />
+                  </label>
+                  <label class="space-y-1 text-sm font-medium text-base-content">
+                    <span>Rest sec</span>
+                    <input
+                      type="number"
+                      min="0"
+                      name={"draft_plan[workout_plan_exercises][#{idx}][rest_seconds]"}
+                      value={exercise[:rest_seconds] || exercise["rest_seconds"]}
+                      class="input w-full"
+                    />
+                  </label>
+                  <label class="space-y-1 text-sm font-medium text-base-content">
+                    <span>Set type</span>
+                    <select
+                      name={"draft_plan[workout_plan_exercises][#{idx}][target_kind]"}
+                      class="select w-full"
+                    >
+                      <option
+                        :for={{label, value} <- WorkoutSet.kind_options()}
+                        value={value}
+                        selected={value == (exercise[:target_kind] || exercise["target_kind"])}
+                      >
+                        {label}
+                      </option>
+                    </select>
+                  </label>
+                </div>
+
+                <label class="mt-3 block space-y-1 text-sm font-medium text-base-content">
+                  <span>Notes</span>
+                  <textarea
+                    name={"draft_plan[workout_plan_exercises][#{idx}][notes]"}
+                    rows="2"
+                    class="textarea w-full"
+                  ><%= exercise[:notes] || exercise["notes"] %></textarea>
+                </label>
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-3 border-t border-base-200 pt-5">
+              <button type="button" class="btn btn-ghost" phx-click="discard_draft">
+                Cancel
+              </button>
+              <button type="submit" class="btn btn-primary" phx-disable-with="Saving...">
+                Save Reviewed Plan
+              </button>
+            </div>
+          </.form>
+        </section>
       </div>
     </Layouts.app>
     """
@@ -179,17 +388,66 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
   end
 
   @impl true
+  def handle_event(
+        "generate",
+        %{"intent" => "analyze_source", "ai_workout" => ai_workout_params},
+        socket
+      ) do
+    ai_workout_params = normalize_form_params(ai_workout_params)
+    source_url = Map.get(ai_workout_params, "source_url")
+
+    cond do
+      is_nil(source_url) ->
+        {:noreply,
+         socket
+         |> assign_form(ai_workout_params)
+         |> put_flash(:error, "Paste a website or video link before analyzing.")}
+
+      true ->
+        source_params = Map.put_new(ai_workout_params, "primary_goal", "general")
+
+        source_params =
+          if source_params["primary_goal"],
+            do: source_params,
+            else: Map.put(source_params, "primary_goal", "general")
+
+        source_params = Map.put(source_params, "source_only", true)
+
+        case Training.preview_ai_workout_plan(socket.assigns.current_scope, source_params) do
+          {:ok, workout_plan_attrs} ->
+            {:noreply,
+             socket
+             |> assign_form(ai_workout_params)
+             |> assign_draft(workout_plan_attrs)
+             |> put_flash(:info, "Link analyzed. Review the draft before saving.")}
+
+          {:error, reason} when is_binary(reason) ->
+            {:noreply, socket |> assign_form(ai_workout_params) |> put_flash(:error, reason)}
+
+          {:error, _} ->
+            {:noreply,
+             socket
+             |> assign_form(ai_workout_params)
+             |> put_flash(
+               :error,
+               "Could not analyze that link. Try another source or use the manual generator."
+             )}
+        end
+    end
+  end
+
   def handle_event("generate", %{"ai_workout" => ai_workout_params}, socket) do
     ai_workout_params = normalize_form_params(ai_workout_params)
 
     case goal_error(ai_workout_params, :submit) do
       nil ->
-        case Training.generate_ai_workout_plan(socket.assigns.current_scope, ai_workout_params) do
-          {:ok, workout_plan} ->
+        case Training.preview_ai_workout_plan(socket.assigns.current_scope, ai_workout_params) do
+          {:ok, workout_plan_attrs} ->
             {:noreply,
              socket
-             |> put_flash(:info, "AI workout plan generated and saved successfully")
-             |> push_navigate(to: ~p"/workout-plans/#{workout_plan}")}
+             |> assign_form(ai_workout_params)
+             |> assign_draft(workout_plan_attrs)
+             |> put_flash(:info, "AI workout draft generated. Review it before saving.")}
 
           {:error, reason} when is_binary(reason) ->
             {:noreply, socket |> assign_form(ai_workout_params) |> put_flash(:error, reason)}
@@ -211,7 +469,34 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
 
   @impl true
   def handle_event("reset_form", _params, socket) do
-    {:noreply, assign_form(socket, default_form_data())}
+    {:noreply,
+     socket
+     |> clear_draft()
+     |> assign_form(default_form_data())}
+  end
+
+  @impl true
+  def handle_event("discard_draft", _params, socket) do
+    {:noreply, clear_draft(socket)}
+  end
+
+  @impl true
+  def handle_event("save_draft", %{"draft_plan" => draft_params}, socket) do
+    draft_params = normalize_draft_params(socket.assigns.draft_plan, draft_params)
+
+    case Training.create_workout_plan(socket.assigns.current_scope, draft_params) do
+      {:ok, workout_plan} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "AI workout plan saved successfully")
+         |> push_navigate(to: ~p"/workout-plans/#{workout_plan}")}
+
+      {:error, %Ecto.Changeset{}} ->
+        {:noreply,
+         socket
+         |> assign_draft(draft_params)
+         |> put_flash(:error, "Review the highlighted fields before saving.")}
+    end
   end
 
   attr :title, :string, required: true
@@ -308,7 +593,9 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
       "training_split" => [],
       "equipment" => [],
       "experience" => "beginner",
-      "days_per_week" => 4
+      "days_per_week" => 4,
+      "duration_minutes" => 45,
+      "source_url" => nil
     }
   end
 
@@ -323,7 +610,9 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
       "equipment" => normalize_multi_values(Map.get(params, "equipment", [])),
       "experience" =>
         normalize_choice(Map.get(params, "experience"), @experience_levels, "beginner"),
-      "days_per_week" => normalize_days_per_week(Map.get(params, "days_per_week", 4))
+      "days_per_week" => normalize_days_per_week(Map.get(params, "days_per_week", 4)),
+      "duration_minutes" => normalize_duration_minutes(Map.get(params, "duration_minutes", 45)),
+      "source_url" => normalize_source_url(Map.get(params, "source_url"))
     }
   end
 
@@ -377,6 +666,29 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
   end
 
   defp normalize_days_per_week(_), do: 4
+
+  defp normalize_duration_minutes(value) when is_integer(value) and value in 15..180, do: value
+
+  defp normalize_duration_minutes(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {minutes, _} when minutes in 15..180 -> minutes
+      _ -> 45
+    end
+  end
+
+  defp normalize_duration_minutes(_), do: 45
+
+  defp normalize_source_url(nil), do: nil
+
+  defp normalize_source_url(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
 
   defp goal_error(params, mode) do
     goals =
@@ -466,4 +778,128 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
       {"Cardio Machines", "cardio machine"}
     ]
   end
+
+  defp assign_draft(socket, workout_plan_attrs) do
+    exercise_name_by_id =
+      socket.assigns.current_scope
+      |> Training.list_exercises()
+      |> Map.new(fn exercise -> {exercise.id, exercise.name} end)
+
+    socket
+    |> assign(:draft_plan, workout_plan_attrs)
+    |> assign(:draft_form, to_form(workout_plan_attrs, as: :draft_plan))
+    |> assign(:exercise_name_by_id, exercise_name_by_id)
+  end
+
+  defp clear_draft(socket) do
+    socket
+    |> assign(:draft_plan, nil)
+    |> assign(:draft_form, nil)
+    |> assign(:exercise_name_by_id, %{})
+  end
+
+  defp normalize_draft_params(original_draft, draft_params) do
+    original_draft
+    |> Map.merge(%{
+      "name" =>
+        normalize_required_text(Map.get(draft_params, "name"), Map.get(original_draft, "name")),
+      "description" =>
+        normalize_required_text(
+          Map.get(draft_params, "description"),
+          Map.get(original_draft, "description")
+        ),
+      "estimated_duration_minutes" =>
+        normalize_duration_minutes(
+          Map.get(draft_params, "estimated_duration_minutes") ||
+            Map.get(original_draft, "estimated_duration_minutes")
+        ),
+      "workout_plan_exercises" =>
+        normalize_draft_exercises(Map.get(draft_params, "workout_plan_exercises", %{}))
+    })
+  end
+
+  defp normalize_required_text(nil, fallback), do: fallback
+
+  defp normalize_required_text(value, fallback) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> fallback
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_draft_exercises(exercises) when is_map(exercises) do
+    exercises
+    |> Enum.sort_by(fn {idx, _exercise} ->
+      case Integer.parse(to_string(idx)) do
+        {index, _} -> index
+        :error -> 0
+      end
+    end)
+    |> Enum.map(fn {_idx, exercise} ->
+      %{
+        "position" => normalize_positive_integer(Map.get(exercise, "position"), 1),
+        "exercise_id" => normalize_positive_integer(Map.get(exercise, "exercise_id"), nil),
+        "target_sets" => normalize_positive_integer(Map.get(exercise, "target_sets"), 3),
+        "target_reps_min" => normalize_positive_integer(Map.get(exercise, "target_reps_min"), 8),
+        "target_reps_max" => normalize_positive_integer(Map.get(exercise, "target_reps_max"), 12),
+        "rest_seconds" => normalize_non_negative_integer(Map.get(exercise, "rest_seconds"), 60),
+        "target_kind" => normalize_set_type(Map.get(exercise, "target_kind")),
+        "scheduled_day" => normalize_required_text(Map.get(exercise, "scheduled_day"), nil),
+        "notes" => normalize_required_text(Map.get(exercise, "notes"), "")
+      }
+    end)
+  end
+
+  defp normalize_draft_exercises(_), do: []
+
+  defp normalize_positive_integer(value, fallback) do
+    case Integer.parse(to_string(value || "")) do
+      {integer, _} when integer > 0 -> integer
+      _ -> fallback
+    end
+  end
+
+  defp normalize_non_negative_integer(value, fallback) do
+    case Integer.parse(to_string(value || "")) do
+      {integer, _} when integer >= 0 -> integer
+      _ -> fallback
+    end
+  end
+
+  defp normalize_set_type(value) do
+    value = to_string(value || "straight_set")
+
+    if value in WorkoutSet.kinds() do
+      value
+    else
+      "straight_set"
+    end
+  end
+
+  defp exercise_name(exercise_name_by_id, exercise) do
+    exercise_id = exercise[:exercise_id] || exercise["exercise_id"]
+
+    Map.get(exercise_name_by_id, exercise_id, "Exercise ##{exercise_id}")
+  end
+
+  defp draft_source_status(nil), do: nil
+
+  defp draft_source_status(%{"description" => description}) when is_binary(description) do
+    cond do
+      String.contains?(description, "Source guide:") and
+          String.contains?(description, "Safety review:") ->
+        "Linked source was analyzed. Review the structured draft before saving."
+
+      String.contains?(description, "Source guide:") ->
+        "Linked source was fetched, but structured AI parsing was not available. Review the fallback draft carefully."
+
+      true ->
+        nil
+    end
+  end
+
+  defp draft_source_status(_), do: nil
 end

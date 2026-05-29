@@ -4,6 +4,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
 
   alias Fittrack.Training.WorkoutPlan
   alias Fittrack.Training.Exercise
+  alias Fittrack.Training.WorkoutSet
 
   schema "workout_plan_exercises" do
     field :position, :integer
@@ -11,6 +12,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
     field :target_reps_min, :integer
     field :target_reps_max, :integer
     field :rest_seconds, :integer
+    field :target_kind, :string, default: "normal"
     field :notes, :string
     field :scheduled_day, :string
 
@@ -29,6 +31,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
       :target_reps_min,
       :target_reps_max,
       :rest_seconds,
+      :target_kind,
       :scheduled_day,
       :notes,
       :workout_plan_id,
@@ -41,6 +44,7 @@ defmodule Fittrack.Training.WorkoutPlanExercise do
     |> validate_number(:target_reps_max, greater_than: 0)
     |> validate_reps_range()
     |> validate_number(:rest_seconds, greater_than_or_equal_to: 0)
+    |> validate_inclusion(:target_kind, WorkoutSet.kinds())
     |> validate_inclusion(:scheduled_day, [
       "Sunday",
       "Monday",

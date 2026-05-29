@@ -10,6 +10,12 @@ defmodule Fittrack.Repo.Migrations.CreateFoodsAndUpdateMealItems do
       add :protein_per_unit, :decimal, precision: 8, scale: 2, default: 0.0
       add :carbs_per_unit, :decimal, precision: 8, scale: 2, default: 0.0
       add :fats_per_unit, :decimal, precision: 8, scale: 2, default: 0.0
+      add :fiber_per_unit, :decimal, precision: 8, scale: 2
+      add :sugar_per_unit, :decimal, precision: 8, scale: 2
+      add :sodium_mg_per_unit, :decimal, precision: 10, scale: 2
+      add :micronutrients, :map
+      add :source_image_metadata, :map
+      add :parsed_values, :map
       add :user_id, references(:users, on_delete: :delete_all), null: false
 
       timestamps(type: :utc_datetime)

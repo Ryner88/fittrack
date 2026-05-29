@@ -37,6 +37,15 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
   - consistent rounded corners
   - consistent spacing
   - aligned card actions and metadata
+- Backfill and cache every available exercise image.
+  Scope:
+  - importer stores all valid WGER image URLs, not just the first/main one
+  - broken or stale WGER URLs are detected and excluded
+  - images are cached in app-owned storage or local static storage
+  - templates without WGER images get a consistent generated placeholder
+  - production no longer depends on live WGER image availability for page rendering
+  - admin/import task reports counts for fetched, cached, missing, and failed images
+  - tests cover valid image caching, broken image fallback, and templates with multiple images
 - Add Google Sheets export for saved workout plans.
   Scope:
   - export button on saved plans
@@ -86,10 +95,5 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
 - Create an interactive human body heat map on the dashboard.
   Goal:
   highlight muscle groups based on the past 7 days of training volume.
-
-- Expand AI workout generation:
-  - instant workout generation from goal, equipment, and duration
-  - saved weekly workout plans
-  - structured 4-week AI-generated programs
 
 - Add CSV/PDF export for workout history and nutrition logs.

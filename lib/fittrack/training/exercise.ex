@@ -4,6 +4,7 @@ defmodule Fittrack.Training.Exercise do
 
   alias Fittrack.Accounts.User
   alias Fittrack.Training.Normalizer
+  alias Fittrack.Training.Slug
   alias Fittrack.Training.WorkoutSet
 
   schema "exercises" do
@@ -12,8 +13,13 @@ defmodule Fittrack.Training.Exercise do
     field :secondary_muscles, {:array, :string}, default: []
     field :equipment, :string
     field :notes, :string
+    field :instructions, :string
     field :normalized_name, :string
     field :normalized_equipment, :string
+    field :slug, :string
+    field :is_custom, :boolean, default: false
+    field :is_private, :boolean, default: true
+    field :custom_media, :map, default: %{}
 
     field :movement_pattern, :string
     field :exercise_category, :string
@@ -39,6 +45,11 @@ defmodule Fittrack.Training.Exercise do
       :secondary_muscles,
       :equipment,
       :notes,
+      :instructions,
+      :slug,
+      :is_custom,
+      :is_private,
+      :custom_media,
       :movement_pattern,
       :exercise_category,
       :training_style_tags,
@@ -52,8 +63,12 @@ defmodule Fittrack.Training.Exercise do
     |> update_change(:primary_muscle, &String.trim/1)
     |> update_change(:equipment, &String.trim/1)
     |> update_change(:notes, fn v -> if is_binary(v), do: String.trim(v), else: v end)
+    |> update_change(:instructions, fn v -> if is_binary(v), do: String.trim(v), else: v end)
+    |> update_change(:slug, &Slug.slugify/1)
     |> normalize_fields()
+    |> put_default_slug()
     |> unique_constraint([:user_id, :normalized_name, :normalized_equipment])
+    |> unique_constraint([:user_id, :slug])
   end
 
   defp normalize_fields(changeset) do
@@ -63,6 +78,14 @@ defmodule Fittrack.Training.Exercise do
     changeset
     |> put_change(:normalized_name, normalized_name)
     |> put_change(:normalized_equipment, normalized_equipment)
+  end
+
+  defp put_default_slug(changeset) do
+    case get_field(changeset, :slug) do
+      nil -> put_change(changeset, :slug, Slug.slugify(get_field(changeset, :name)))
+      "" -> put_change(changeset, :slug, Slug.slugify(get_field(changeset, :name)))
+      _slug -> changeset
+    end
   end
 
   defp validate_array_subset(changeset, field, allowed_values) do

@@ -7,15 +7,19 @@ defmodule Fittrack.TrainingFixtures do
   @doc """
   Generate a exercise.
   """
-  def exercise_fixture(scope \\ nil) do
+  def exercise_fixture(scope \\ nil, attrs \\ %{}) do
     scope = scope || Fittrack.AccountsFixtures.user_scope_fixture()
 
-    attrs = %{
-      equipment: "some equipment",
-      name: "some name",
-      notes: "some notes",
-      primary_muscle: "some primary_muscle"
-    }
+    attrs =
+      Map.merge(
+        %{
+          equipment: "some equipment",
+          name: "some name",
+          notes: "some notes",
+          primary_muscle: "some primary_muscle"
+        },
+        attrs
+      )
 
     {:ok, exercise} = Fittrack.Training.create_exercise(scope, attrs)
 

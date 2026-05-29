@@ -55,4 +55,15 @@ defmodule FittrackWeb.WorkoutPlanLiveTest do
     assert Training.get_active_workout(scope).workout_sets == []
     assert Training.count_workouts(scope) == 0
   end
+
+  test "new workout plan form renders with an empty exercise list", %{conn: conn} do
+    user = user_fixture()
+    conn = log_in_user(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/workout-plans/new")
+
+    assert has_element?(view, "#workout-plan-form")
+    assert has_element?(view, "#exercise-library")
+    assert has_element?(view, "#drop-zone-Monday")
+  end
 end
