@@ -20,7 +20,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
           </div>
           <.link
             id="admin-exercise-library-link"
-            navigate={~p"/library"}
+            navigate={~p"/exercises"}
             class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
           >
             <.icon name="hero-book-open" class="h-4 w-4" /> Public library
@@ -80,7 +80,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <.link
-                    navigate={~p"/library/#{template}"}
+                    navigate={~p"/exercises/#{template.slug}"}
                     class="font-semibold text-base-content transition hover:text-primary"
                   >
                     {template.name}

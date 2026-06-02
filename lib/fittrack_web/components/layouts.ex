@@ -77,7 +77,13 @@ defmodule FittrackWeb.Layouts do
                   navigate={~p"/exercises"}
                   class="rounded-full px-3 py-2 transition hover:bg-base-200"
                 >
-                  Exercises
+                  Library
+                </.link>
+                <.link
+                  navigate={~p"/my-exercises"}
+                  class="rounded-full px-3 py-2 transition hover:bg-base-200"
+                >
+                  My Exercises
                 </.link>
                 <.link
                   navigate={~p"/workout-plans"}
@@ -319,9 +325,16 @@ defmodule FittrackWeb.Layouts do
             <.command_item
               href={~p"/exercises"}
               icon="hero-bolt"
-              title="Exercises"
-              description="Manage personal exercise library"
+              title="Exercise Library"
+              description="Browse public exercises and movement details"
               keywords="movements lifts library"
+            />
+            <.command_item
+              href={~p"/my-exercises"}
+              icon="hero-user-circle"
+              title="My Exercises"
+              description="Manage personal exercise library"
+              keywords="custom exercises personal movements"
             />
             <.command_item
               href={~p"/workout-plans"}

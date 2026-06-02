@@ -60,15 +60,13 @@ defmodule FittrackWeb.Router do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
 
-      # Exercises (protected)
-      live "/exercises", ExerciseLive.Index, :index
-      live "/exercises/new", ExerciseLive.Form, :new
-      live "/exercises/:id/edit", ExerciseLive.Form, :edit
-      live "/exercises/:id", ExerciseLive.Show, :show
+      # My Exercises (protected personal exercise CRUD)
+      live "/my-exercises", ExerciseLive.Index, :index
+      live "/my-exercises/new", ExerciseLive.Form, :new
+      live "/my-exercises/:id/edit", ExerciseLive.Form, :edit
+      live "/my-exercises/:id", ExerciseLive.Show, :show
 
-      # Exercise Library
-      live "/library", LibraryLive.Index, :index
-      live "/library/:id", LibraryLive.Show, :show
+      # Exercise Admin
       live "/admin/exercises", Admin.ExerciseLibraryLive, :index
 
       # Workout Plans
@@ -112,6 +110,10 @@ defmodule FittrackWeb.Router do
 
     live_session :current_user,
       on_mount: [{FittrackWeb.UserAuth, :mount_current_scope}] do
+      # Public exercise library; this live_session mounts current_scope for both guests and signed-in users.
+      live "/exercises", LibraryLive.Index, :index
+      live "/exercises/:slug", LibraryLive.Show, :show
+
       live "/users/register", UserLive.Registration, :new
       live "/users/log-in", UserLive.Login, :new
       live "/users/log-in/:token", UserLive.Confirmation, :new

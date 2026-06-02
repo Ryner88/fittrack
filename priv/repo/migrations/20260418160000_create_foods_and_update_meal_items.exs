@@ -1,32 +1,67 @@
 defmodule Fittrack.Repo.Migrations.CreateFoodsAndUpdateMealItems do
   use Ecto.Migration
 
-  def change do
-    create table(:foods) do
-      add :name, :string, null: false
-      add :unit, :string, null: false, default: "g"
-      add :unit_amount, :decimal, precision: 8, scale: 2, null: false, default: 100.0
-      add :calories_per_unit, :decimal, precision: 8, scale: 2, null: false
-      add :protein_per_unit, :decimal, precision: 8, scale: 2, default: 0.0
-      add :carbs_per_unit, :decimal, precision: 8, scale: 2, default: 0.0
-      add :fats_per_unit, :decimal, precision: 8, scale: 2, default: 0.0
-      add :fiber_per_unit, :decimal, precision: 8, scale: 2
-      add :sugar_per_unit, :decimal, precision: 8, scale: 2
-      add :sodium_mg_per_unit, :decimal, precision: 10, scale: 2
-      add :micronutrients, :map
-      add :source_image_metadata, :map
-      add :parsed_values, :map
-      add :user_id, references(:users, on_delete: :delete_all), null: false
+  def up do
+    execute("""
+    CREATE TABLE IF NOT EXISTS foods (
+      id bigserial PRIMARY KEY,
+      name character varying(255) NOT NULL,
+      unit character varying(255) NOT NULL DEFAULT 'g',
+      unit_amount numeric(8, 2) NOT NULL DEFAULT 100.0,
+      calories_per_unit numeric(8, 2) NOT NULL,
+      protein_per_unit numeric(8, 2) DEFAULT 0.0,
+      carbs_per_unit numeric(8, 2) DEFAULT 0.0,
+      fats_per_unit numeric(8, 2) DEFAULT 0.0,
+      fiber_per_unit numeric(8, 2),
+      sugar_per_unit numeric(8, 2),
+      sodium_mg_per_unit numeric(10, 2),
+      micronutrients jsonb,
+      source_image_metadata jsonb,
+      parsed_values jsonb,
+      user_id bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      inserted_at timestamp(0) without time zone NOT NULL,
+      updated_at timestamp(0) without time zone NOT NULL
+    )
+    """)
 
-      timestamps(type: :utc_datetime)
-    end
+    create_if_not_exists index(:foods, [:user_id])
 
-    create index(:foods, [:user_id])
+    execute("""
+    ALTER TABLE meal_items
+    ADD COLUMN IF NOT EXISTS food_id bigint
+    """)
+
+    execute("""
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'meal_items_food_id_fkey'
+      ) THEN
+        ALTER TABLE meal_items
+        ADD CONSTRAINT meal_items_food_id_fkey
+        FOREIGN KEY (food_id) REFERENCES foods(id) ON DELETE SET NULL;
+      END IF;
+    END $$;
+    """)
+
+    create_if_not_exists index(:meal_items, [:food_id])
+  end
+
+  def down do
+    drop_if_exists index(:meal_items, [:food_id])
+
+    execute("""
+    ALTER TABLE meal_items
+    DROP CONSTRAINT IF EXISTS meal_items_food_id_fkey
+    """)
 
     alter table(:meal_items) do
-      add :food_id, references(:foods, on_delete: :nilify_all)
+      remove :food_id
     end
 
-    create index(:meal_items, [:food_id])
+    drop_if_exists index(:foods, [:user_id])
+    drop_if_exists table(:foods)
   end
 end

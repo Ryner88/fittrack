@@ -17,13 +17,13 @@ defmodule FittrackWeb.ExerciseLive.Index do
           </div>
           <div class="flex gap-3">
             <.link
-              navigate={~p"/library"}
+              navigate={~p"/exercises"}
               class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
             >
               <.icon name="hero-book-open" class="mr-2 size-4" /> Browse Library
             </.link>
             <.link
-              navigate={~p"/exercises/new"}
+              navigate={~p"/my-exercises/new"}
               class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
             >
               <.icon name="hero-plus" class="mr-2 size-4" /> New exercise
@@ -41,7 +41,7 @@ defmodule FittrackWeb.ExerciseLive.Index do
                 placeholder="Search by name, muscle group, or equipment"
               />
               <.link
-                navigate={~p"/exercises/new"}
+                navigate={~p"/my-exercises/new"}
                 class="hidden md:inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
               >
                 Add new
@@ -53,7 +53,7 @@ defmodule FittrackWeb.ExerciseLive.Index do
         <.table
           id="exercises"
           rows={@streams.exercises}
-          row_click={fn {_id, exercise} -> JS.navigate(~p"/exercises/#{exercise}") end}
+          row_click={fn {_id, exercise} -> JS.navigate(~p"/my-exercises/#{exercise}") end}
         >
           <:col :let={{_id, exercise}} label="">
             <.exercise_thumbnail exercise={exercise} />
@@ -64,9 +64,9 @@ defmodule FittrackWeb.ExerciseLive.Index do
           <:col :let={{_id, exercise}} label="Notes">{exercise.notes}</:col>
           <:action :let={{_id, exercise}}>
             <div class="sr-only">
-              <.link navigate={~p"/exercises/#{exercise}"}>Show</.link>
+              <.link navigate={~p"/my-exercises/#{exercise}"}>Show</.link>
             </div>
-            <.link navigate={~p"/exercises/#{exercise}/edit"} class="text-primary hover:underline">
+            <.link navigate={~p"/my-exercises/#{exercise}/edit"} class="text-primary hover:underline">
               Edit
             </.link>
           </:action>

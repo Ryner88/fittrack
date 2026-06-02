@@ -96,6 +96,6 @@ defmodule FittrackWeb.ExerciseLive.Form do
     end
   end
 
-  defp return_path("index", _exercise), do: ~p"/exercises"
-  defp return_path("show", exercise), do: ~p"/exercises/#{exercise}"
+  defp return_path("index", _exercise), do: ~p"/my-exercises"
+  defp return_path("show", exercise), do: ~p"/my-exercises/#{exercise}"
 end

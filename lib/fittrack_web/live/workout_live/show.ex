@@ -31,7 +31,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
               Back to history
             </.link>
             <.link
-              navigate={~p"/exercises"}
+              navigate={~p"/my-exercises"}
               class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
             >
               Manage exercises
@@ -81,7 +81,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
               </div>
               <%= if @exercise_options == [] do %>
                 <.link
-                  navigate={~p"/exercises/new"}
+                  navigate={~p"/my-exercises/new"}
                   class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
                 >
                   Create an exercise
@@ -167,6 +167,34 @@ defmodule FittrackWeb.WorkoutLive.Show do
                 </div>
               </.form>
 
+              <section
+                :if={@selected_exercise && @substitution_suggestions != []}
+                id="substitution-suggestions"
+                class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4"
+              >
+                <div>
+                  <p class="text-sm font-semibold text-amber-900">
+                    Can't do {@selected_exercise.name}?
+                  </p>
+                  <p class="mt-1 text-xs text-amber-800/80">
+                    Try a nearby substitute and keep the workout moving.
+                  </p>
+                </div>
+                <div class="mt-3 grid gap-2">
+                  <button
+                    :for={template <- @substitution_suggestions}
+                    id={"substitute-template-#{template.id}"}
+                    type="button"
+                    phx-click="prefill_from_library"
+                    phx-value-template_id={template.id}
+                    class="flex items-center justify-between rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+                  >
+                    <span>{template.name}</span>
+                    <.icon name="hero-arrow-right" class="h-4 w-4" />
+                  </button>
+                </div>
+              </section>
+
               <div
                 id="rest-timer"
                 phx-hook="RestTimer"
@@ -217,6 +245,23 @@ defmodule FittrackWeb.WorkoutLive.Show do
               <p class="text-sm text-base-content/70">
                 Add a shared template to your personal exercise list in one tap.
               </p>
+            </div>
+
+            <div
+              :if={@recent_exercises != [] || @popular_exercises != []}
+              id="workout-exercise-shortcuts"
+              class="mt-5 grid gap-4"
+            >
+              <.shortcut_group
+                id_prefix="recent"
+                title="Recently used"
+                exercises={@recent_exercises}
+              />
+              <.shortcut_group
+                id_prefix="popular"
+                title="Most logged"
+                exercises={@popular_exercises}
+              />
             </div>
 
             <div class="mt-4 space-y-4">
@@ -374,10 +419,12 @@ defmodule FittrackWeb.WorkoutLive.Show do
   end
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
+  def mount(%{"id" => id} = params, _session, socket) do
     workout = Training.get_workout!(socket.assigns.current_scope, id)
     exercise_options = exercise_options(socket.assigns.current_scope)
     templates = Training.list_exercise_templates(%{})
+    form = workout_set_form(socket.assigns.current_scope, params)
+    selected_exercise = selected_exercise(socket.assigns.current_scope, params)
 
     {:ok,
      socket
@@ -385,7 +432,20 @@ defmodule FittrackWeb.WorkoutLive.Show do
      |> assign(:workout, workout)
      |> assign(:performed_summary, performed_summary(workout.workout_sets))
      |> assign(:exercise_options, exercise_options)
-     |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))
+     |> assign(:form, form)
+     |> assign(:selected_exercise, selected_exercise)
+     |> assign(
+       :substitution_suggestions,
+       substitution_suggestions(socket.assigns.current_scope, selected_exercise)
+     )
+     |> assign(
+       :recent_exercises,
+       Training.list_recent_exercises(socket.assigns.current_scope, limit: 5)
+     )
+     |> assign(
+       :popular_exercises,
+       Training.list_popular_exercises(socket.assigns.current_scope, limit: 5)
+     )
      |> assign(:kind_options, WorkoutSet.kind_options())
      |> assign(:library_templates, templates)
      |> assign(:filtered_library, templates)
@@ -434,6 +494,11 @@ defmodule FittrackWeb.WorkoutLive.Show do
         {:noreply,
          socket
          |> assign(:exercise_options, exercise_options)
+         |> assign(:selected_exercise, exercise)
+         |> assign(
+           :substitution_suggestions,
+           substitution_suggestions(socket.assigns.current_scope, exercise)
+         )
          |> assign(:form, to_form(changeset))}
 
       {:error, :not_found} ->
@@ -447,9 +512,37 @@ defmodule FittrackWeb.WorkoutLive.Show do
     end
   end
 
+  def handle_event("prefill_exercise", %{"exercise_id" => exercise_id}, socket) do
+    case Training.get_exercise(socket.assigns.current_scope, exercise_id) do
+      nil ->
+        {:noreply, put_flash(socket, :error, "That exercise is no longer available.")}
+
+      exercise ->
+        changeset = Training.change_workout_set(%WorkoutSet{}, %{"exercise_id" => exercise.id})
+
+        {:noreply,
+         socket
+         |> assign(:selected_exercise, exercise)
+         |> assign(
+           :substitution_suggestions,
+           substitution_suggestions(socket.assigns.current_scope, exercise)
+         )
+         |> assign(:form, to_form(changeset))}
+    end
+  end
+
   def handle_event("validate", %{"workout_set" => params}, socket) do
     changeset = Training.change_workout_set(%WorkoutSet{}, params)
-    {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
+    selected_exercise = selected_exercise(socket.assigns.current_scope, params)
+
+    {:noreply,
+     socket
+     |> assign(:selected_exercise, selected_exercise)
+     |> assign(
+       :substitution_suggestions,
+       substitution_suggestions(socket.assigns.current_scope, selected_exercise)
+     )
+     |> assign(:form, to_form(changeset, action: :validate))}
   end
 
   def handle_event("save", %{"workout_set" => params}, socket) do
@@ -466,6 +559,14 @@ defmodule FittrackWeb.WorkoutLive.Show do
          |> stream_insert(:workout_sets, workout_set, at: -1)
          |> assign(:workout, workout)
          |> assign(:performed_summary, performed_summary(workout.workout_sets))
+         |> assign(
+           :recent_exercises,
+           Training.list_recent_exercises(socket.assigns.current_scope, limit: 5)
+         )
+         |> assign(
+           :popular_exercises,
+           Training.list_popular_exercises(socket.assigns.current_scope, limit: 5)
+         )
          |> assign(:form, to_form(Training.change_workout_set(%WorkoutSet{})))}
 
       {:error, :invalid_exercise} ->
@@ -485,8 +586,72 @@ defmodule FittrackWeb.WorkoutLive.Show do
     |> Enum.map(fn exercise -> {exercise.name, exercise.id} end)
   end
 
+  defp workout_set_form(current_scope, %{"exercise_id" => exercise_id}) do
+    attrs =
+      case Training.get_exercise(current_scope, exercise_id) do
+        nil -> %{}
+        exercise -> %{"exercise_id" => exercise.id}
+      end
+
+    %WorkoutSet{}
+    |> Training.change_workout_set(attrs)
+    |> to_form()
+  end
+
+  defp workout_set_form(_current_scope, _params) do
+    to_form(Training.change_workout_set(%WorkoutSet{}))
+  end
+
+  defp selected_exercise(_current_scope, %{"exercise_id" => ""}), do: nil
+
+  defp selected_exercise(current_scope, %{"exercise_id" => exercise_id}) do
+    Training.get_exercise(current_scope, exercise_id)
+  end
+
+  defp selected_exercise(_current_scope, _params), do: nil
+
+  defp substitution_suggestions(_current_scope, nil), do: []
+
+  defp substitution_suggestions(current_scope, exercise) do
+    Training.list_substitution_templates_for_exercise(current_scope, exercise.id, limit: 4)
+  end
+
+  attr :title, :string, required: true
+  attr :exercises, :list, required: true
+  attr :id_prefix, :string, required: true
+
+  defp shortcut_group(assigns) do
+    ~H"""
+    <section :if={@exercises != []} class="rounded-2xl border border-base-200 bg-base-100 p-4">
+      <h3 class="text-sm font-semibold text-base-content">{@title}</h3>
+      <div class="mt-3 grid gap-2">
+        <button
+          :for={exercise <- @exercises}
+          id={"#{@id_prefix}-shortcut-exercise-#{exercise.id}"}
+          type="button"
+          phx-click="prefill_exercise"
+          phx-value-exercise_id={exercise.id}
+          class="flex items-center justify-between rounded-xl border border-base-200 px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:text-primary"
+        >
+          <span>
+            <span class="block font-semibold">{exercise.name}</span>
+            <span class="text-xs text-base-content/60">{format_exercise_meta(exercise)}</span>
+          </span>
+          <.icon name="hero-plus" class="h-4 w-4" />
+        </button>
+      </div>
+    </section>
+    """
+  end
+
   defp format_started_at(datetime) do
     Calendar.strftime(datetime, "%b %d, %Y • %H:%M")
+  end
+
+  defp format_exercise_meta(exercise) do
+    [exercise.primary_muscle, exercise.equipment]
+    |> Enum.filter(&(&1 && &1 != ""))
+    |> Enum.join(" • ")
   end
 
   defp format_template_meta(template) do

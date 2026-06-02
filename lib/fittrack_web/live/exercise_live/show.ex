@@ -11,10 +11,10 @@ defmodule FittrackWeb.ExerciseLive.Show do
         Exercise {@exercise.name}
         <:subtitle>This is a exercise record from your database.</:subtitle>
         <:actions>
-          <.button navigate={~p"/exercises"}>
+          <.button navigate={~p"/my-exercises"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/exercises/#{@exercise}/edit?return_to=show"}>
+          <.button variant="primary" navigate={~p"/my-exercises/#{@exercise}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> Edit exercise
           </.button>
         </:actions>

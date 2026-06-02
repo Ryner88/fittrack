@@ -73,6 +73,62 @@ defmodule Fittrack.Training do
 
   def list_exercises(_, _opts), do: []
 
+  def list_recent_exercises(scope, opts \\ %{})
+
+  def list_recent_exercises(%Scope{user: user}, opts) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    limit = opts |> Map.get(:limit, 5) |> parse_positive_integer(5)
+
+    recent_sets =
+      WorkoutSet
+      |> join(:inner, [workout_set], exercise in assoc(workout_set, :exercise))
+      |> where([_workout_set, exercise], exercise.user_id == ^user.id)
+      |> group_by([workout_set, _exercise], workout_set.exercise_id)
+      |> select([workout_set, _exercise], %{
+        exercise_id: workout_set.exercise_id,
+        last_used_at: max(workout_set.inserted_at)
+      })
+
+    Exercise
+    |> join(:inner, [exercise], recent in subquery(recent_sets),
+      on: recent.exercise_id == exercise.id
+    )
+    |> order_by([_exercise, recent], desc: recent.last_used_at)
+    |> limit(^limit)
+    |> preload(:source_template)
+    |> Repo.all()
+  end
+
+  def list_recent_exercises(_, _opts), do: []
+
+  def list_popular_exercises(scope, opts \\ %{})
+
+  def list_popular_exercises(%Scope{user: user}, opts) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    limit = opts |> Map.get(:limit, 5) |> parse_positive_integer(5)
+
+    exercise_counts =
+      WorkoutSet
+      |> join(:inner, [workout_set], exercise in assoc(workout_set, :exercise))
+      |> where([_workout_set, exercise], exercise.user_id == ^user.id)
+      |> group_by([workout_set, _exercise], workout_set.exercise_id)
+      |> select([workout_set, _exercise], %{
+        exercise_id: workout_set.exercise_id,
+        set_count: count(workout_set.id)
+      })
+
+    Exercise
+    |> join(:inner, [exercise], counts in subquery(exercise_counts),
+      on: counts.exercise_id == exercise.id
+    )
+    |> order_by([exercise, counts], desc: counts.set_count, asc: exercise.name)
+    |> limit(^limit)
+    |> preload(:source_template)
+    |> Repo.all()
+  end
+
+  def list_popular_exercises(_, _opts), do: []
+
   @doc """
   Gets a single exercise for the current user.
   """
@@ -88,6 +144,28 @@ defmodule Fittrack.Training do
   def get_exercise(%Scope{user: user}, id) do
     Repo.get_by(Exercise, id: id, user_id: user.id)
   end
+
+  def list_substitution_templates_for_exercise(scope, exercise_id, opts \\ %{})
+
+  def list_substitution_templates_for_exercise(%Scope{user: user}, exercise_id, opts) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    limit = opts |> Map.get(:limit, 4) |> parse_positive_integer(4)
+
+    with %Exercise{source_template_id: template_id} when not is_nil(template_id) <-
+           Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
+      ExerciseSubstitution
+      |> where([substitution], substitution.exercise_template_id == ^template_id)
+      |> order_by([substitution], asc: substitution.priority, asc: substitution.reason)
+      |> limit(^limit)
+      |> preload(:substitute_exercise_template)
+      |> Repo.all()
+      |> Enum.map(& &1.substitute_exercise_template)
+    else
+      _ -> []
+    end
+  end
+
+  def list_substitution_templates_for_exercise(_, _exercise_id, _opts), do: []
 
   @doc """
   Creates a exercise scoped to the current user.
@@ -126,17 +204,106 @@ defmodule Fittrack.Training do
   Returns the list of exercise templates.
   """
   def list_exercise_templates(opts \\ %{}) do
+    list_all_exercise_templates(opts)
+  end
+
+  def paginate_exercise_templates(opts \\ %{}) do
     search = Map.get(opts, :search)
     search = if is_binary(search), do: String.trim(search), else: search
 
     muscle_group = Map.get(opts, :muscle_group)
     equipment = Map.get(opts, :equipment)
+    category = Map.get(opts, :category)
+    difficulty = Map.get(opts, :difficulty)
+    page = opts |> Map.get(:page, 1) |> parse_positive_integer(1)
+    per_page = opts |> Map.get(:per_page, 24) |> parse_positive_integer(24) |> min(60)
+
+    query =
+      ExerciseTemplate
+      |> maybe_filter_templates(search)
+      |> maybe_filter_by_muscle_group(muscle_group)
+      |> maybe_filter_by_equipment(equipment)
+      |> maybe_filter_by_category(category)
+      |> maybe_filter_by_difficulty(difficulty)
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = min(page, total_pages)
+
+    templates =
+      query
+      |> order_by([template], asc: template.name)
+      |> preload([
+        :aliases,
+        :media,
+        template_muscles: [:exercise_muscle],
+        template_equipment: [:exercise_equipment]
+      ])
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      entries: templates,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  def exercise_template_filter_options do
+    %{
+      muscles:
+        ExerciseMuscle
+        |> order_by([muscle], asc: muscle.name)
+        |> select([muscle], muscle.name)
+        |> Repo.all(),
+      equipment:
+        ExerciseEquipment
+        |> order_by([equipment], asc: equipment.name)
+        |> select([equipment], equipment.name)
+        |> Repo.all(),
+      categories:
+        ExerciseTemplate
+        |> where(
+          [template],
+          not is_nil(template.exercise_category) and template.exercise_category != ""
+        )
+        |> distinct(true)
+        |> order_by([template], asc: template.exercise_category)
+        |> select([template], template.exercise_category)
+        |> Repo.all(),
+      difficulties: ["beginner", "intermediate", "advanced"]
+    }
+  end
+
+  def list_matching_exercise_templates(search, opts \\ %{}) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+
+    search_exercise_templates(search, opts)
+    |> Repo.preload([
+      :aliases,
+      :media,
+      template_muscles: [:exercise_muscle],
+      template_equipment: [:exercise_equipment]
+    ])
+  end
+
+  def list_all_exercise_templates(opts \\ %{}) do
+    search = Map.get(opts, :search)
+    search = if is_binary(search), do: String.trim(search), else: search
+
+    muscle_group = Map.get(opts, :muscle_group)
+    equipment = Map.get(opts, :equipment)
+    category = Map.get(opts, :category)
     difficulty = Map.get(opts, :difficulty)
 
     ExerciseTemplate
     |> maybe_filter_templates(search)
     |> maybe_filter_by_muscle_group(muscle_group)
     |> maybe_filter_by_equipment(equipment)
+    |> maybe_filter_by_category(category)
     |> maybe_filter_by_difficulty(difficulty)
     |> order_by([template], asc: template.name)
     |> Repo.all()
@@ -150,7 +317,17 @@ defmodule Fittrack.Training do
   end
 
   def get_exercise_template_by_slug(slug) do
-    Repo.get_by(ExerciseTemplate, slug: slug)
+    ExerciseTemplate
+    |> where([template], template.slug == ^slug)
+    |> preload([
+      :aliases,
+      :media,
+      template_muscles: [:exercise_muscle],
+      template_equipment: [:exercise_equipment],
+      variations: [:variation_exercise_template],
+      substitutions: [:substitute_exercise_template]
+    ])
+    |> Repo.one()
   end
 
   def list_exercise_aliases(%ExerciseTemplate{} = template) do
@@ -341,6 +518,19 @@ defmodule Fittrack.Training do
 
   def get_active_workout(_), do: nil
 
+  def list_active_workouts(%Scope{user: user}) do
+    Workout
+    |> where([workout], workout.user_id == ^user.id)
+    |> join(:left, [workout], workout_set in assoc(workout, :workout_sets))
+    |> group_by([workout], workout.id)
+    |> having([_workout, workout_set], count(workout_set.id) == 0)
+    |> order_by([workout], desc: workout.started_at)
+    |> preload(workout_sets: [:exercise])
+    |> Repo.all()
+  end
+
+  def list_active_workouts(_), do: []
+
   @doc """
   Gets a workout with sets for the current user.
   """
@@ -445,24 +635,35 @@ defmodule Fittrack.Training do
   defp maybe_filter_templates(query, search) when search in [nil, ""], do: query
 
   defp maybe_filter_templates(query, search) do
-    like = "%#{search}%"
+    template_ids =
+      search_exercise_templates(search, limit: 500)
+      |> Enum.map(& &1.id)
 
-    where(
-      query,
-      [template],
-      ilike(template.name, ^like) or ilike(template.primary_muscle, ^like) or
-        ilike(template.equipment, ^like) or ilike(template.normalized_name, ^like) or
-        ilike(template.normalized_equipment, ^like)
-    )
+    if template_ids == [] do
+      where(query, [template], false)
+    else
+      where(query, [template], template.id in ^template_ids)
+    end
   end
 
   defp maybe_filter_by_muscle_group(query, nil), do: query
+  defp maybe_filter_by_muscle_group(query, ""), do: query
 
   defp maybe_filter_by_muscle_group(query, muscle_group) do
-    where(query, [template], template.primary_muscle == ^muscle_group)
+    where(
+      query,
+      [template],
+      template.primary_muscle == ^muscle_group or
+        fragment(
+          "EXISTS (SELECT 1 FROM exercise_template_muscles etm JOIN exercise_muscles em ON em.id = etm.exercise_muscle_id WHERE etm.exercise_template_id = ? AND em.name = ?)",
+          template.id,
+          ^muscle_group
+        )
+    )
   end
 
   defp maybe_filter_by_equipment(query, nil), do: query
+  defp maybe_filter_by_equipment(query, ""), do: query
 
   defp maybe_filter_by_equipment(query, equipment) do
     equipment_terms = equipment_filter_terms(equipment)
@@ -474,11 +675,30 @@ defmodule Fittrack.Training do
     end
   end
 
+  defp maybe_filter_by_category(query, nil), do: query
+  defp maybe_filter_by_category(query, ""), do: query
+
+  defp maybe_filter_by_category(query, category) do
+    where(query, [template], template.exercise_category == ^category)
+  end
+
   defp maybe_filter_by_difficulty(query, nil), do: query
+  defp maybe_filter_by_difficulty(query, ""), do: query
 
   defp maybe_filter_by_difficulty(query, difficulty) do
     where(query, [template], template.difficulty == ^difficulty)
   end
+
+  defp parse_positive_integer(value, _default) when is_integer(value) and value > 0, do: value
+
+  defp parse_positive_integer(value, default) when is_binary(value) do
+    case Integer.parse(value) do
+      {int, ""} when int > 0 -> int
+      _ -> default
+    end
+  end
+
+  defp parse_positive_integer(_value, default), do: default
 
   defp maybe_search_exercise_templates(query, ""), do: query
 
