@@ -107,17 +107,31 @@ defmodule Fittrack.Repo.Migrations.CreateNormalizedExerciseLibrary do
             """
 
     execute """
-            UPDATE exercise_templates
-            SET slug = regexp_replace(lower(trim(name)), '[^a-z0-9]+', '-', 'g'),
-                canonical_slug = regexp_replace(lower(trim(name)), '[^a-z0-9]+', '-', 'g'),
-                search_vector = to_tsvector(
+            WITH normalized AS (
+              SELECT 
+                id,
+                regexp_replace(lower(trim(name)), '[^a-z0-9]+', '-', 'g') as base_slug,
+                ROW_NUMBER() OVER (PARTITION BY regexp_replace(lower(trim(name)), '[^a-z0-9]+', '-', 'g') ORDER BY id) as rn,
+                to_tsvector(
                   'simple',
                   coalesce(name, '') || ' ' ||
                   coalesce(primary_muscle, '') || ' ' ||
                   coalesce(equipment, '') || ' ' ||
                   coalesce(notes, '')
-                )
-            WHERE slug IS NULL
+                ) as search_vec
+              FROM exercise_templates
+              WHERE slug IS NULL
+            )
+            UPDATE exercise_templates et
+            SET 
+              slug = CASE 
+                WHEN normalized.rn > 1 THEN normalized.base_slug || '-' || normalized.rn
+                ELSE normalized.base_slug
+              END,
+              canonical_slug = normalized.base_slug,
+              search_vector = normalized.search_vec
+            FROM normalized
+            WHERE et.id = normalized.id
             """,
             ""
 
