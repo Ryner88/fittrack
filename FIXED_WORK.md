@@ -12,6 +12,22 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Non-Interactive Production Restart
+
+- Commit references:
+  - `81c5cfb` Restart production release without sudo in deploy script
+
+- Made production service restarts non-interactive for `deploy.sh`.
+- Updated `deploy.sh` to restart with `_build/prod/rel/fittrack/bin/fittrack restart`.
+- Removed the dependency on interactive `sudo systemctl restart`.
+- Kept service verification with non-sudo `systemctl is-active fittrack`.
+- Added a local endpoint wait against `http://127.0.0.1:${PORT}/`.
+- Confirmed no passwordless sudo rule was added.
+- Verified:
+  - `bash -n deploy.sh` passed
+  - `mix precommit` passed with 229 tests and 0 failures
+  - commit was pushed to `main`
+
 ### Workout Logging Form References
 
 - Commit references:
