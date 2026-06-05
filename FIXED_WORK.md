@@ -15,7 +15,7 @@ or materially addressed on the recent branches.
 ### Workout Logging Form References
 
 - Commit references:
-  - current branch commit
+  - `a0cc65d` Merge pull request #14 from Ryner88/workout-logging-form-video-links
 
 - Added a compact form-reference area to the active workout set logging form.
 - Selected linked exercises now surface the best available media reference:
@@ -27,6 +27,21 @@ or materially addressed on the recent branches.
 - Custom exercises without a linked source template render safely without crashing.
 - Set entry inputs remain unchanged and available for reps, weight, set type, rest, and notes.
 - Added LiveView coverage for cached video, external video, no usable media, and custom/no-linked-template cases.
+- Status: fixed and verified in production.
+- Production deployment and verification:
+  - merged and deployed workout logging form media references
+  - production updated from `32083db` to `a0cc65d`
+  - verified checkout was clean before and after deploy
+  - `./deploy.sh` completed git pull, environment load, dependency fetch, compile, migrations, asset deploy, and release creation
+  - restarted release successfully with `_build/prod/rel/fittrack/bin/fittrack restart`
+  - verified public site recovered from the restart window and returned `HTTP/2 200`
+  - created temporary production verification data: temp user, linked exercise, workout, and set
+  - verified `/workouts/2?exercise_id=3` returned 200
+  - verified workout logging rendered `#workout-set-form`, exercise select, weight input, `Form reference`, and cached media link `href="/exercise-media/4"`
+  - verified saved set rendered after save
+  - cleaned up temporary verification data: `temp_users: 0`, `temp_workouts: 0`, `temp_sets: 0`
+  - confirmed service is active using non-sudo `systemctl status`
+  - confirmed non-sudo journal logs showed endpoint restart and verified workout requests returned 200
 
 ### Exercise Media Backfill
 
