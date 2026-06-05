@@ -928,6 +928,7 @@ defmodule Fittrack.Training do
            ]),
          {:ok, days} <- validate_days_per_week(days_per_week),
          {:ok, duration_minutes} <- validate_duration_minutes(duration_minutes),
+         :ok <- validate_source_summary(source_only?, source_summary),
          :ok <- validate_source_exercises(source_only?, source_exercises),
          {:ok, exercises} <-
            fetch_ai_exercises(scope, equipment, experience, source_summary, source_only?),
@@ -1147,10 +1148,24 @@ defmodule Fittrack.Training do
   defp validate_duration_minutes(_),
     do: {:error, "Duration must be between 15 and 180 minutes"}
 
-  defp validate_source_exercises(true, []),
-    do:
-      {:error,
-       "Could not detect exercises from that link. Use a page with a written exercise list, or configure OPENAI_API_KEY for AI parsing."}
+  defp validate_source_summary(true, %{status: :invalid, summary: summary}), do: {:error, summary}
+
+  defp validate_source_summary(true, %{status: :error, summary: summary}), do: {:error, summary}
+
+  defp validate_source_summary(true, %{status: :no_readable_text, kind: kind})
+       when kind in [:youtube, :video],
+       do:
+         {:error,
+          "Could not read workout details from that video. If it is a YouTube link, the transcript or page text may be unavailable."}
+
+  defp validate_source_summary(true, %{status: :no_readable_text}),
+    do: {:error, no_structured_source_message()}
+
+  defp validate_source_summary(_source_only?, _source_summary), do: :ok
+
+  defp validate_source_exercises(true, []) do
+    {:error, no_structured_source_message()}
+  end
 
   defp validate_source_exercises(_source_only?, _source_exercises), do: :ok
 
@@ -1628,39 +1643,91 @@ defmodule Fittrack.Training do
   defp summarize_training_source(nil), do: nil
 
   defp summarize_training_source(source_url) do
-    case URI.new(source_url) do
-      {:ok, %URI{scheme: scheme, host: host}}
-      when scheme in ["http", "https"] and is_binary(host) ->
-        fetch_training_source_summary(source_url)
-
+    with {:ok, uri} <- URI.new(source_url),
+         true <- valid_source_uri?(uri) do
+      fetch_training_source_summary(source_url, classify_source_url(uri))
+    else
       _ ->
         %{
           url: source_url,
+          kind: :invalid,
           status: :invalid,
           summary: "Source link was not a valid HTTP or HTTPS URL."
         }
     end
   end
 
-  defp fetch_training_source_summary(source_url) do
+  defp valid_source_uri?(%URI{scheme: scheme, host: host})
+       when scheme in ["http", "https"] and is_binary(host),
+       do: host != ""
+
+  defp valid_source_uri?(_uri), do: false
+
+  defp classify_source_url(%URI{host: host, path: path}) do
+    host = host |> to_string() |> String.downcase()
+    path = path |> to_string() |> String.downcase()
+
+    cond do
+      host in ["youtube.com", "www.youtube.com", "m.youtube.com"] and youtube_path?(path) ->
+        :youtube
+
+      host == "youtu.be" ->
+        :youtube
+
+      host in ["vimeo.com", "www.vimeo.com"] or String.ends_with?(path, [".mp4", ".mov", ".webm"]) ->
+        :video
+
+      true ->
+        :article
+    end
+  end
+
+  defp youtube_path?(path) do
+    Enum.any?(["/watch", "/shorts/", "/embed/", "/live/"], &String.starts_with?(path, &1))
+  end
+
+  defp fetch_training_source_summary(source_url, source_kind) do
     case ai_source_http_client().get(source_url, receive_timeout: 5_000) do
       {:ok, %{status: status, body: body}} when status in 200..299 and is_binary(body) ->
         text = source_text(body)
         structured = parse_source_workout(text, source_url)
 
+        status =
+          cond do
+            text == "" ->
+              :no_readable_text
+
+            source_structured_exercises(%{structured: structured}) == [] ->
+              :no_structured_exercises
+
+            true ->
+              :ok
+          end
+
         %{
           url: source_url,
-          status: :ok,
-          summary: summarize_source_text(text),
+          kind: source_kind,
+          status: status,
+          summary: source_summary_text(status, source_kind, text),
           text: text,
           structured: structured
         }
 
       {:ok, %{status: status}} ->
-        %{url: source_url, status: :error, summary: "Source returned HTTP #{status}."}
+        %{
+          url: source_url,
+          kind: source_kind,
+          status: :error,
+          summary: "Source returned HTTP #{status}."
+        }
 
       {:error, _reason} ->
-        %{url: source_url, status: :error, summary: "Source could not be fetched."}
+        %{
+          url: source_url,
+          kind: source_kind,
+          status: :error,
+          summary: "Source could not be fetched."
+        }
     end
   end
 
@@ -1679,6 +1746,18 @@ defmodule Fittrack.Training do
     text
     |> String.slice(0, 700)
     |> String.trim()
+  end
+
+  defp source_summary_text(:no_readable_text, _source_kind, _text),
+    do: "Source loaded, but no readable workout text was found."
+
+  defp source_summary_text(:no_structured_exercises, _source_kind, text),
+    do: summarize_source_text(text)
+
+  defp source_summary_text(:ok, _source_kind, text), do: summarize_source_text(text)
+
+  defp no_structured_source_message do
+    "Could not detect structured exercises from that link. Try an article with a written exercise list, paste a transcript, or use the manual generator."
   end
 
   defp parse_source_workout("", _source_url), do: nil
