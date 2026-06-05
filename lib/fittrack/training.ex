@@ -914,7 +914,8 @@ defmodule Fittrack.Training do
       |> parse_int(45)
 
     source_url = normalize_optional_text(Map.get(attrs, "source_url"))
-    source_summary = summarize_training_source(source_url)
+    source_transcript = normalize_optional_text(Map.get(attrs, "source_transcript"))
+    source_summary = summarize_training_source(source_url, source_transcript)
     source_only? = truthy?(Map.get(attrs, "source_only")) or source_summary != nil
     set_type_preferences = source_set_type_preferences(source_summary)
     source_exercises = source_structured_exercises(source_summary)
@@ -1640,9 +1641,31 @@ defmodule Fittrack.Training do
     "Source-guided block. Review exercise order, load, and fatigue before saving. Progress only when technique is stable."
   end
 
-  defp summarize_training_source(nil), do: nil
+  defp summarize_training_source(nil, nil), do: nil
 
-  defp summarize_training_source(source_url) do
+  defp summarize_training_source(source_url, source_transcript)
+       when is_binary(source_transcript) do
+    source_kind = source_kind_for_transcript(source_url)
+    structured = parse_source_workout(source_transcript, source_url || "pasted transcript")
+
+    status =
+      if source_structured_exercises(%{structured: structured}) == [] do
+        :no_structured_exercises
+      else
+        :ok
+      end
+
+    %{
+      url: source_url,
+      kind: source_kind,
+      status: status,
+      summary: source_summary_text(status, source_kind, source_transcript),
+      text: source_transcript,
+      structured: structured
+    }
+  end
+
+  defp summarize_training_source(source_url, _source_transcript) do
     with {:ok, uri} <- URI.new(source_url),
          true <- valid_source_uri?(uri) do
       fetch_training_source_summary(source_url, classify_source_url(uri))
@@ -1654,6 +1677,17 @@ defmodule Fittrack.Training do
           status: :invalid,
           summary: "Source link was not a valid HTTP or HTTPS URL."
         }
+    end
+  end
+
+  defp source_kind_for_transcript(nil), do: :transcript
+
+  defp source_kind_for_transcript(source_url) do
+    with {:ok, uri} <- URI.new(source_url),
+         true <- valid_source_uri?(uri) do
+      classify_source_url(uri)
+    else
+      _ -> :transcript
     end
   end
 
@@ -1892,6 +1926,14 @@ defmodule Fittrack.Training do
   defp source_set_type_preferences(_source_summary), do: []
 
   defp source_description_line(nil), do: nil
+
+  defp source_description_line(%{url: nil, status: :ok, summary: summary}) do
+    "Source guide: pasted transcript\nSource summary: #{summary}"
+  end
+
+  defp source_description_line(%{url: nil, summary: summary}) do
+    "Source guide: pasted transcript\nSource note: #{summary}"
+  end
 
   defp source_description_line(%{url: url, status: :ok, summary: summary}) do
     "Source guide: #{url}\nSource summary: #{summary}"

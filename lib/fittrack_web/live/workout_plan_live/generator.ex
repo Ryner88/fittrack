@@ -178,6 +178,13 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
               label="Website or video link (optional)"
               placeholder="https://www.youtube.com/watch?v=... or https://example.com/program"
             />
+            <.input
+              field={@form[:source_transcript]}
+              type="textarea"
+              label="Transcript or workout text (optional)"
+              placeholder="Paste the video transcript or written workout if the link cannot be read."
+              rows="5"
+            />
             <div class="flex justify-end">
               <button
                 type="submit"
@@ -395,13 +402,17 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
       ) do
     ai_workout_params = normalize_form_params(ai_workout_params)
     source_url = Map.get(ai_workout_params, "source_url")
+    source_transcript = Map.get(ai_workout_params, "source_transcript")
 
     cond do
-      is_nil(source_url) ->
+      is_nil(source_url) and is_nil(source_transcript) ->
         {:noreply,
          socket
          |> assign_form(ai_workout_params)
-         |> put_flash(:error, "Paste a website or video link before analyzing.")}
+         |> put_flash(
+           :error,
+           "Paste a website or video link, transcript, or workout text before analyzing."
+         )}
 
       true ->
         source_params = Map.put_new(ai_workout_params, "primary_goal", "general")
@@ -595,7 +606,8 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
       "experience" => "beginner",
       "days_per_week" => 4,
       "duration_minutes" => 45,
-      "source_url" => nil
+      "source_url" => nil,
+      "source_transcript" => nil
     }
   end
 
@@ -612,7 +624,8 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
         normalize_choice(Map.get(params, "experience"), @experience_levels, "beginner"),
       "days_per_week" => normalize_days_per_week(Map.get(params, "days_per_week", 4)),
       "duration_minutes" => normalize_duration_minutes(Map.get(params, "duration_minutes", 45)),
-      "source_url" => normalize_source_url(Map.get(params, "source_url"))
+      "source_url" => normalize_source_url(Map.get(params, "source_url")),
+      "source_transcript" => normalize_source_transcript(Map.get(params, "source_transcript"))
     }
   end
 
@@ -681,6 +694,18 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
   defp normalize_source_url(nil), do: nil
 
   defp normalize_source_url(value) do
+    value
+    |> to_string()
+    |> String.trim()
+    |> case do
+      "" -> nil
+      normalized -> normalized
+    end
+  end
+
+  defp normalize_source_transcript(nil), do: nil
+
+  defp normalize_source_transcript(value) do
     value
     |> to_string()
     |> String.trim()
