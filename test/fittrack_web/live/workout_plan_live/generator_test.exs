@@ -360,7 +360,7 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
       html =
         render_submit(generator_live, :generate, %{
           "intent" => "analyze_source",
-          "ai_workout" => %{"source_url" => "https://www.youtube.com/watch?v=missing-transcript"}
+          "ai_workout" => %{"source_url" => "https://www.youtube.com/embed/missing-transcript"}
         })
 
       assert html =~

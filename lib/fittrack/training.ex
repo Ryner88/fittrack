@@ -1159,9 +1159,7 @@ defmodule Fittrack.Training do
           "Could not read workout details from that video. If it is a YouTube link, the transcript or page text may be unavailable."}
 
   defp validate_source_summary(true, %{status: :no_readable_text}),
-    do:
-      {:error,
-       "Could not detect structured exercises from that link. Try an article with a written exercise list, paste a transcript, or use the manual generator."}
+    do: {:error, no_structured_source_message()}
 
   defp validate_source_summary(_source_only?, _source_summary), do: :ok
 
@@ -1670,8 +1668,7 @@ defmodule Fittrack.Training do
     path = path |> to_string() |> String.downcase()
 
     cond do
-      host in ["youtube.com", "www.youtube.com", "m.youtube.com"] and
-          (String.starts_with?(path, "/watch") or String.starts_with?(path, "/shorts/")) ->
+      host in ["youtube.com", "www.youtube.com", "m.youtube.com"] and youtube_path?(path) ->
         :youtube
 
       host == "youtu.be" ->
@@ -1683,6 +1680,10 @@ defmodule Fittrack.Training do
       true ->
         :article
     end
+  end
+
+  defp youtube_path?(path) do
+    Enum.any?(["/watch", "/shorts/", "/embed/", "/live/"], &String.starts_with?(path, &1))
   end
 
   defp fetch_training_source_summary(source_url, source_kind) do
