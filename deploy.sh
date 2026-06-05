@@ -30,6 +30,8 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="${SCRIPT_DIR}"
 DEPLOY_LOG="${APP_DIR}/deploy.log"
+SERVICE_NAME="fittrack"
+RELEASE_BIN="${APP_DIR}/_build/prod/rel/fittrack/bin/fittrack"
 SKIP_GIT=false
 SKIP_RESTART=false
 START_TIME=$(date +%s)
@@ -156,17 +158,46 @@ step_restart_service() {
         return
     fi
     
-    log_info "Restarting fittrack service..."
-    sudo systemctl restart fittrack
+    if [ ! -x "${RELEASE_BIN}" ]; then
+        log_error "Release command not found or not executable at ${RELEASE_BIN}"
+        exit 1
+    fi
+
+    log_info "Restarting ${SERVICE_NAME} service with release command..."
+    if ! "${RELEASE_BIN}" restart >> "${DEPLOY_LOG}" 2>&1; then
+        log_error "Release restart command failed"
+        exit 1
+    fi
+
     sleep 2
     log_success "Service restarted"
+}
+
+wait_for_endpoint() {
+    local port="${PORT:-4000}"
+    local url="http://127.0.0.1:${port}/"
+    local attempts=30
+
+    log_info "Waiting for local endpoint at ${url}..."
+
+    for attempt in $(seq 1 "${attempts}"); do
+        if curl --silent --fail --output /dev/null --max-time 2 "${url}"; then
+            log_success "Endpoint responded"
+            return 0
+        fi
+
+        sleep 1
+    done
+
+    log_error "Endpoint did not respond at ${url} after ${attempts} attempts"
+    return 1
 }
 
 step_verify() {
     log_info "Verifying deployment..."
     
     # Check service status
-    if sudo systemctl is-active --quiet fittrack; then
+    if systemctl is-active --quiet "${SERVICE_NAME}"; then
         log_success "Service is running"
     else
         log_error "Service is not running"
@@ -181,10 +212,14 @@ step_verify() {
     else
         log_warn "Some migrations are not applied"
     fi
+
+    wait_for_endpoint
     
     # Get service info
     log_info "Service status:"
-    sudo systemctl status fittrack --no-pager | head -10 | sed 's/^/  /'
+    local service_status
+    service_status=$(systemctl status "${SERVICE_NAME}" --no-pager 2>&1 || true)
+    printf '%s\n' "${service_status}" | head -10 | sed 's/^/  /'
 }
 
 # Main execution
