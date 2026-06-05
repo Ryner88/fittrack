@@ -8,8 +8,16 @@ defmodule Mix.Tasks.PopulateExerciseImages do
 
   @shortdoc "Add placeholder images to exercises"
   @placeholder_colors [
-    "FF6B6B", "4ECDC4", "45B7D1", "96CEB4", "FFEAA7",
-    "DDA15E", "BC6C25", "A2D5C6", "D6CDA4", "FF8C42"
+    "FF6B6B",
+    "4ECDC4",
+    "45B7D1",
+    "96CEB4",
+    "FFEAA7",
+    "DDA15E",
+    "BC6C25",
+    "A2D5C6",
+    "D6CDA4",
+    "FF8C42"
   ]
 
   def run(_args) do
@@ -17,7 +25,7 @@ defmodule Mix.Tasks.PopulateExerciseImages do
     {:ok, _} = Application.ensure_all_started(:postgrex)
     {:ok, _} = Application.ensure_all_started(:ecto_sql)
     {:ok, _} = Application.ensure_all_started(:fittrack)
-    
+
     IO.puts("Populating exercise images with placeholders...")
 
     count =
