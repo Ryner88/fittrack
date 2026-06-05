@@ -26,6 +26,12 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
     end
   end
 
+  defmodule EmptyYoutubeSourceClientStub do
+    def get(_url, _opts) do
+      {:ok, %{status: 200, body: "<html><body><script>window.yt = {}</script></body></html>"}}
+    end
+  end
+
   defmodule EmptyWorkoutParserStub do
     def parse_workout_text(_text, _context) do
       {:ok, %{"summary" => "No exercises found", "exercises" => []}}
@@ -181,7 +187,7 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
         |> form("#ai-workout-generator-form", ai_workout: params)
         |> render_submit()
 
-      assert html =~ "Could not detect exercises from that link"
+      assert html =~ "Could not detect structured exercises from that link"
       refute has_element?(generator_live, "#ai-workout-draft-form")
       assert Fittrack.Training.list_workout_plans(%Fittrack.Accounts.Scope{user: user}) == []
     end
@@ -317,6 +323,8 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
 
       conn = log_in_user(conn, user)
       {:ok, generator_live, _html} = live(conn, ~p"/workout-plans/generator")
+      insert_template("Generic Squat", "Barbell")
+      insert_template("Generic Row", "Cable")
 
       html =
         render_submit(generator_live, :generate, %{
@@ -324,8 +332,43 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
           "ai_workout" => %{"source_url" => "https://example.com/no-exercises"}
         })
 
-      assert html =~ "Could not detect exercises from that link"
+      assert html =~ "Could not detect structured exercises from that link"
       refute has_element?(generator_live, "#ai-workout-draft-form")
+      refute has_element?(generator_live, "#ai-workout-draft-review")
+      refute html =~ "Generic Squat"
+      refute html =~ "Generic Row"
+    end
+
+    test "shows a useful failure for YouTube links without readable transcript text", %{
+      conn: conn,
+      user: user
+    } do
+      original_source_client = Application.get_env(:fittrack, :ai_workout_source_http_client)
+      original_parser_client = Application.get_env(:fittrack, :ai_workout_parser_client)
+
+      Application.put_env(:fittrack, :ai_workout_source_http_client, EmptyYoutubeSourceClientStub)
+      Application.put_env(:fittrack, :ai_workout_parser_client, EmptyWorkoutParserStub)
+
+      on_exit(fn ->
+        restore_env(:ai_workout_source_http_client, original_source_client)
+        restore_env(:ai_workout_parser_client, original_parser_client)
+      end)
+
+      conn = log_in_user(conn, user)
+      {:ok, generator_live, _html} = live(conn, ~p"/workout-plans/generator")
+
+      html =
+        render_submit(generator_live, :generate, %{
+          "intent" => "analyze_source",
+          "ai_workout" => %{"source_url" => "https://www.youtube.com/watch?v=missing-transcript"}
+        })
+
+      assert html =~
+               "Could not read workout details from that video. If it is a YouTube link, the transcript or page text may be unavailable."
+
+      refute has_element?(generator_live, "#ai-workout-draft-review")
+      assert has_element?(generator_live, "#ai-workout-generator-form")
+      assert has_element?(generator_live, ~s(input[name="ai_workout[source_url]"]))
     end
 
     test "accepts common parser aliases and fuzzy matches WGER exercises", %{
@@ -390,6 +433,43 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
       assert plan_exercise.rest_seconds == 150
     end
 
+    test "source analysis populates review form volume, reps, rest, and set type fields", %{
+      conn: conn,
+      user: user
+    } do
+      original_source_client = Application.get_env(:fittrack, :ai_workout_source_http_client)
+      original_parser_client = Application.get_env(:fittrack, :ai_workout_parser_client)
+
+      Application.put_env(:fittrack, :ai_workout_source_http_client, SourceClientStub)
+      Application.put_env(:fittrack, :ai_workout_parser_client, WorkoutParserStub)
+
+      on_exit(fn ->
+        restore_env(:ai_workout_source_http_client, original_source_client)
+        restore_env(:ai_workout_parser_client, original_parser_client)
+      end)
+
+      insert_template("WGER Bench Press", "Barbell")
+      insert_template("WGER Push-up", "Bodyweight")
+
+      conn = log_in_user(conn, user)
+      {:ok, generator_live, _html} = live(conn, ~p"/workout-plans/generator")
+
+      html =
+        render_submit(generator_live, :generate, %{
+          "intent" => "analyze_source",
+          "ai_workout" => %{"source_url" => "https://example.com/article-push-plan"}
+        })
+
+      assert has_element?(generator_live, "#ai-workout-draft-review")
+      assert html =~ "Linked source was analyzed"
+      assert html =~ "WGER Bench Press"
+      assert html =~ ~s(name="draft_plan[workout_plan_exercises][0][target_sets]" value="4")
+      assert html =~ ~s(name="draft_plan[workout_plan_exercises][0][target_reps_min]" value="6")
+      assert html =~ ~s(name="draft_plan[workout_plan_exercises][0][target_reps_max]" value="8")
+      assert html =~ ~s(name="draft_plan[workout_plan_exercises][0][rest_seconds]" value="120")
+      assert html =~ ~s(value="straight_set" selected)
+    end
+
     test "rejects duplicate goal selections", %{conn: conn, user: user} do
       conn = log_in_user(conn, user)
       {:ok, generator_live, _html} = live(conn, ~p"/workout-plans/generator")
@@ -425,4 +505,7 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
     })
     |> Fittrack.Repo.insert!()
   end
+
+  defp restore_env(key, nil), do: Application.delete_env(:fittrack, key)
+  defp restore_env(key, value), do: Application.put_env(:fittrack, key, value)
 end

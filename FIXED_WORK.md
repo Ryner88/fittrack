@@ -12,6 +12,26 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### AI Workout Generator Source Links
+
+- Commit references:
+  - `fd00269` Fix AI source link workout draft analysis
+
+- Fixed source-link analysis for the AI Workout Generator.
+- Kept source parsing behind the explicit `Analyze Link` submit path.
+- Added source URL classification for YouTube, video-like links, and article/web links.
+- Tightened source URL validation to HTTP/HTTPS URLs with a non-empty host.
+- YouTube/video links with no readable transcript or page text now show:
+  `Could not read workout details from that video. If it is a YouTube link, the transcript or page text may be unavailable.`
+- Source-only analysis with readable content but no structured exercises now shows:
+  `Could not detect structured exercises from that link. Try an article with a written exercise list, paste a transcript, or use the manual generator.`
+- Source-only generation no longer falls back to generic WGER exercises when no structured source exercises are detected.
+- Structured source drafts still populate the review form with exercise names, sets, min reps, max reps, rest times, and set types.
+- Added LiveView coverage for:
+  - YouTube/no-transcript failure state
+  - successful structured article/source autofill
+  - source-only no-generic-fallback behavior
+
 ### Non-Interactive Production Restart
 
 - Commit references:
