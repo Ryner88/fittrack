@@ -193,6 +193,15 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
       mime_type: "video/mp4"
     })
 
+    media_fixture(template, %{
+      kind: "video",
+      source_id: "invalid-video-#{template.id}",
+      source_url: "http:///missing-host.mp4",
+      cache_status: "remote_only",
+      local_path: nil,
+      mime_type: "video/mp4"
+    })
+
     {:ok, exercise} = Training.add_template_to_user(scope, template.id)
     workout = active_workout_fixture(scope)
 
@@ -202,6 +211,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert has_element?(view, "#workout-set-form")
     assert html =~ "No form reference available"
     refute html =~ "stale-row.mp4"
+    refute html =~ "missing-host.mp4"
   end
 
   test "selected custom exercise without linked template renders safely", %{conn: conn} do

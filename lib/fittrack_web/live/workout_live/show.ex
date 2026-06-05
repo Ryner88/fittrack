@@ -696,18 +696,9 @@ defmodule FittrackWeb.WorkoutLive.Show do
   defp form_reference_link(assigns) do
     ~H"""
     <a
-      :if={@reference.kind == :external}
       href={@reference.url}
-      target="_blank"
-      rel="noopener noreferrer"
-      class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition hover:text-primary/80"
-    >
-      {@reference.label}
-      <.icon name="hero-arrow-top-right-on-square" class="h-3.5 w-3.5" />
-    </a>
-    <a
-      :if={@reference.kind == :internal}
-      href={@reference.url}
+      target={if(@reference.kind == :external, do: "_blank")}
+      rel={if(@reference.kind == :external, do: "noopener noreferrer")}
       class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary transition hover:text-primary/80"
     >
       {@reference.label}
@@ -753,11 +744,9 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   defp cached_video_reference(media) do
     media
-    |> Enum.filter(
+    |> pick_media(
       &(&1.cache_status == "cached" and &1.kind == "video" and is_binary(&1.local_path))
     )
-    |> sort_media()
-    |> List.first()
     |> case do
       nil -> nil
       item -> %{kind: :internal, url: ~p"/exercise-media/#{item.id}", label: "Form video"}
@@ -766,9 +755,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   defp external_video_reference(media) do
     media
-    |> Enum.filter(&external_video_reference?/1)
-    |> sort_media()
-    |> List.first()
+    |> pick_media(&external_video_reference?/1)
     |> case do
       nil -> nil
       item -> %{kind: :external, url: item.source_url, label: "Form video"}
@@ -777,9 +764,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   defp cached_image_reference(media) do
     media
-    |> Enum.filter(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
-    |> sort_media()
-    |> List.first()
+    |> pick_media(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
     |> case do
       nil -> nil
       item -> %{kind: :internal, url: ~p"/exercise-media/#{item.id}", label: "Form reference"}
@@ -793,20 +778,25 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   defp valid_external_url?(url) when is_binary(url) do
     uri = url |> String.trim() |> URI.parse()
-    uri.scheme in ["http", "https"] and is_binary(uri.host)
+    uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != ""
   end
 
   defp valid_external_url?(_url), do: false
 
   defp media_url(media) do
     media
-    |> Enum.filter(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
-    |> sort_media()
-    |> List.first()
+    |> pick_media(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
     |> case do
       nil -> nil
       item -> ~p"/exercise-media/#{item.id}"
     end
+  end
+
+  defp pick_media(media, filter_fun) do
+    media
+    |> Enum.filter(filter_fun)
+    |> sort_media()
+    |> List.first()
   end
 
   defp sort_media(media) do

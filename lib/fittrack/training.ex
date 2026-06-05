@@ -151,8 +151,6 @@ defmodule Fittrack.Training do
     |> Repo.one()
   end
 
-  def get_exercise(_, _, _opts), do: nil
-
   def list_substitution_templates_for_exercise(scope, exercise_id, opts \\ %{})
 
   def list_substitution_templates_for_exercise(%Scope{user: user}, exercise_id, opts) do
