@@ -89,6 +89,13 @@ step_git_pull() {
     
     log_info "Pulling latest changes from main branch..."
     cd "${APP_DIR}"
+
+    if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+        log_error "Working tree is dirty. Commit, stash, or remove local changes before deploying."
+        git status --short | tee -a "${DEPLOY_LOG}"
+        exit 1
+    fi
+
     git pull --ff-only origin main || {
         log_error "Failed to pull from git. Please resolve conflicts manually."
         exit 1

@@ -12,6 +12,40 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Production Deployment Validation
+
+- Commit references:
+  - `17e1176` feat: add automated deployment script
+  - uncommitted deployment hardening follow-up
+
+- Validated `deploy.sh` on the target production server.
+- Confirmed the deployment flow completed successfully:
+  - pulled from `main`
+  - loaded environment configuration
+  - fetched dependencies
+  - compiled Elixir code
+  - ran database migrations
+  - deployed assets
+  - created the production release
+  - restarted `fittrack.service`
+  - verified the service was active after restart
+- Verified migration safety:
+  - deploy-script migration verification passed
+  - two manual migration re-runs returned `Migrations already up`
+  - duplicate exercise slug validation returned `0 rows`
+- Confirmed the external health check passed:
+  - `https://fitness.nextgenbytes.me/` returned `HTTP/2 200`
+  - homepage HTML loaded
+  - post-deploy logs showed `GET /` and `HEAD /` returning `200`
+- Recorded production caveats:
+  - `/opt/fittrack` was not a clean checkout during validation
+  - production uses `DATABASE_URL`, not `DB_PASSWORD`
+  - `DATABASE_URL` uses the Ecto URL format, so direct `psql` checks need either URL parsing or `sudo -u postgres psql -d fittrack_prod`
+  - deploy user `nova` needs sudo permission/password for `systemctl restart fittrack`
+- Hardened the repo after validation:
+  - `deploy.sh` now refuses to pull/deploy from a dirty working tree
+  - `deploy.log` is ignored by git
+
 ### AI Workout Generation, 1RM Calculator, And Set Types
 
 - Commit references:

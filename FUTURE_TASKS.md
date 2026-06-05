@@ -15,16 +15,48 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
 
 ## Next
 
-- Add advanced Workout History filters after the data model supports them.
+- Add explicit workout lifecycle states.
   Scope:
-  - filter by linked plan once workouts persist plan origin
-  - filter by muscle split once completed-session muscle aggregation is reliable
+  - distinguish draft, active, completed, and discarded workouts without relying on the current no-sets heuristic
+  - add explicit `Finish workout` and `Discard workout` actions
+  - keep Dashboard, History, and header CTAs driven by lifecycle state
+  - migrate existing completed workouts and active shells safely
+
+- Persist plan origin and workout muscle aggregation.
+  Scope:
+  - store the originating workout plan when a workout starts from a plan
+  - snapshot planned exercise/template context so history remains stable if templates change
+  - aggregate completed-session muscles from linked exercise templates and logged exercises
+  - expose reliable data for filters, summaries, badges, and charts
+
+- Add advanced Workout History filters after lifecycle, plan origin, and muscle aggregation are available.
+  Scope:
+  - filter by linked plan
+  - filter by muscle split or trained muscle group
   - preserve the current date/calendar selection behavior as the primary date filter
+
+- Expand normalized exercise library relationships.
+  Scope:
+  - add user-facing substitutions and exercise variations
+  - show equipment and muscle metadata consistently across library browse, detail, and workout logging
+  - support aliases/synonyms in exercise search and AI workout matching
+  - add admin tools for reviewing imported template quality
+
+- Improve exercise library search ranking.
+  Scope:
+  - prioritize exact name, alias, and slug matches before fuzzy matches
+  - rank by target muscle and equipment filters when present
+  - keep imported WGER/template results from crowding out user-created exercises when logging
+
+- Add deployment observability after the automated deploy script lands.
+  Scope:
+  - persist deploy logs for each run
+  - add rollback notes or an automated rollback path
+  - add post-deploy smoke checks for authenticated pages, migrations, and static assets
+  - document routine production maintenance commands
 
 - Add workout streaks and achievement badges.
 - Add a rest timer between sets.
-- Add exercise video links for form reference.
-- Add a 1RM calculator and strength standards by bodyweight.
 - Create a post-workout summary page.
   Scope:
   - calories burned estimate
@@ -37,15 +69,6 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
   - consistent rounded corners
   - consistent spacing
   - aligned card actions and metadata
-- Backfill and cache every available exercise image.
-  Scope:
-  - importer stores all valid WGER image URLs, not just the first/main one
-  - broken or stale WGER URLs are detected and excluded
-  - images are cached in app-owned storage or local static storage
-  - templates without WGER images get a consistent generated placeholder
-  - production no longer depends on live WGER image availability for page rendering
-  - admin/import task reports counts for fetched, cached, missing, and failed images
-  - tests cover valid image caching, broken image fallback, and templates with multiple images
 - Add Google Sheets export for saved workout plans.
   Scope:
   - export button on saved plans

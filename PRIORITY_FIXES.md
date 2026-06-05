@@ -18,6 +18,29 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
+- [todo] Resolve production checkout drift before the next deploy.
+  Scope:
+  - inspect the local modified files under `/opt/fittrack`
+  - decide whether each production-only change should be committed, stashed, or discarded
+  - confirm the checkout is clean before running `deploy.sh` again
+  - keep `DATABASE_URL` as the production database source unless a separate `DB_PASSWORD` path is intentionally added
+  - document the supported manual SQL check path, either parsed `DATABASE_URL` or `sudo -u postgres psql -d fittrack_prod`
+
+- [todo] Complete exercise media backfill for the normalized exercise library.
+  Scope:
+  - import and store every valid WGER exercise image/video reference, not just the first available image
+  - detect and exclude broken or stale remote URLs
+  - cache media in app-owned storage or local static storage so production pages do not depend on live WGER availability
+  - show cached media consistently on exercise library, exercise detail, and workout logging views
+  - add import/admin reporting for fetched, cached, missing, skipped, and failed media
+
+- [todo] Add exercise video links for form reference in workout logging.
+  Scope:
+  - surface the best available video or external reference from the linked exercise template
+  - keep links available from the active workout set logging flow without disrupting set entry
+  - show a clear fallback when no form media exists
+  - cover linked-template and no-media cases in LiveView tests
+
 - [todo] Fix AI Workout Generator source-link autofill for YouTube, video, and article links.
   Scope:
   - source URL entry must trigger a clear Analyze Link or Generate path, not only LiveView validation
@@ -25,29 +48,3 @@ This file is the execution queue for the highest-priority work.
   - keep source-link generation from falling back to random generic WGER exercises
   - verify source-link drafts populate the review form with exercises, sets, reps, rest times, and set types when structured exercises are detected
   - add LiveView coverage for the YouTube/no-transcript failure state and the successful structured-source autofill path
-
-- [todo] Add a rest timer between sets.
-
-- [todo] Add exercise video links for form reference.
-
-- [todo] Build a Body Metrics Tracker.
-  Scope:
-  - weight
-  - body fat %
-  - waist
-  - chest
-  - arms
-  - trend charts and progress photo integration
-
-- [todo] Add advanced Workout History filters after the data model supports them.
-  Scope:
-  - filter by linked plan once workouts persist plan origin
-  - filter by muscle split once completed-session muscle aggregation is reliable
-  - preserve the current date/calendar selection behavior as the primary date filter
-
-- [todo] Add user preferences for goals, body metrics, and measurement units.
-  Scope:
-  - fitness goals
-  - body metrics
-  - default measurement units
-  - preference-driven defaults across workout and nutrition flows
