@@ -12,6 +12,22 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Workout Logging Form References
+
+- Commit references:
+  - current branch commit
+
+- Added a compact form-reference area to the active workout set logging form.
+- Selected linked exercises now surface the best available media reference:
+  - cached video media through `/exercise-media/:id`
+  - safe external video URLs for valid remote-only video media
+  - cached image media as a fallback form reference
+- External video references open in a new tab with `target="_blank"` and `rel="noopener noreferrer"`.
+- No-media and stale/broken-media cases show a subtle `No form reference available` fallback.
+- Custom exercises without a linked source template render safely without crashing.
+- Set entry inputs remain unchanged and available for reps, weight, set type, rest, and notes.
+- Added LiveView coverage for cached video, external video, no usable media, and custom/no-linked-template cases.
+
 ### Exercise Media Backfill
 
 - Commit references:

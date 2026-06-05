@@ -142,9 +142,16 @@ defmodule Fittrack.Training do
     |> Repo.one!()
   end
 
-  def get_exercise(%Scope{user: user}, id) do
-    Repo.get_by(Exercise, id: id, user_id: user.id)
+  def get_exercise(scope, id, opts \\ [])
+
+  def get_exercise(%Scope{user: user}, id, opts) do
+    Exercise
+    |> where([exercise], exercise.id == ^id and exercise.user_id == ^user.id)
+    |> maybe_preload_source_template(Keyword.get(opts, :preload_source_template, false))
+    |> Repo.one()
   end
+
+  def get_exercise(_, _, _opts), do: nil
 
   def list_substitution_templates_for_exercise(scope, exercise_id, opts \\ %{})
 
