@@ -113,6 +113,120 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     refute html =~ template.image_url
   end
 
+  test "selected linked exercise shows cached form video without disrupting set entry", %{
+    conn: conn
+  } do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    template =
+      template_fixture(name: "Video Row", primary_muscle: "Back", equipment: "Cable")
+
+    media =
+      media_fixture(template, %{
+        kind: "video",
+        source_id: "cached-video-#{template.id}",
+        source_url: "https://wger.de/media/exercise-videos/row.mp4",
+        cache_status: "cached",
+        local_path: "#{template.id}/row.mp4",
+        mime_type: "video/mp4",
+        is_primary: true
+      })
+
+    {:ok, exercise} = Training.add_template_to_user(scope, template.id)
+    workout = active_workout_fixture(scope)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, html} = live(conn, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
+
+    assert has_element?(view, "#workout-set-form")
+    assert has_element?(view, ~s(select[name="workout_set[exercise_id]"]))
+    assert has_element?(view, ~s(input[name="workout_set[weight]"]))
+    assert html =~ "Form video"
+    assert html =~ ~s(href="/exercise-media/#{media.id}")
+  end
+
+  test "selected linked exercise shows safe external form video when video is remote-only", %{
+    conn: conn
+  } do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    template =
+      template_fixture(name: "External Video Row", primary_muscle: "Back", equipment: "Cable")
+
+    media_fixture(template, %{
+      kind: "video",
+      source_id: "external-video-#{template.id}",
+      source_url: "https://wger.de/media/exercise-videos/external-row.mp4",
+      cache_status: "remote_only",
+      local_path: nil,
+      mime_type: "video/mp4"
+    })
+
+    {:ok, exercise} = Training.add_template_to_user(scope, template.id)
+    workout = active_workout_fixture(scope)
+
+    conn = log_in_user(conn, user)
+    {:ok, _view, html} = live(conn, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
+
+    assert html =~ "Form video"
+    assert html =~ ~s(href="https://wger.de/media/exercise-videos/external-row.mp4")
+    assert html =~ ~s(target="_blank")
+    assert html =~ ~s(rel="noopener noreferrer")
+  end
+
+  test "selected linked exercise with no usable media shows fallback and no broken link", %{
+    conn: conn
+  } do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    template = template_fixture(name: "No Media Row", primary_muscle: "Back", equipment: "Cable")
+
+    media_fixture(template, %{
+      kind: "video",
+      source_id: "stale-video-#{template.id}",
+      source_url: "https://wger.de/media/exercise-videos/stale-row.mp4",
+      cache_status: "stale",
+      local_path: nil,
+      mime_type: "video/mp4"
+    })
+
+    media_fixture(template, %{
+      kind: "video",
+      source_id: "invalid-video-#{template.id}",
+      source_url: "http:///missing-host.mp4",
+      cache_status: "remote_only",
+      local_path: nil,
+      mime_type: "video/mp4"
+    })
+
+    {:ok, exercise} = Training.add_template_to_user(scope, template.id)
+    workout = active_workout_fixture(scope)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, html} = live(conn, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
+
+    assert has_element?(view, "#workout-set-form")
+    assert html =~ "No form reference available"
+    refute html =~ "stale-row.mp4"
+    refute html =~ "missing-host.mp4"
+  end
+
+  test "selected custom exercise without linked template renders safely", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+    exercise = exercise_fixture(scope, %{name: "Custom Curl", primary_muscle: "Biceps"})
+    workout = active_workout_fixture(scope)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, html} = live(conn, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
+
+    assert has_element?(view, "#workout-set-form")
+    assert html =~ "No form reference available"
+  end
+
   defp exercise_fixture(scope, attrs) do
     attrs =
       Map.merge(
@@ -133,6 +247,15 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     })
   end
 
+  defp active_workout_fixture(scope) do
+    {:ok, workout} =
+      Training.create_workout(scope, %{
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    workout
+  end
+
   defp template_fixture(attrs) do
     attrs =
       Map.merge(
@@ -151,20 +274,27 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     |> Repo.insert!()
   end
 
-  defp media_fixture(template) do
+  defp media_fixture(template, attrs \\ %{}) do
+    source_id = Map.get(attrs, :source_id, "workout-media-#{template.id}")
+
     %ExerciseMedia{}
-    |> ExerciseMedia.changeset(%{
-      exercise_template_id: template.id,
-      kind: "image",
-      source: "wger",
-      source_id: "workout-media-#{template.id}",
-      source_url: template.image_url,
-      cache_status: "cached",
-      local_path: "#{template.id}/workout.jpg",
-      mime_type: "image/jpeg",
-      file_size: 12,
-      is_primary: true
-    })
+    |> ExerciseMedia.changeset(
+      Map.merge(
+        %{
+          exercise_template_id: template.id,
+          kind: "image",
+          source: "wger",
+          source_id: source_id,
+          source_url: template.image_url,
+          cache_status: "cached",
+          local_path: "#{template.id}/workout.jpg",
+          mime_type: "image/jpeg",
+          file_size: 12,
+          is_primary: true
+        },
+        attrs
+      )
+    )
     |> Repo.insert!()
   end
 end

@@ -18,13 +18,6 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- [todo] Add exercise video links for form reference in workout logging.
-  Scope:
-  - surface the best available video or external reference from the linked exercise template
-  - keep links available from the active workout set logging flow without disrupting set entry
-  - show a clear fallback when no form media exists
-  - cover linked-template and no-media cases in LiveView tests
-
 - [todo] Fix AI Workout Generator source-link autofill for YouTube, video, and article links.
   Scope:
   - source URL entry must trigger a clear Analyze Link or Generate path, not only LiveView validation
