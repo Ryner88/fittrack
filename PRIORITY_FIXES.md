@@ -18,14 +18,6 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- [todo] Resolve production checkout drift before the next deploy.
-  Scope:
-  - inspect the local modified files under `/opt/fittrack`
-  - decide whether each production-only change should be committed, stashed, or discarded
-  - confirm the checkout is clean before running `deploy.sh` again
-  - keep `DATABASE_URL` as the production database source unless a separate `DB_PASSWORD` path is intentionally added
-  - document the supported manual SQL check path, either parsed `DATABASE_URL` or `sudo -u postgres psql -d fittrack_prod`
-
 - [todo] Add exercise video links for form reference in workout logging.
   Scope:
   - surface the best available video or external reference from the linked exercise template

@@ -15,7 +15,7 @@ or materially addressed on the recent branches.
 ### Exercise Media Backfill
 
 - Commit references:
-  - uncommitted worktree changes
+  - `32083db` Add cached exercise media backfill
 
 - Added a cached exercise media subsystem for the normalized exercise library.
 - Extended `exercise_media` with cache/audit fields for source exercise IDs, local paths, file size, checked time, failure reason, display order, and duration.
@@ -32,6 +32,24 @@ or materially addressed on the recent branches.
 - Added admin media status reporting for cached, missing URL, skipped, stale, and failed records.
 - Added regression coverage for WGER media fetching, validation, caching, idempotency, task reporting, cached controller responses, and LiveView rendering.
 - Verified `mix precommit` passes.
+
+### Production Checkout Drift Cleanup
+
+- Commit references:
+  - production cleanup completed outside the repo
+  - uncommitted documentation update
+
+- Resolved production checkout drift before the next deploy.
+- Confirmed `/opt/fittrack` working tree was clean.
+- Backed up old server stashes outside the repo:
+  - `/home/nova/fittrack-stash-backups/stash-0-codex-before-exercise-media-backfill-deploy.patch`
+  - `/home/nova/fittrack-stash-backups/stash-1-server-local-tracked-changes-before-pull.patch`
+- Dropped both old Git stashes.
+- Confirmed `git stash list` is empty.
+- Confirmed `git status --short` is clean.
+- Result:
+  - production checkout is clean for future deploys
+  - the dirty-working-tree guard in `deploy.sh` should now allow clean deploys and block accidental server-local edits
 
 ### Production Deployment Validation
 
