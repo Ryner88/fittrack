@@ -119,6 +119,11 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
                "#ai-workout-generator-form input[name='ai_workout[source_url]']"
              )
 
+      assert has_element?(
+               generator_live,
+               "#ai-workout-generator-form textarea[name='ai_workout[source_transcript]']"
+             )
+
       assert has_element?(generator_live, ~s(button[name="intent"][value="analyze_source"]))
 
       params = %{
@@ -369,6 +374,47 @@ defmodule FittrackWeb.WorkoutPlanLive.GeneratorTest do
       refute has_element?(generator_live, "#ai-workout-draft-review")
       assert has_element?(generator_live, "#ai-workout-generator-form")
       assert has_element?(generator_live, ~s(input[name="ai_workout[source_url]"]))
+      assert has_element?(generator_live, ~s(textarea[name="ai_workout[source_transcript]"]))
+    end
+
+    test "uses pasted transcript text when a YouTube link has no readable page workout", %{
+      conn: conn,
+      user: user
+    } do
+      original_source_client = Application.get_env(:fittrack, :ai_workout_source_http_client)
+      original_parser_client = Application.get_env(:fittrack, :ai_workout_parser_client)
+
+      Application.put_env(:fittrack, :ai_workout_source_http_client, EmptyYoutubeSourceClientStub)
+      Application.put_env(:fittrack, :ai_workout_parser_client, WorkoutParserStub)
+
+      on_exit(fn ->
+        restore_env(:ai_workout_source_http_client, original_source_client)
+        restore_env(:ai_workout_parser_client, original_parser_client)
+      end)
+
+      insert_template("WGER Bench Press", "Barbell")
+      insert_template("WGER Push-up", "Bodyweight")
+
+      conn = log_in_user(conn, user)
+      {:ok, generator_live, _html} = live(conn, ~p"/workout-plans/generator")
+
+      html =
+        render_submit(generator_live, :generate, %{
+          "intent" => "analyze_source",
+          "ai_workout" => %{
+            "source_url" => "https://www.youtube.com/embed/missing-transcript",
+            "source_transcript" => """
+            Bench press 4 sets of 6 to 8 reps, rest two minutes.
+            Push-up 2 AMRAP sets, rest 45 seconds.
+            """
+          }
+        })
+
+      assert has_element?(generator_live, "#ai-workout-draft-review")
+      assert html =~ "Link analyzed"
+      assert html =~ "WGER Bench Press"
+      assert html =~ "WGER Push-up"
+      assert html =~ ~s(name="draft_plan[workout_plan_exercises][0][target_sets]" value="4")
     end
 
     test "accepts common parser aliases and fuzzy matches WGER exercises", %{
