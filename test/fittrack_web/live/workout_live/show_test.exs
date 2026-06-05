@@ -6,6 +6,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
   alias Fittrack.Accounts.Scope
   alias Fittrack.Repo
   alias Fittrack.Training
+  alias Fittrack.Training.ExerciseMedia
   alias Fittrack.Training.ExerciseTemplate
 
   test "shows recently used and most logged exercise shortcuts", %{conn: conn} do
@@ -86,6 +87,32 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert has_element?(view, ~s(option[value="#{substitute.id}"][selected]))
   end
 
+  test "workout logging library rows render cached primary media", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    template =
+      template_fixture(
+        name: "Cable Row",
+        primary_muscle: "Back",
+        equipment: "Cable",
+        image_url: "https://wger.de/media/exercise-images/row.jpg"
+      )
+
+    media = media_fixture(template)
+
+    {:ok, workout} =
+      Training.create_workout(scope, %{
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    conn = log_in_user(conn, user)
+    {:ok, _view, html} = live(conn, ~p"/workouts/#{workout}")
+
+    assert html =~ ~s(src="/exercise-media/#{media.id}")
+    refute html =~ template.image_url
+  end
+
   defp exercise_fixture(scope, attrs) do
     attrs =
       Map.merge(
@@ -121,6 +148,23 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     %ExerciseTemplate{}
     |> ExerciseTemplate.changeset(attrs)
+    |> Repo.insert!()
+  end
+
+  defp media_fixture(template) do
+    %ExerciseMedia{}
+    |> ExerciseMedia.changeset(%{
+      exercise_template_id: template.id,
+      kind: "image",
+      source: "wger",
+      source_id: "workout-media-#{template.id}",
+      source_url: template.image_url,
+      cache_status: "cached",
+      local_path: "#{template.id}/workout.jpg",
+      mime_type: "image/jpeg",
+      file_size: 12,
+      is_primary: true
+    })
     |> Repo.insert!()
   end
 end

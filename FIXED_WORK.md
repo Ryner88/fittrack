@@ -12,6 +12,27 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Exercise Media Backfill
+
+- Commit references:
+  - uncommitted worktree changes
+
+- Added a cached exercise media subsystem for the normalized exercise library.
+- Extended `exercise_media` with cache/audit fields for source exercise IDs, local paths, file size, checked time, failure reason, display order, and duration.
+- Added WGER media pagination and normalization for image/video records.
+- Added media validation for missing URLs, invalid schemes, stale 404/410 URLs, unsupported content types, zero-byte files, and oversized files.
+- Added app-owned media caching with checksum, content type, file size, and local path metadata.
+- Added `mix fittrack.backfill_exercise_media` with dry-run, limit, exercise-id, force-check, skip-download, media-type, and concurrency option parsing.
+- Added backfill reporting for fetched, cached, already cached, missing, skipped, stale, failed, and exercises-with-no-media counts.
+- Kept repeated runs idempotent and prevented importer/backfill refreshes from downgrading cached media back to remote-only.
+- Replaced live WGER image proxying with cached media serving:
+  - `GET /exercise-media/:id`
+  - compatibility primary-image route at `GET /exercise-template-images/:id`
+- Updated exercise library cards, exercise detail pages, personal exercise pages, and workout logging shortcuts/search rows to use cached media or placeholders.
+- Added admin media status reporting for cached, missing URL, skipped, stale, and failed records.
+- Added regression coverage for WGER media fetching, validation, caching, idempotency, task reporting, cached controller responses, and LiveView rendering.
+- Verified `mix precommit` passes.
+
 ### Production Deployment Validation
 
 - Commit references:

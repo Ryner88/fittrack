@@ -646,10 +646,12 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
               kind: "image",
               source: "wger",
               source_id: image_source_id(image),
+              source_exercise_id: normalize_source_id(exercise["id"]) |> to_string_or_nil(),
               source_url: source_url,
               provider_attribution: provider_attribution(image),
               cache_status: "remote_only",
               is_primary: position == 0,
+              display_order: position,
               metadata: image_metadata(image)
             }
           ]
@@ -665,6 +667,9 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
 
   defp image_source_id(%{"id" => id}) when not is_nil(id), do: to_string(id)
   defp image_source_id(_image), do: nil
+
+  defp to_string_or_nil(nil), do: nil
+  defp to_string_or_nil(value), do: to_string(value)
 
   defp image_metadata(image) when is_map(image) do
     image

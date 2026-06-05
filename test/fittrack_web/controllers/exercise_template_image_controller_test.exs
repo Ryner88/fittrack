@@ -1,54 +1,69 @@
 defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
   use FittrackWeb.ConnCase
 
+  alias Fittrack.Training.ExerciseMedia
   alias Fittrack.Training.ExerciseTemplate
   alias Fittrack.Repo
 
   setup do
-    original_client = Application.get_env(:fittrack, :exercise_image_http_client)
-    original_response = Application.get_env(:fittrack, :exercise_image_test_response)
+    original_root = Application.get_env(:fittrack, :exercise_media_storage_root)
 
-    Application.put_env(
-      :fittrack,
-      :exercise_image_http_client,
-      Fittrack.ExerciseImageHttpClientStub
-    )
+    root =
+      Path.join(
+        System.tmp_dir!(),
+        "fittrack-controller-media-#{System.unique_integer([:positive])}"
+      )
+
+    Application.put_env(:fittrack, :exercise_media_storage_root, root)
 
     on_exit(fn ->
-      if original_client do
-        Application.put_env(:fittrack, :exercise_image_http_client, original_client)
+      if original_root do
+        Application.put_env(:fittrack, :exercise_media_storage_root, original_root)
       else
-        Application.delete_env(:fittrack, :exercise_image_http_client)
-      end
-
-      if original_response do
-        Application.put_env(:fittrack, :exercise_image_test_response, original_response)
-      else
-        Application.delete_env(:fittrack, :exercise_image_test_response)
+        Application.delete_env(:fittrack, :exercise_media_storage_root)
       end
     end)
 
-    :ok
+    %{storage_root: root}
   end
 
-  test "proxies template image bytes through the app", %{conn: conn} do
+  test "serves cached template image bytes through the app", %{conn: conn, storage_root: root} do
     {:ok, template} =
       %ExerciseTemplate{}
       |> ExerciseTemplate.changeset(%{
         name: "Push-up",
         primary_muscle: "Chest",
-        equipment: "Bodyweight",
-        image_url: "http://wger.de/media/exercise-images/1001/main.jpg"
+        equipment: "Bodyweight"
+      })
+      |> Repo.insert()
+
+    local_path = "#{template.id}/main.jpg"
+    File.mkdir_p!(Path.dirname(Path.join(root, local_path)))
+    File.write!(Path.join(root, local_path), "cached-image")
+
+    {:ok, media} =
+      %ExerciseMedia{}
+      |> ExerciseMedia.changeset(%{
+        exercise_template_id: template.id,
+        kind: "image",
+        source: "wger",
+        source_id: "1001",
+        source_url: "https://wger.de/media/exercise-images/1001/main.jpg",
+        cache_status: "cached",
+        local_path: local_path,
+        mime_type: "image/jpeg",
+        file_size: 12,
+        is_primary: true
       })
       |> Repo.insert()
 
     conn = get(conn, ~p"/exercise-template-images/#{template.id}")
 
-    assert response(conn, 200) == "fake-image"
+    assert response(conn, 200) == "cached-image"
     assert get_resp_header(conn, "content-type") == ["image/jpeg; charset=utf-8"]
 
-    assert_received {:exercise_image_request,
-                     "https://wger.de/media/exercise-images/1001/main.jpg"}
+    media_conn = get(build_conn(), ~p"/exercise-media/#{media.id}")
+    assert response(media_conn, 200) == "cached-image"
   end
 
   test "returns svg fallback when template has no image", %{conn: conn} do
@@ -69,16 +84,29 @@ defmodule FittrackWeb.ExerciseTemplateImageControllerTest do
     assert get_resp_header(conn, "content-type") == ["image/svg+xml; charset=utf-8"]
   end
 
-  test "returns svg fallback when remote image request fails", %{conn: conn} do
-    Application.put_env(:fittrack, :exercise_image_test_response, {:error, :econnrefused})
-
+  test "returns svg fallback when cached file is missing", %{conn: conn} do
     {:ok, template} =
       %ExerciseTemplate{}
       |> ExerciseTemplate.changeset(%{
         name: "Broken Image",
         primary_muscle: "Back",
-        equipment: "Cable",
-        image_url: "https://wger.de/media/exercise-images/missing.jpg"
+        equipment: "Cable"
+      })
+      |> Repo.insert()
+
+    {:ok, _media} =
+      %ExerciseMedia{}
+      |> ExerciseMedia.changeset(%{
+        exercise_template_id: template.id,
+        kind: "image",
+        source: "wger",
+        source_id: "missing",
+        source_url: "https://wger.de/media/exercise-images/missing.jpg",
+        cache_status: "cached",
+        local_path: "#{template.id}/missing.jpg",
+        mime_type: "image/jpeg",
+        file_size: 12,
+        is_primary: true
       })
       |> Repo.insert()
 

@@ -26,14 +26,6 @@ This file is the execution queue for the highest-priority work.
   - keep `DATABASE_URL` as the production database source unless a separate `DB_PASSWORD` path is intentionally added
   - document the supported manual SQL check path, either parsed `DATABASE_URL` or `sudo -u postgres psql -d fittrack_prod`
 
-- [todo] Complete exercise media backfill for the normalized exercise library.
-  Scope:
-  - import and store every valid WGER exercise image/video reference, not just the first available image
-  - detect and exclude broken or stale remote URLs
-  - cache media in app-owned storage or local static storage so production pages do not depend on live WGER availability
-  - show cached media consistently on exercise library, exercise detail, and workout logging views
-  - add import/admin reporting for fetched, cached, missing, skipped, and failed media
-
 - [todo] Add exercise video links for form reference in workout logging.
   Scope:
   - surface the best available video or external reference from the linked exercise template

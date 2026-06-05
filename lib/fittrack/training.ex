@@ -11,6 +11,7 @@ defmodule Fittrack.Training do
   alias Fittrack.Training.ExerciseAlias
   alias Fittrack.Training.ExerciseEquipment
   alias Fittrack.Training.ExerciseMedia
+  alias Fittrack.Training.ExerciseMediaCache
   alias Fittrack.Training.ExerciseMuscle
   alias Fittrack.Training.ExerciseSubstitution
   alias Fittrack.Training.ExerciseTemplate
@@ -95,7 +96,7 @@ defmodule Fittrack.Training do
     )
     |> order_by([_exercise, recent], desc: recent.last_used_at)
     |> limit(^limit)
-    |> preload(:source_template)
+    |> preload(source_template: :media)
     |> Repo.all()
   end
 
@@ -123,7 +124,7 @@ defmodule Fittrack.Training do
     )
     |> order_by([exercise, counts], desc: counts.set_count, asc: exercise.name)
     |> limit(^limit)
-    |> preload(:source_template)
+    |> preload(source_template: :media)
     |> Repo.all()
   end
 
@@ -306,6 +307,7 @@ defmodule Fittrack.Training do
     |> maybe_filter_by_category(category)
     |> maybe_filter_by_difficulty(difficulty)
     |> order_by([template], asc: template.name)
+    |> preload(:media)
     |> Repo.all()
   end
 
@@ -313,8 +315,97 @@ defmodule Fittrack.Training do
   Gets a shared exercise template by id.
   """
   def get_exercise_template(id) do
-    Repo.get(ExerciseTemplate, id)
+    ExerciseTemplate
+    |> preload(:media)
+    |> Repo.get(id)
   end
+
+  def get_exercise_media(id) do
+    Repo.get(ExerciseMedia, id)
+  end
+
+  def primary_cached_media(%ExerciseTemplate{} = template) do
+    template
+    |> cached_media()
+    |> Enum.sort_by(fn media ->
+      {not media.is_primary, media.display_order || 0, media.id || 0}
+    end)
+    |> List.first()
+  end
+
+  def primary_cached_media(%Exercise{} = exercise) do
+    case Repo.preload(exercise, source_template: :media).source_template do
+      %ExerciseTemplate{} = template -> primary_cached_media(template)
+      _ -> nil
+    end
+  end
+
+  def primary_cached_media(_value), do: nil
+
+  def cached_media(%ExerciseTemplate{} = template) do
+    media =
+      case Ecto.assoc_loaded?(template.media) do
+        true -> template.media
+        false -> Repo.preload(template, :media).media
+      end
+
+    media
+    |> Enum.filter(&(&1.cache_status == "cached" and is_binary(&1.local_path)))
+    |> Enum.sort_by(&{&1.display_order || 0, &1.id || 0})
+  end
+
+  def cached_media(_template), do: []
+
+  def exercise_media_path(%ExerciseMedia{local_path: local_path, cache_status: "cached"})
+      when is_binary(local_path) do
+    path = ExerciseMediaCache.absolute_path(local_path)
+
+    if File.regular?(path), do: {:ok, path}, else: {:error, :missing_file}
+  end
+
+  def exercise_media_path(_media), do: {:error, :not_cached}
+
+  def upsert_exercise_media(%ExerciseTemplate{} = template, attrs) do
+    media =
+      media_lookup(attrs) ||
+        %ExerciseMedia{}
+
+    attrs =
+      attrs
+      |> Map.put(:exercise_template_id, template.id)
+      |> Map.put_new(:display_order, 0)
+      |> preserve_cached_media_fields(media)
+
+    media
+    |> ExerciseMedia.changeset(attrs)
+    |> Repo.insert_or_update()
+  end
+
+  def update_exercise_media(%ExerciseMedia{} = media, attrs) do
+    media
+    |> ExerciseMedia.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def find_template_for_wger_media(%{source_exercise_id: source_exercise_id})
+      when is_binary(source_exercise_id) do
+    with id when is_binary(id) <- source_exercise_id,
+         {integer_id, ""} <- Integer.parse(id),
+         %ExerciseTemplate{} = template <- Repo.get_by(ExerciseTemplate, source_id: integer_id) do
+      template
+    else
+      _ ->
+        Repo.one(
+          from template in ExerciseTemplate,
+            join: source in assoc(template, :template_sources),
+            where:
+              source.source == "wger" and source.external_id == ^to_string(source_exercise_id),
+            limit: 1
+        )
+    end
+  end
+
+  def find_template_for_wger_media(_media), do: nil
 
   def get_exercise_template_by_slug(slug) do
     ExerciseTemplate
@@ -407,6 +498,11 @@ defmodule Fittrack.Training do
       muscles: Repo.aggregate(ExerciseMuscle, :count, :id),
       equipment: Repo.aggregate(ExerciseEquipment, :count, :id),
       media: Repo.aggregate(ExerciseMedia, :count, :id),
+      cached_media: count_media_with_status("cached"),
+      missing_media_records: count_media_with_status("missing"),
+      skipped_media: count_media_with_status("skipped"),
+      stale_media: count_media_with_status("stale"),
+      failed_media: count_media_with_status("failed"),
       sources: Repo.aggregate(ExerciseTemplateSource, :count, :id),
       missing_primary_muscle: count_templates_missing(:primary_muscle),
       missing_equipment: count_templates_missing(:equipment),
@@ -481,7 +577,16 @@ defmodule Fittrack.Training do
   defp count_templates_without_media do
     ExerciseTemplate
     |> join(:left, [template], media in assoc(template, :media))
-    |> where([_template, media], is_nil(media.id))
+    |> where(
+      [_template, media],
+      is_nil(media.id) or media.cache_status != "cached" or is_nil(media.local_path)
+    )
+    |> Repo.aggregate(:count, :id)
+  end
+
+  defp count_media_with_status(status) do
+    ExerciseMedia
+    |> where([media], media.cache_status == ^status)
     |> Repo.aggregate(:count, :id)
   end
 
@@ -492,7 +597,7 @@ defmodule Fittrack.Training do
     Workout
     |> where([workout], workout.user_id == ^user.id)
     |> order_by([workout], desc: workout.started_at)
-    |> preload(workout_sets: [:exercise])
+    |> preload(workout_sets: [exercise: [source_template: :media]])
     |> Repo.all()
   end
 
@@ -512,7 +617,7 @@ defmodule Fittrack.Training do
     |> having([_workout, workout_set], count(workout_set.id) == 0)
     |> order_by([workout], desc: workout.started_at)
     |> limit(1)
-    |> preload(workout_sets: [:exercise])
+    |> preload(workout_sets: [exercise: [source_template: :media]])
     |> Repo.one()
   end
 
@@ -629,8 +734,60 @@ defmodule Fittrack.Training do
 
   defp maybe_filter_exercises_by_equipment(query, _), do: query
 
-  defp maybe_preload_source_template(query, true), do: preload(query, :source_template)
+  defp maybe_preload_source_template(query, true), do: preload(query, source_template: :media)
   defp maybe_preload_source_template(query, _), do: query
+
+  defp media_lookup(%{source: source, source_id: source_id})
+       when is_binary(source) and is_binary(source_id) do
+    Repo.get_by(ExerciseMedia, source: source, source_id: source_id)
+  end
+
+  defp media_lookup(%{source_url: source_url}) when is_binary(source_url) do
+    Repo.get_by(ExerciseMedia, source_url: source_url)
+  end
+
+  defp media_lookup(attrs) do
+    source = Map.get(attrs, "source")
+    source_id = Map.get(attrs, "source_id")
+    source_url = Map.get(attrs, "source_url")
+
+    cond do
+      is_binary(source) and is_binary(source_id) ->
+        Repo.get_by(ExerciseMedia, source: source, source_id: source_id)
+
+      is_binary(source_url) ->
+        Repo.get_by(ExerciseMedia, source_url: source_url)
+
+      true ->
+        nil
+    end
+  end
+
+  defp preserve_cached_media_fields(attrs, %ExerciseMedia{cache_status: "cached"}) do
+    if Map.get(attrs, :cache_status) == "remote_only" or
+         Map.get(attrs, "cache_status") == "remote_only" do
+      Map.drop(attrs, [
+        :cache_status,
+        "cache_status",
+        :local_path,
+        "local_path",
+        :storage_key,
+        "storage_key",
+        :content_hash,
+        "content_hash",
+        :cached_at,
+        "cached_at",
+        :file_size,
+        "file_size",
+        :mime_type,
+        "mime_type"
+      ])
+    else
+      attrs
+    end
+  end
+
+  defp preserve_cached_media_fields(attrs, _media), do: attrs
 
   defp maybe_filter_templates(query, search) when search in [nil, ""], do: query
 

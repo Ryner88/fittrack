@@ -56,6 +56,39 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
           />
         </section>
 
+        <section id="exercise-media-status-metrics" class="grid gap-4 md:grid-cols-5">
+          <.quality_panel
+            id="cached-media"
+            label="Cached"
+            value={@summary.cached_media}
+            icon="hero-check-circle"
+          />
+          <.quality_panel
+            id="missing-media-records"
+            label="Missing URL"
+            value={@summary.missing_media_records}
+            icon="hero-link-slash"
+          />
+          <.quality_panel
+            id="skipped-media"
+            label="Skipped"
+            value={@summary.skipped_media}
+            icon="hero-no-symbol"
+          />
+          <.quality_panel
+            id="stale-media"
+            label="Stale"
+            value={@summary.stale_media}
+            icon="hero-exclamation-triangle"
+          />
+          <.quality_panel
+            id="failed-media"
+            label="Failed"
+            value={@summary.failed_media}
+            icon="hero-x-circle"
+          />
+        </section>
+
         <section class="rounded-xl border border-base-200 bg-base-100 shadow-sm">
           <div class="flex flex-col gap-2 border-b border-base-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

@@ -23,6 +23,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     {:ok, view, _html} = live(conn, ~p"/admin/exercises")
 
     assert has_element?(view, "#exercise-admin-metrics")
+    assert has_element?(view, "#exercise-media-status-metrics")
     assert has_element?(view, "#admin-exercise-template-list")
     assert has_element?(view, "#admin-exercise-library-link")
   end

@@ -8,6 +8,7 @@ defmodule FittrackWeb.LibraryLiveTest do
   alias Fittrack.Training
   alias Fittrack.Training.ExerciseAlias
   alias Fittrack.Training.ExerciseEquipment
+  alias Fittrack.Training.ExerciseMedia
   alias Fittrack.Training.ExerciseMuscle
   alias Fittrack.Training.ExerciseTemplate
   alias Fittrack.Training.ExerciseTemplateEquipment
@@ -79,6 +80,26 @@ defmodule FittrackWeb.LibraryLiveTest do
     assert html =~ "Push-Up"
     assert html =~ "Horizontal push"
     assert html =~ "Powerlifting"
+  end
+
+  test "library index and detail render cached exercise media", %{conn: conn} do
+    template =
+      template_fixture(
+        name: "Cached Row",
+        primary_muscle: "Back",
+        equipment: "Cable",
+        image_url: "https://wger.de/media/exercise-images/remote.jpg"
+      )
+
+    media = media_fixture(template)
+
+    {:ok, _index_view, index_html} = live(conn, ~p"/exercises")
+    assert index_html =~ ~s(src="/exercise-media/#{media.id}")
+    refute index_html =~ template.image_url
+
+    {:ok, _show_view, show_html} = live(conn, ~p"/exercises/#{template.slug}")
+    assert show_html =~ ~s(src="/exercise-media/#{media.id}")
+    refute show_html =~ template.image_url
   end
 
   test "signed-in user can add an exercise detail page to an active workout", %{conn: conn} do
@@ -188,6 +209,24 @@ defmodule FittrackWeb.LibraryLiveTest do
       exercise_template_id: template.id,
       exercise_equipment_id: equipment.id,
       position: 0
+    })
+    |> Repo.insert!()
+  end
+
+  defp media_fixture(template) do
+    %ExerciseMedia{}
+    |> ExerciseMedia.changeset(%{
+      exercise_template_id: template.id,
+      kind: "image",
+      source: "wger",
+      source_id: "cached-#{template.id}",
+      source_exercise_id: to_string(template.source_id),
+      source_url: template.image_url || "https://wger.de/media/#{template.id}.jpg",
+      cache_status: "cached",
+      local_path: "#{template.id}/cached.jpg",
+      mime_type: "image/jpeg",
+      file_size: 12,
+      is_primary: true
     })
     |> Repo.insert!()
   end

@@ -5,60 +5,38 @@ defmodule FittrackWeb.ExerciseTemplateImageController do
 
   def show(conn, %{"id" => id}) do
     case Training.get_exercise_template(id) do
-      %{name: name, image_url: image_url} when is_binary(image_url) ->
-        proxy_or_fallback(conn, name, image_url)
-
       nil ->
         fallback_image(conn, "Exercise")
 
-      %{name: name} when is_binary(name) ->
-        fallback_image(conn, name)
+      template ->
+        case Training.primary_cached_media(template) do
+          nil -> fallback_image(conn, template.name)
+          media -> send_cached_media_or_fallback(conn, media, template.name)
+        end
+    end
+  end
 
-      _template ->
+  def media(conn, %{"id" => id}) do
+    with media when not is_nil(media) <- Training.get_exercise_media(id),
+         {:ok, path} <- Training.exercise_media_path(media) do
+      conn
+      |> put_resp_content_type(media.mime_type || "application/octet-stream")
+      |> put_resp_header("cache-control", "public, max-age=31536000")
+      |> send_file(200, path)
+    else
+      _error ->
         fallback_image(conn, "Exercise")
     end
   end
 
-  defp proxy_or_fallback(conn, name, image_url) do
-    with {:ok, uri} <- validate_image_uri(image_url),
-         {:ok, response} <- image_http_client().get(URI.to_string(uri), receive_timeout: 10_000),
-         %{status: status, body: body} when status in 200..299 and is_binary(body) <- response do
-      content_type = response_content_type(response) || "image/jpeg"
-
+  defp send_cached_media_or_fallback(conn, media, name) do
+    with {:ok, path} <- Training.exercise_media_path(media) do
       conn
-      |> put_resp_content_type(content_type)
-      |> put_resp_header("cache-control", "private, max-age=86400")
-      |> send_resp(200, body)
+      |> put_resp_content_type(media.mime_type || "application/octet-stream")
+      |> put_resp_header("cache-control", "public, max-age=31536000")
+      |> send_file(200, path)
     else
       _error -> fallback_image(conn, name)
-    end
-  end
-
-  defp validate_image_uri(image_url) do
-    uri = image_url |> String.trim() |> URI.parse()
-
-    if uri.scheme in ["http", "https"] and is_binary(uri.host) do
-      {:ok, %{uri | scheme: "https", port: nil}}
-    else
-      {:error, :invalid_url}
-    end
-  end
-
-  defp image_http_client do
-    Application.get_env(:fittrack, :exercise_image_http_client, Req)
-  end
-
-  defp response_content_type(%{headers: headers}) do
-    headers
-    |> List.wrap()
-    |> Enum.find_value(fn
-      {"content-type", value} -> value
-      {"Content-Type", value} -> value
-      _header -> nil
-    end)
-    |> case do
-      nil -> nil
-      value when is_binary(value) -> value |> String.split(";") |> List.first()
     end
   end
 

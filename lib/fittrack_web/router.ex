@@ -34,6 +34,7 @@ defmodule FittrackWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    get "/exercise-media/:id", ExerciseTemplateImageController, :media
     get "/exercise-template-images/:id", ExerciseTemplateImageController, :show
   end
 

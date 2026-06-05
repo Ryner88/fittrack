@@ -30,6 +30,10 @@ if ai_workout_parser_model = System.get_env("AI_WORKOUT_PARSER_MODEL") do
   config :fittrack, :ai_workout_parser_model, ai_workout_parser_model
 end
 
+config :fittrack,
+       :exercise_media_storage_root,
+       System.get_env("EXERCISE_MEDIA_STORAGE_ROOT", "/opt/fittrack/storage/exercise_media")
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

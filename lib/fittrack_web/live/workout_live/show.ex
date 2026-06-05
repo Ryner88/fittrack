@@ -336,11 +336,16 @@ defmodule FittrackWeb.WorkoutLive.Show do
                   class="rounded-2xl border border-base-200 bg-base-100 p-4 transition hover:border-primary/40 hover:shadow-sm"
                 >
                   <div class="flex items-start justify-between gap-3">
-                    <div>
-                      <p class="text-sm font-semibold text-base-content">{template.name}</p>
-                      <p class="mt-1 text-xs text-base-content/60">
-                        {format_template_meta(template)}
-                      </p>
+                    <div class="flex min-w-0 items-start gap-3">
+                      <.media_thumb src={template_image_url(template)} name={template.name} />
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold text-base-content">
+                          {template.name}
+                        </p>
+                        <p class="mt-1 text-xs text-base-content/60">
+                          {format_template_meta(template)}
+                        </p>
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -633,14 +638,37 @@ defmodule FittrackWeb.WorkoutLive.Show do
           phx-value-exercise_id={exercise.id}
           class="flex items-center justify-between rounded-xl border border-base-200 px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:text-primary"
         >
-          <span>
-            <span class="block font-semibold">{exercise.name}</span>
-            <span class="text-xs text-base-content/60">{format_exercise_meta(exercise)}</span>
+          <span class="flex min-w-0 items-center gap-3">
+            <.media_thumb src={exercise_image_url(exercise)} name={exercise.name} />
+            <span class="min-w-0">
+              <span class="block truncate font-semibold">{exercise.name}</span>
+              <span class="text-xs text-base-content/60">{format_exercise_meta(exercise)}</span>
+            </span>
           </span>
           <.icon name="hero-plus" class="h-4 w-4" />
         </button>
       </div>
     </section>
+    """
+  end
+
+  attr :src, :string, default: nil
+  attr :name, :string, required: true
+
+  defp media_thumb(assigns) do
+    ~H"""
+    <%= if @src do %>
+      <img
+        src={@src}
+        alt={"#{@name} exercise reference"}
+        class="h-10 w-10 shrink-0 rounded-lg object-cover"
+        loading="lazy"
+      />
+    <% else %>
+      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-base-200">
+        <.icon name="hero-bolt" class="h-5 w-5 text-base-content/25" />
+      </span>
+    <% end %>
     """
   end
 
@@ -658,6 +686,25 @@ defmodule FittrackWeb.WorkoutLive.Show do
     [template.primary_muscle, template.equipment]
     |> Enum.filter(&(&1 && &1 != ""))
     |> Enum.join(" • ")
+  end
+
+  defp exercise_image_url(%{source_template: %{media: media}}) when is_list(media),
+    do: media_url(media)
+
+  defp exercise_image_url(_exercise), do: nil
+
+  defp template_image_url(%{media: media}) when is_list(media), do: media_url(media)
+  defp template_image_url(_template), do: nil
+
+  defp media_url(media) do
+    media
+    |> Enum.filter(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
+    |> Enum.sort_by(fn item -> {not item.is_primary, item.display_order || 0, item.id || 0} end)
+    |> List.first()
+    |> case do
+      nil -> nil
+      item -> ~p"/exercise-media/#{item.id}"
+    end
   end
 
   defp filter_library_templates(templates, search, filter) do

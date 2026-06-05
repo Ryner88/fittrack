@@ -6,6 +6,7 @@ defmodule FittrackWeb.ExerciseLiveTest do
 
   alias Fittrack.Repo
   alias Fittrack.Training
+  alias Fittrack.Training.ExerciseMedia
   alias Fittrack.Training.ExerciseTemplate
 
   @create_attrs %{
@@ -55,14 +56,30 @@ defmodule FittrackWeb.ExerciseLiveTest do
 
       {:ok, exercise} = Training.add_template_to_user(scope, template.id)
 
+      {:ok, media} =
+        %ExerciseMedia{}
+        |> ExerciseMedia.changeset(%{
+          exercise_template_id: template.id,
+          kind: "image",
+          source: "wger",
+          source_id: "2002",
+          source_url: template.image_url,
+          cache_status: "cached",
+          local_path: "#{template.id}/main.jpg",
+          mime_type: "image/jpeg",
+          file_size: 12,
+          is_primary: true
+        })
+        |> Repo.insert()
+
       conn = log_in_user(conn, user)
       {:ok, _index_live, html} = live(conn, ~p"/my-exercises")
 
-      assert html =~ ~s(src="/exercise-template-images/#{template.id}")
+      assert html =~ ~s(src="/exercise-media/#{media.id}")
       refute html =~ template.image_url
 
       {:ok, _show_live, show_html} = live(conn, ~p"/my-exercises/#{exercise}")
-      assert show_html =~ ~s(src="/exercise-template-images/#{template.id}")
+      assert show_html =~ ~s(src="/exercise-media/#{media.id}")
       refute show_html =~ template.image_url
     end
 

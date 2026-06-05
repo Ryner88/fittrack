@@ -107,12 +107,15 @@ defmodule FittrackWeb.LibraryLive.Show do
               id="exercise-media"
               class="overflow-hidden rounded-lg border border-base-200 bg-base-100 shadow-sm"
             >
-              <%= if primary_image?(@template) do %>
-                <img
-                  src={~p"/exercise-template-images/#{@template.id}"}
-                  alt={"#{@template.name} exercise reference"}
-                  class="max-h-[34rem] w-full object-cover"
-                />
+              <%= if cached_media(@template) != [] do %>
+                <div class="grid gap-2">
+                  <img
+                    :for={media <- cached_media(@template)}
+                    src={~p"/exercise-media/#{media.id}"}
+                    alt={"#{@template.name} exercise reference"}
+                    class="max-h-[34rem] w-full object-cover"
+                  />
+                </div>
               <% else %>
                 <div class="flex aspect-[16/9] items-center justify-center bg-base-200">
                   <.icon name="hero-bolt" class="h-14 w-14 text-base-content/25" />
@@ -322,8 +325,13 @@ defmodule FittrackWeb.LibraryLive.Show do
     """
   end
 
-  defp primary_image?(template),
-    do: template.image_url || Enum.any?(template.media, &(&1.kind == "image"))
+  defp cached_media(template) do
+    template.media
+    |> Enum.filter(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
+    |> Enum.sort_by(fn media ->
+      {not media.is_primary, media.display_order || 0, media.id || 0}
+    end)
+  end
 
   defp instructions(template),
     do: template.notes || "Instructions for this exercise are not available yet."
