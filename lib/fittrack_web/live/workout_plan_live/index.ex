@@ -15,7 +15,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
               Create and manage reusable workout templates for consistent training.
             </p>
           </div>
-          <div class="flex gap-2">
+          <div class="flex flex-wrap gap-2">
             <.link
               navigate={~p"/workout-plans/generator"}
               class="inline-flex items-center justify-center rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-secondary/90"
@@ -38,7 +38,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
         </div>
 
         <%= if Enum.empty?(@workout_plans) do %>
-          <div class="text-center py-12">
+          <div class="rounded-2xl border border-dashed border-base-300 bg-base-100 px-6 py-12 text-center shadow-sm">
             <div class="text-base-content/50">
               <.icon name="hero-document-text" class="mx-auto h-12 w-12" />
               <h3 class="mt-2 text-sm font-semibold text-base-content">No workout plans yet</h3>
@@ -138,10 +138,10 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
     ~H"""
     <div
       id={"workout-plan-#{@workout_plan.id}"}
-      class="group relative rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm transition hover:shadow-md hover:border-primary/20"
+      class="group relative flex h-full flex-col rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
     >
-      <div class="flex items-start justify-between">
-        <div class="flex-1">
+      <div class="flex items-start justify-between gap-4">
+        <div class="min-w-0 flex-1">
           <h3 class="font-semibold text-base-content group-hover:text-primary transition">
             {@workout_plan.name}
           </h3>
@@ -150,55 +150,56 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
               {@workout_plan.description}
             </p>
           <% end %>
-          <div class="mt-3 flex items-center gap-4 text-sm text-base-content/60">
-            <.icon name="hero-queue-list" class="h-4 w-4" />
-            <span>{length(@workout_plan.workout_plan_exercises)} exercises</span>
-            <.icon name="hero-clock" class="h-4 w-4 ml-2" />
-            <span>~{estimate_duration(@workout_plan)}m</span>
-          </div>
         </div>
       </div>
 
-      <div class="mt-4 grid gap-2 text-sm text-base-content/70">
-        <div class="flex items-center gap-2">
+      <div class="mt-5 flex flex-wrap gap-2">
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-base-200 bg-base-50 px-3 py-1 text-xs font-semibold text-base-content/70">
+          <.icon name="hero-queue-list" class="h-4 w-4 text-primary" />
+          {length(@workout_plan.workout_plan_exercises)} exercises
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-base-200 bg-base-50 px-3 py-1 text-xs font-semibold text-base-content/70">
+          <.icon name="hero-clock" class="h-4 w-4 text-primary" />
+          ~{estimate_duration(@workout_plan)}m
+        </span>
+        <span class="inline-flex items-center gap-1.5 rounded-full border border-base-200 bg-base-50 px-3 py-1 text-xs font-semibold text-base-content/70">
+          <.icon name="hero-calendar-days" class="h-4 w-4 text-primary" />
+          {days_per_week(@workout_plan)} days per week
+        </span>
+      </div>
+
+      <div class="mt-5 grid gap-2 text-sm text-base-content/70">
+        <div class="flex items-start gap-2">
           <.icon name="hero-flag" class="h-4 w-4 text-primary" />
           <span>{plan_goal_or_type(@workout_plan)}</span>
         </div>
-        <div class="flex items-center gap-2">
-          <.icon name="hero-calendar-days" class="h-4 w-4 text-primary" />
-          <span>{days_per_week(@workout_plan)} days per week</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <.icon name="hero-queue-list" class="h-4 w-4 text-primary" />
-          <span>{length(@workout_plan.workout_plan_exercises)} exercises</span>
-        </div>
         <%= if last_used_at(@workout_plan) do %>
-          <div class="flex items-center gap-2">
+          <div class="flex items-start gap-2">
             <.icon name="hero-clock" class="h-4 w-4 text-primary" />
             <span>Last used {last_used_at(@workout_plan)}</span>
           </div>
         <% end %>
       </div>
 
-      <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="mt-auto flex flex-col gap-3 pt-6">
         <button
           phx-click="start_session"
           phx-value-id={@workout_plan.id}
-          class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
+          class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
         >
           <.icon name="hero-play" class="h-3 w-3" /> Start from plan
         </button>
-        <div class="flex flex-wrap gap-2">
+        <div class="grid grid-cols-3 gap-2">
           <.link
             navigate={~p"/workout-plans/#{@workout_plan}/edit"}
-            class="inline-flex items-center gap-2 rounded-lg border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
+            class="inline-flex items-center justify-center gap-1.5 rounded-full border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
           >
             <.icon name="hero-pencil" class="h-3 w-3" /> Edit
           </.link>
           <button
             phx-click="duplicate"
             phx-value-id={@workout_plan.id}
-            class="inline-flex items-center gap-2 rounded-lg border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
+            class="inline-flex items-center justify-center gap-1.5 rounded-full border border-base-300 px-3 py-1.5 text-xs font-medium text-base-content transition hover:border-primary hover:text-primary"
           >
             <.icon name="hero-document-duplicate" class="h-3 w-3" /> Duplicate
           </button>
@@ -206,7 +207,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
             phx-click="delete"
             phx-value-id={@workout_plan.id}
             data-confirm="Are you sure you want to delete this workout plan?"
-            class="inline-flex items-center gap-2 rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+            class="inline-flex items-center justify-center gap-1.5 rounded-full border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
           >
             <.icon name="hero-trash" class="h-3 w-3" /> Delete
           </button>

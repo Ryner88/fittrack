@@ -30,7 +30,7 @@ defmodule FittrackWeb.LibraryLive.Index do
           <% end %>
         </div>
 
-        <div class="rounded-lg border border-base-200 bg-base-100 p-4 shadow-sm sm:p-5">
+        <div class="rounded-2xl border border-base-200 bg-base-100 p-4 shadow-sm sm:p-5">
           <.form for={@form} id="exercise-library-filters-form" phx-change="filter">
             <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
               <.input
@@ -88,7 +88,7 @@ defmodule FittrackWeb.LibraryLive.Index do
         >
           <div
             id="exercise-library-empty-state"
-            class="hidden only:block rounded-lg border border-dashed border-base-300 bg-base-100 p-10 text-center"
+            class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100 p-10 text-center"
           >
             <.icon name="hero-magnifying-glass" class="mx-auto h-10 w-10 text-base-content/30" />
             <h2 class="mt-3 text-base font-semibold text-base-content">No exercises found</h2>
@@ -215,7 +215,7 @@ defmodule FittrackWeb.LibraryLive.Index do
     ~H"""
     <article
       id={@id}
-      class="group overflow-hidden rounded-lg border border-base-200 bg-base-100 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+      class="group flex h-full flex-col overflow-hidden rounded-2xl border border-base-200 bg-base-100 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
     >
       <.link navigate={~p"/exercises/#{@template.slug}"} class="block">
         <div class="aspect-[16/10] bg-base-200">
@@ -233,7 +233,7 @@ defmodule FittrackWeb.LibraryLive.Index do
           <% end %>
         </div>
       </.link>
-      <div class="space-y-4 p-5">
+      <div class="flex flex-1 flex-col space-y-4 p-5">
         <div>
           <.link
             navigate={~p"/exercises/#{@template.slug}"}
@@ -251,7 +251,7 @@ defmodule FittrackWeb.LibraryLive.Index do
             tone="level"
           />
         </div>
-        <div class="flex items-center justify-between gap-3">
+        <div class="mt-auto flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
           <.link
             navigate={~p"/exercises/#{@template.slug}"}
             class="inline-flex items-center gap-2 text-sm font-semibold text-primary transition hover:text-primary/80"
@@ -263,7 +263,7 @@ defmodule FittrackWeb.LibraryLive.Index do
             id={"add-template-#{@template.id}"}
             phx-click="add_to_library"
             phx-value-template_id={@template.id}
-            class="inline-flex items-center gap-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
+            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
           >
             <.icon name="hero-plus" class="h-3.5 w-3.5" /> Add
           </button>

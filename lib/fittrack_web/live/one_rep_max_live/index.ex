@@ -34,7 +34,10 @@ defmodule FittrackWeb.OneRepMaxLive.Index do
             </p>
           </div>
 
-          <.link navigate={~p"/dashboard"} class="btn btn-ghost btn-sm">
+          <.link
+            navigate={~p"/dashboard"}
+            class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+          >
             <.icon name="hero-arrow-left" class="size-4" /> Dashboard
           </.link>
         </div>
@@ -90,7 +93,11 @@ defmodule FittrackWeb.OneRepMaxLive.Index do
                 options={[{"Pounds", "lb"}, {"Kilograms", "kg"}]}
               />
 
-              <button type="submit" class="btn btn-primary w-full" phx-disable-with="Calculating...">
+              <button
+                type="submit"
+                class="inline-flex w-full items-center justify-center rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
+                phx-disable-with="Calculating..."
+              >
                 Calculate
               </button>
             </.form>
