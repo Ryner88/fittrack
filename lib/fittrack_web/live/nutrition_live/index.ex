@@ -8,7 +8,7 @@ defmodule FittrackWeb.NutritionLive.Index do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="space-y-8">
-        <section class="overflow-hidden rounded-[2rem] border border-base-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fffbeb_38%,#f8fafc_100%)] p-8 shadow-sm">
+        <section class="overflow-hidden rounded-2xl border border-base-200 bg-[linear-gradient(135deg,#fff7ed_0%,#fffbeb_38%,#f8fafc_100%)] p-8 shadow-sm">
           <div class="grid gap-8 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.9fr)] lg:items-end">
             <div>
               <p class="text-xs uppercase tracking-[0.24em] text-base-content/50">Nutrition module</p>
@@ -40,7 +40,7 @@ defmodule FittrackWeb.NutritionLive.Index do
               </div>
             </div>
 
-            <div class="rounded-[1.75rem] border border-white/70 bg-white/80 p-6 shadow-sm backdrop-blur">
+            <div class="rounded-2xl border border-white/70 bg-white/80 p-6 shadow-sm backdrop-blur">
               <p class="text-xs uppercase tracking-[0.2em] text-slate-500">Today</p>
               <div class="mt-4 grid grid-cols-2 gap-3">
                 <div class="rounded-2xl bg-orange-50 p-4">
@@ -73,7 +73,7 @@ defmodule FittrackWeb.NutritionLive.Index do
         </section>
 
         <section class="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
-          <div class="rounded-[2rem] border border-base-200 bg-base-100 p-6 shadow-sm">
+          <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
             <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p class="text-xs uppercase tracking-[0.2em] text-base-content/50">Weekly planner</p>
@@ -101,7 +101,7 @@ defmodule FittrackWeb.NutritionLive.Index do
 
             <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
               <%= for day <- @weekly_plan.days do %>
-                <article class="relative flex min-h-64 flex-col overflow-hidden rounded-[1.5rem] border border-base-200 bg-base-50 p-4">
+                <article class="relative flex min-h-64 flex-col overflow-hidden rounded-2xl border border-base-200 bg-base-50 p-4">
                   <%= if length(day.logged_meals) > 0 do %>
                     <span class="absolute top-3 right-3 w-auto max-w-[calc(100%-1.5rem)] truncate rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-sky-800 shadow-sm">
                       {length(day.logged_meals)} logged
@@ -125,7 +125,7 @@ defmodule FittrackWeb.NutritionLive.Index do
                     <% else %>
                       <div
                         :for={meal <- day.planned_meals}
-                        class="rounded-2xl bg-white px-3 py-3 shadow-sm"
+                        class="rounded-2xl border border-base-200 bg-base-100 px-3 py-3 shadow-sm"
                       >
                         <p class="text-sm font-semibold text-base-content">{meal.meal_name}</p>
                         <p class="mt-1 text-xs text-base-content/60">
@@ -147,7 +147,7 @@ defmodule FittrackWeb.NutritionLive.Index do
           </div>
 
           <div class="space-y-6">
-            <div class="rounded-[2rem] border border-base-200 bg-base-100 p-6 shadow-sm">
+            <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
               <p class="text-xs uppercase tracking-[0.2em] text-base-content/50">This week</p>
               <h2 class="mt-2 text-2xl font-semibold text-base-content">Nutrition overview</h2>
 
@@ -204,7 +204,7 @@ defmodule FittrackWeb.NutritionLive.Index do
               </div>
             </div>
 
-            <div class="rounded-[2rem] border border-base-200 bg-base-100 p-6 shadow-sm">
+            <div class="rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm">
               <div class="flex items-center justify-between gap-3">
                 <div>
                   <p class="text-xs uppercase tracking-[0.2em] text-base-content/50">Recent meals</p>

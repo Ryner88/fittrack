@@ -37,11 +37,11 @@ defmodule FittrackWeb.WorkoutLive.Index do
             <div
               :for={{id, workout} <- @streams.in_progress_workouts}
               id={id}
-              class="group flex items-center gap-6 rounded-2xl border-2 border-primary/20 bg-primary/5 p-6 shadow-sm"
+              class="group rounded-2xl border border-primary/25 bg-primary/5 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 sm:p-6"
             >
-              <div class="flex-1">
-                <div class="flex items-center gap-4">
-                  <div class="flex flex-col">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div class="flex items-center gap-4 sm:min-w-28">
+                  <div class="flex flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
                     <p class="text-sm font-medium text-base-content">
                       {Calendar.strftime(workout.started_at, "%b %d")}
                     </p>
@@ -49,32 +49,26 @@ defmodule FittrackWeb.WorkoutLive.Index do
                       {Calendar.strftime(workout.started_at, "%Y")}
                     </p>
                   </div>
-                  <div class="h-8 w-px bg-primary/30"></div>
-                  <div class="flex-1">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <p class="font-medium text-base-content">
-                          Workout in progress
-                        </p>
-                        <p class="text-sm text-base-content/70">
-                          Started {format_started_at(workout.started_at)} • {length(
-                            workout.workout_sets
-                          )} sets completed
-                        </p>
-                      </div>
-                      <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                          In Progress
-                        </span>
-                        <.link
-                          navigate={~p"/workouts/#{workout}"}
-                          class="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-primary/90"
-                        >
-                          Continue workout
-                        </.link>
-                      </div>
-                    </div>
-                  </div>
+                  <div class="hidden h-8 w-px bg-primary/30 sm:block"></div>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="font-medium text-base-content">
+                    Workout in progress
+                  </p>
+                  <p class="text-sm text-base-content/70">
+                    Started {format_started_at(workout.started_at)} • {length(workout.workout_sets)} sets completed
+                  </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 sm:justify-end">
+                  <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                    In Progress
+                  </span>
+                  <.link
+                    navigate={~p"/workouts/#{workout}"}
+                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+                  >
+                    Continue workout
+                  </.link>
                 </div>
               </div>
             </div>
@@ -92,11 +86,11 @@ defmodule FittrackWeb.WorkoutLive.Index do
             <div
               :for={{id, workout} <- @streams.completed_workouts}
               id={id}
-              class="group flex items-center gap-6 rounded-2xl border border-base-200 bg-base-100 p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40"
+              class="group rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:p-6"
             >
-              <div class="flex-1">
-                <div class="flex items-center gap-4">
-                  <div class="flex flex-col">
+              <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <div class="flex items-center gap-4 sm:min-w-28">
+                  <div class="flex flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
                     <p class="text-sm font-medium text-base-content">
                       {Calendar.strftime(workout.started_at, "%b %d")}
                     </p>
@@ -104,32 +98,28 @@ defmodule FittrackWeb.WorkoutLive.Index do
                       {Calendar.strftime(workout.started_at, "%Y")}
                     </p>
                   </div>
-                  <div class="h-8 w-px bg-base-300"></div>
-                  <div class="flex-1">
-                    <div class="flex items-center justify-between">
-                      <div>
-                        <p class="font-medium text-base-content">
-                          Workout on {Calendar.strftime(workout.started_at, "%A")}
-                        </p>
-                        <p class="text-sm text-base-content/70">
-                          {format_duration(workout)} • {format_volume(workout)} lbs • {length(
-                            workout.workout_sets
-                          )} sets
-                        </p>
-                      </div>
-                      <div class="flex items-center gap-3">
-                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                          Completed
-                        </span>
-                        <.link
-                          navigate={~p"/workouts/#{workout}"}
-                          class="inline-flex items-center gap-2 rounded-lg border border-base-300 px-3 py-1.5 text-sm font-medium text-base-content transition hover:border-primary hover:text-primary"
-                        >
-                          View details
-                        </.link>
-                      </div>
-                    </div>
-                  </div>
+                  <div class="hidden h-8 w-px bg-base-300 sm:block"></div>
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="font-medium text-base-content">
+                    Workout on {Calendar.strftime(workout.started_at, "%A")}
+                  </p>
+                  <p class="text-sm text-base-content/70">
+                    {format_duration(workout)} • {format_volume(workout)} lbs • {length(
+                      workout.workout_sets
+                    )} sets
+                  </p>
+                </div>
+                <div class="flex flex-wrap items-center gap-3 sm:justify-end">
+                  <span class="inline-flex items-center rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+                    Completed
+                  </span>
+                  <.link
+                    navigate={~p"/workouts/#{workout}"}
+                    class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-3 py-1.5 text-sm font-medium text-base-content transition hover:border-primary hover:text-primary"
+                  >
+                    View details
+                  </.link>
                 </div>
               </div>
             </div>

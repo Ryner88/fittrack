@@ -41,8 +41,11 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
             </div>
           </div>
 
-          <.link navigate={~p"/workout-plans"} class="btn btn-ghost btn-sm sm:mt-1">
-            <.icon name="hero-arrow-left" /> Back to plans
+          <.link
+            navigate={~p"/workout-plans"}
+            class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary sm:mt-1"
+          >
+            <.icon name="hero-arrow-left" class="h-4 w-4" /> Back to plans
           </.link>
         </div>
 
@@ -190,7 +193,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
                 type="submit"
                 name="intent"
                 value="analyze_source"
-                class="btn btn-secondary"
+                class="inline-flex items-center justify-center rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-secondary/90 disabled:opacity-70"
                 phx-disable-with="Analyzing..."
               >
                 Analyze Link
@@ -199,13 +202,17 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
           </.section_card>
 
           <div class="flex flex-col-reverse gap-3 border-t border-base-200 pt-6 sm:flex-row sm:justify-end">
-            <button type="button" class="btn btn-ghost" phx-click="reset_form">
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+              phx-click="reset_form"
+            >
               Reset
             </button>
 
             <button
               type="submit"
-              class="btn btn-primary min-w-[14rem]"
+              class="inline-flex min-w-[14rem] items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
               phx-disable-with="Generating..."
             >
               Generate Draft
@@ -216,7 +223,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
         <section
           :if={@draft_plan}
           id="ai-workout-draft-review"
-          class="rounded-3xl border border-primary/20 bg-base-100 p-5 shadow-sm md:p-6"
+          class="rounded-2xl border border-primary/20 bg-base-100 p-5 shadow-sm md:p-6"
         >
           <div class="flex flex-col gap-3 border-b border-base-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -236,7 +243,11 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
                 {draft_source_status(@draft_plan)}
               </p>
             </div>
-            <button type="button" class="btn btn-ghost btn-sm" phx-click="discard_draft">
+            <button
+              type="button"
+              class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+              phx-click="discard_draft"
+            >
               Discard
             </button>
           </div>
@@ -372,11 +383,19 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
               </div>
             </div>
 
-            <div class="flex justify-end gap-3 border-t border-base-200 pt-5">
-              <button type="button" class="btn btn-ghost" phx-click="discard_draft">
+            <div class="flex flex-col-reverse gap-3 border-t border-base-200 pt-5 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+                phx-click="discard_draft"
+              >
                 Cancel
               </button>
-              <button type="submit" class="btn btn-primary" phx-disable-with="Saving...">
+              <button
+                type="submit"
+                class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
+                phx-disable-with="Saving..."
+              >
                 Save Reviewed Plan
               </button>
             </div>
@@ -516,7 +535,7 @@ defmodule FittrackWeb.WorkoutPlanLive.Generator do
 
   defp section_card(assigns) do
     ~H"""
-    <section class="rounded-3xl border border-base-200 bg-base-100 p-5 shadow-sm md:p-6">
+    <section class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm md:p-6">
       <div class="space-y-6">
         <div class="space-y-1">
           <h2 class="text-lg font-semibold text-base-content">{@title}</h2>
