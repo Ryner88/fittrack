@@ -63,12 +63,6 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
   - muscle groups worked
   - session volume, sets, reps, and duration summary
   - link back to completed workout details
-- Update workout library and plan cards with premium visual polish.
-  Scope:
-  - cleaner shadows
-  - consistent rounded corners
-  - consistent spacing
-  - aligned card actions and metadata
 - Add Google Sheets export for saved workout plans.
   Scope:
   - export button on saved plans

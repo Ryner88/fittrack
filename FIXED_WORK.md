@@ -12,6 +12,18 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### UI Polish And FitTrack README
+
+- Cleaned up visual consistency across the authenticated workspace without changing product behavior or database schema.
+- Standardized major card surfaces, rounded corners, shadows, empty states, metadata badges, and responsive action wrapping across Exercise Library, Workout Plans, Workout History/session lists, Nutrition, AI Workout Generator, 1RM, and shared table rendering.
+- Preserved existing IA and copy decisions:
+  - plans remain reusable templates
+  - History remains completed workout records
+  - header CTA remains Start workout or Resume workout based on active workout state
+  - Workouts was not re-added as a top-level nav item
+- Rewrote `README.md` into a FitTrack-specific project README covering features, local setup, environment variables, useful verified Mix tasks, and concise production/deployment notes for `deploy.sh`.
+- Verified `mix precommit` passes with 232 tests and 0 failures.
+
 ### AI Workout Generator Source Links
 
 - Commit references:
