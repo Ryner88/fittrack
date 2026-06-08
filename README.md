@@ -84,6 +84,9 @@ mix fittrack.import_templates priv/data/exercise_templates.csv
 
 `mix populate_exercise_images` also exists, but it is a legacy/demo helper that fills missing template image URLs with placeholders. Prefer the cached media backfill for production exercise media.
 
+See `EXERCISE_MEDIA_BACKFILL.md` for the exact cached exercise media backfill
+contract, matching rules, status semantics, and production verification gates.
+
 ## Production And Deployment
 
 `deploy.sh` is the operational deployment script. It pulls `main`, refuses to deploy from a dirty working tree, loads `fittrack.env`, fetches production dependencies, compiles, runs migrations, deploys assets, creates the release, restarts via `_build/prod/rel/fittrack/bin/fittrack restart`, and verifies the local endpoint.
