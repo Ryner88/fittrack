@@ -22,13 +22,19 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
   template import, source ids, normalized muscle/equipment persistence, media
   reference import, media validation, and app-owned cache storage are in place.
 - Exercise media backfill contract is documented in `EXERCISE_MEDIA_BACKFILL.md`.
+- `EXERCISE_MEDIA_STORAGE_ROOT` remains the media storage root. Cached exercise
+  media must not be stored in `priv/static`, `assets`, deploy-managed static
+  directories, or DB binaries.
 - Local DB readiness for exercise media is no longer the current blocker:
   `20260605144506_add_cache_fields_to_exercise_media` is applied locally and the
-  expected `exercise_media` cache fields have been verified.
+  required `exercise_media` cache fields exist: `cache_status`, `checked_at`,
+  `content_hash`, `display_order`, `duration_seconds`, `file_size`, `local_path`,
+  `source_exercise_id`, and `storage_key`.
 - Non-blocking local migration history drift remains:
   `20260502000000` is recorded as applied locally but has no migration file in
   the repo. Do not reset or delete migration rows unless it starts blocking local
   migration or rollback workflows.
+- Production data was not touched while resolving local DB readiness.
 - Sparky cleanup status:
   no active repo references to `sparky`/`sparkyfitness` are present, and the
   local ignored `sparkyfitness/` folder is absent. Production had a stale ignored
@@ -37,13 +43,58 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
 
 ## Next
 
-- Finish exercise library foundation follow-ups.
+### Exercise Library / Media Follow-ups
+
+- Resolve historical local migration drift.
+  Status:
+  - Non-blocking.
+  - Current `exercise_media` cache migration is verified up.
+  - Remaining drift is `20260502000000 ** FILE NOT FOUND **` in local migration
+    history.
   Scope:
-  - add true admin CRUD for shared exercise templates: create, edit, delete, and search
-  - decide whether categories and tags should become normalized tables instead of current string/array fields
-  - add public category and muscle routes such as `/exercises/category/:category` and `/exercises/muscle/:muscle`
-  - add trainer-shared exercise behavior if it remains a product requirement
-  - implement or remove the parsed `--concurrency` option for exercise media backfill
+  - decide later whether to restore a no-op historical migration file, document
+    it as local-only drift, or perform a local-only reset.
+  - do not modify production migration history manually.
+
+- Decide category/tag normalization.
+  Status:
+  - Current implementation stores `exercise_category` as a string/enum-like field.
+  - Current tags use `weighted_tags` and `training_style_tags` arrays.
+  Scope:
+  - decide whether dedicated `exercise_categories` and `exercise_tags` tables are
+    worth adding before admin CRUD expands.
+  - avoid introducing tables until the query/UI benefit is clear.
+
+- Build admin CRUD for shared exercise templates.
+  Status:
+  - `/admin/exercises` currently works more like an internal dashboard, metrics,
+    and recent imports view.
+  Scope:
+  - add create/edit/delete/search/review workflows for shared exercise templates.
+  - include media status review.
+  - include alias/tag/source visibility.
+  - keep destructive actions protected.
+
+- Add public category and muscle routes.
+  Scope:
+  - add routes like `/exercises/category/:slug` and `/exercises/muscle/:slug`.
+  - reuse current search/filter behavior.
+  - ensure canonical slugs and SEO-friendly titles.
+
+- Expand variation/substitution metadata.
+  Status:
+  - Tables exist and detail pages render relationships.
+  Scope:
+  - add similarity score, equipment requirements, difficulty delta, and
+    substitution reason quality.
+  - use this for better workout substitutions and AI workout generation.
+
+- Define trainer-shared exercise behavior.
+  Status:
+  - User-created/private exercises exist under `/my-exercises`.
+  Scope:
+  - decide how trainers can publish/share exercises.
+  - define permissions, moderation, and visibility rules.
 
 - Add explicit workout lifecycle states.
   Scope:
