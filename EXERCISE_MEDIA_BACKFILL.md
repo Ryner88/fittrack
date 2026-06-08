@@ -307,13 +307,14 @@ Before considering the backfill complete in an environment, verify:
 The current codebase is close to this contract, but these gaps should be handled
 before treating the backfill as fully production-defined:
 
-- Local development database drift: this checkout has the normalized library
-  migration applied but not `20260605144506_add_cache_fields_to_exercise_media`,
-  so the local `exercise_media` table is missing cache columns required by the
-  current code.
+- Local database readiness has been verified for the cache-field migration:
+  `20260605144506_add_cache_fields_to_exercise_media` is applied locally and
+  `exercise_media` has the cache columns expected by the current code.
+- Non-blocking local migration history drift remains: this local database has an
+  applied `20260502000000` migration row, but the corresponding migration file
+  is no longer present in `priv/repo/migrations`. Do not reset or delete
+  migration rows unless this starts blocking local migration/rollback workflows.
 - The task parses `--concurrency`, but the backfill currently processes records
   sequentially.
-- `exercises_with_no_media` should be verified after the cache-field migration
-  is present in the target database.
 - The task docs should clarify that `--exercise-id` is a WGER exercise id, not a
   local template id.
