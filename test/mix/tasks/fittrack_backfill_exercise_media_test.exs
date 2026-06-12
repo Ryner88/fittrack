@@ -79,6 +79,102 @@ defmodule Mix.Tasks.FittrackBackfillExerciseMediaTest do
     end
   end
 
+  defmodule ConcurrentMediaClientStub do
+    def fetch_media(_opts) do
+      {:ok,
+       [
+         media_record("valid-1", "https://example.com/concurrent-1.jpg", 0),
+         media_record("valid-2", "https://example.com/concurrent-2.jpg", 1),
+         media_record("missing-url", nil, 2),
+         media_record("stale", "https://example.com/stale.jpg", 3),
+         media_record("unsupported", "https://example.com/unsupported.webp", 4),
+         media_record("invalid", "https://example.com/invalid.jpg", 5)
+       ]}
+    end
+
+    defp media_record(source_id, source_url, display_order) do
+      %{
+        kind: "image",
+        source: "wger",
+        source_id: source_id,
+        source_exercise_id: "7001",
+        source_url: source_url,
+        is_primary: display_order == 0,
+        display_order: display_order,
+        metadata: %{}
+      }
+    end
+  end
+
+  defmodule ConcurrentValidatorStub do
+    def validate_url(url, http_client: test_pid)
+        when url in [
+               "https://example.com/concurrent-1.jpg",
+               "https://example.com/concurrent-2.jpg"
+             ] do
+      send(test_pid, {:validating_media, url, self()})
+
+      receive do
+        {:continue_validation, ^url} ->
+          {:ok, %{content_type: "image/jpeg", content_length: 12, media_type: "image"}}
+      after
+        1_000 ->
+          {:error, :validation_timeout}
+      end
+    end
+
+    def validate_url("https://example.com/stale.jpg", _opts), do: {:error, :stale_url}
+
+    def validate_url("https://example.com/unsupported.webp", _opts),
+      do: {:error, :unsupported_content_type}
+
+    def validate_url("https://example.com/invalid.jpg", _opts), do: {:error, :invalid_url}
+  end
+
+  defmodule TimeoutMediaClientStub do
+    def fetch_media(_opts) do
+      {:ok,
+       [
+         %{
+           kind: "image",
+           source: "wger",
+           source_id: "timeout",
+           source_exercise_id: "7001",
+           source_url: "https://example.com/timeout.jpg",
+           is_primary: true,
+           display_order: 0,
+           metadata: %{}
+         }
+       ]}
+    end
+  end
+
+  defmodule TimeoutValidatorStub do
+    def validate_url(_url, _opts) do
+      receive do
+        :never -> :ok
+      end
+    end
+  end
+
+  defmodule BackfillOptionStub do
+    def run(opts) do
+      send(Process.get(:backfill_test_pid), {:backfill_opts, opts})
+
+      {:ok,
+       %{
+         fetched: 0,
+         cached: 0,
+         already_cached: 0,
+         missing: 0,
+         skipped: 0,
+         stale: 0,
+         failed: 0,
+         exercises_with_no_media: 0
+       }}
+    end
+  end
+
   setup do
     {:ok, template} =
       %ExerciseTemplate{}
@@ -124,6 +220,92 @@ defmodule Mix.Tasks.FittrackBackfillExerciseMediaTest do
 
     assert Repo.aggregate(ExerciseMedia, :count, :id) == 4
     assert Repo.preload(template, :media).media |> length() == 4
+  end
+
+  test "processes records concurrently and aggregates all report counts" do
+    opts = [
+      media_client: ConcurrentMediaClientStub,
+      validator: ConcurrentValidatorStub,
+      cache: CacheStub,
+      http_client: self(),
+      media_type: "all",
+      limit: 10,
+      concurrency: 2
+    ]
+
+    task = Task.async(fn -> ExerciseMediaBackfill.run(opts) end)
+
+    assert_receive {:validating_media, "https://example.com/concurrent-1.jpg", first_worker}
+    assert_receive {:validating_media, "https://example.com/concurrent-2.jpg", second_worker}
+    assert first_worker != second_worker
+
+    send(first_worker, {:continue_validation, "https://example.com/concurrent-1.jpg"})
+    send(second_worker, {:continue_validation, "https://example.com/concurrent-2.jpg"})
+
+    assert {:ok,
+            %{
+              fetched: 6,
+              cached: 2,
+              already_cached: 0,
+              missing: 1,
+              skipped: 1,
+              stale: 1,
+              failed: 1
+            }} = Task.await(task)
+  end
+
+  test "dry run reports work without writing media rows" do
+    opts = [
+      media_client: MediaClientStub,
+      validator: ValidatorStub,
+      cache: CacheStub,
+      media_type: "all",
+      limit: 10,
+      dry_run: true,
+      concurrency: 2
+    ]
+
+    assert {:ok,
+            %{
+              fetched: 4,
+              cached: 1,
+              missing: 1,
+              skipped: 1,
+              stale: 1,
+              failed: 0
+            }} = ExerciseMediaBackfill.run(opts)
+
+    assert Repo.aggregate(ExerciseMedia, :count, :id) == 0
+  end
+
+  test "task timeouts are reported as failed records" do
+    opts = [
+      media_client: TimeoutMediaClientStub,
+      validator: TimeoutValidatorStub,
+      cache: CacheStub,
+      media_type: "all",
+      limit: 1,
+      concurrency: 1,
+      timeout: 10
+    ]
+
+    assert {:ok, %{fetched: 1, failed: 1}} = ExerciseMediaBackfill.run(opts)
+  end
+
+  test "task passes concurrency option to the backfill" do
+    Process.put(:backfill_test_pid, self())
+
+    capture_io(fn ->
+      Mix.Tasks.Fittrack.BackfillExerciseMedia.run(
+        ["--concurrency", "7", "--limit", "1"],
+        BackfillOptionStub
+      )
+    end)
+
+    assert_received {:backfill_opts, opts}
+    assert Keyword.fetch!(opts, :concurrency) == 7
+  after
+    Process.delete(:backfill_test_pid)
   end
 
   test "task prints the expected report" do

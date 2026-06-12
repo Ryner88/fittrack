@@ -16,7 +16,9 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
   """
 
   @impl true
-  def run(args) do
+  def run(args), do: run(args, ExerciseMediaBackfill)
+
+  def run(args, backfill_module) do
     Application.load(:fittrack)
     disable_endpoint_server()
     Mix.Task.run("app.start")
@@ -43,7 +45,7 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
       |> Keyword.put_new(:api_key, System.get_env("WGER_API_KEY"))
       |> Keyword.put_new(:media_type, "all")
 
-    case ExerciseMediaBackfill.run(opts) do
+    case backfill_module.run(opts) do
       {:ok, report} -> print_report(report)
       {:error, reason} -> Mix.raise("Exercise media backfill failed: #{inspect(reason)}")
     end
