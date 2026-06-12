@@ -12,6 +12,38 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Production Exercise Media Backfill Verification
+
+- Completed the limited production backfill verification after fast-forwarding
+  `main` to `93de9b6`.
+- Ran the production dry run with `PHX_SERVER` unset:
+  - fetched remote records: 25
+  - cached candidates: 5
+  - already cached: 0
+  - missing URL: 20
+  - skipped unsupported type: 0
+  - broken/stale URL: 0
+  - failed: 0
+  - exercises with no media: 363
+- Ran the small image-only production cache pass:
+  - fetched remote records: 50
+  - cached: 0
+  - already cached: 11
+  - missing URL: 39
+  - skipped unsupported type: 0
+  - broken/stale URL: 0
+  - failed: 0
+  - exercises with no media: 363
+- Verified cached files exist under `/opt/fittrack/storage/exercise_media`.
+- Verified sampled cached rows store relative `local_path` and `storage_key`
+  values such as `111/<hash>.png`.
+- Verified cached rows with absolute `local_path` or `storage_key` values:
+  `0`.
+- Verified `GET /exercise-media/1` on the local production endpoint returned
+  `HTTP 200`, `image/png`, and a nonzero response body.
+- Verified an existing non-cached media row falls back safely:
+  `GET /exercise-media/142` returned `HTTP 200` and `image/svg+xml`.
+
 ### Exercise Media Backfill Concurrency
 
 - Implemented bounded concurrent exercise media backfill processing with `Task.async_stream/3`.
