@@ -18,25 +18,6 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- `[todo]` Run limited production exercise media backfill verification.
-   Scope:
-   - Run only after concurrency passes locally.
-   - Use production env safely with `PHX_SERVER` unset.
-   - Start with dry run.
-   - Then run a small image-only import with limit and concurrency.
-   - Verify files are created under `/opt/fittrack/storage/exercise_media`.
-   - Verify `local_path`/`storage_key` are relative paths only.
-   - Verify `/exercise-media/:id` serves cached media.
-   - Verify missing files fall back safely.
-   - Do not touch production data outside the intended backfill path.
-   Verification:
-   - dry-run report is captured before any write
-   - small image-only run reports expected fetched/cached/missing/skipped/failed
-     counts
-   - DB rows use relative `local_path`/`storage_key`
-   - cached files exist under `/opt/fittrack/storage/exercise_media`
-   - `/exercise-media/:id` returns cached media or fallback safely
-
 - `[todo]` Remove leftover ignored Sparky runtime folder from production filesystem.
    Scope:
    - This is an external filesystem cleanup, not a Git change.
