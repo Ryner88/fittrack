@@ -1,5 +1,7 @@
 ' Fittrack architecture diagrams.
 ' Render with PlantUML, or import into Astah via a PlantUML-compatible workflow.
+' Legacy SparkyFitness runtime footprint has been removed; SparkyFitness is not
+' part of the current FitTrack architecture.
 
 @startuml Fittrack_System_Context
 title Fittrack - System Context
@@ -8,19 +10,48 @@ skinparam componentStyle rectangle
 skinparam shadowing false
 
 actor "Authenticated user" as User
+actor "Public visitor" as Visitor
+actor "Operator" as Operator
 node "Web browser" as Browser
-component "Fittrack Phoenix app" as App
-database "PostgreSQL database" as DB
+component "Fittrack Phoenix app\nLiveView + controllers + Mix tasks" as App
+database "PostgreSQL database\nmetadata + source of truth" as DB
+folder "EXERCISE_MEDIA_STORAGE_ROOT\napp-owned exercise media files" as MediaStorage
+cloud "WGER API\nexercise templates + media records" as WGER
+cloud "WGER media URLs\nremote image/video references" as WGERMedia
 cloud "Open Food Facts API" as OFF
 cloud "Supported dining/menu pages" as Dining
 cloud "OpenAI image parser" as OpenAI
 
 User --> Browser
+Visitor --> Browser
 Browser --> App : HTTP / LiveView websocket
-App --> DB : Ecto queries
+Browser --> App : GET /exercise-media/:id
+Operator --> App : mix fittrack.backfill_exercise_media
+
+App --> DB : Ecto metadata queries
+App --> MediaStorage : read/write cached media files
+App --> WGER : Fetch exercise/media catalog via Req
+App --> WGERMedia : Validate/download media via Req
 App --> OFF : Barcode lookup via Req
 App --> Dining : Nutrition URL import via Req
 App --> OpenAI : Screenshot nutrition extraction
+
+note right of DB
+PostgreSQL stores exercise templates,
+normalized library metadata, sources,
+and exercise_media rows.
+
+Media binaries are not stored in DB.
+end note
+
+note right of MediaStorage
+Files live on disk under
+EXERCISE_MEDIA_STORAGE_ROOT.
+
+exercise_media.local_path and
+exercise_media.storage_key are
+relative paths only.
+end note
 @enduml
 
 @startuml Fittrack_Phoenix_Containers
@@ -29,6 +60,11 @@ title Fittrack - Phoenix Container Architecture
 skinparam componentStyle rectangle
 skinparam shadowing false
 
+actor "Browser" as Browser
+actor "Operator" as Operator
+cloud "WGER API / media URLs" as WGER
+folder "EXERCISE_MEDIA_STORAGE_ROOT" as MediaStorage
+
 package "fittrack_web" {
   component "Router" as Router
   component "UserAuth\nplugs + LiveView on_mount" as Auth
@@ -36,6 +72,11 @@ package "fittrack_web" {
   component "DashboardLive" as DashboardLive
   component "WorkoutLive\nWorkoutHistoryLive" as WorkoutLive
   component "WorkoutPlanLive" as WorkoutPlanLive
+  component "ExerciseLibraryLive\n/exercises" as ExerciseLibraryLive
+  component "ExerciseLibraryDetailLive\n/exercises/:slug" as ExerciseLibraryDetailLive
+  component "AdminExerciseLibraryLive\n/admin/exercises" as AdminExerciseLibraryLive
+  component "ExerciseLive\n/my-exercises CRUD" as ExerciseLive
+  component "ExerciseTemplateImageController\n/exercise-media/:id\nfallback media" as MediaController
   component "NutritionLive" as NutritionLive
   component "MealLive\nFoodLive\nMealPlanLive" as MealLive
   component "assets/js app.js hooks" as AppJS
@@ -43,35 +84,67 @@ package "fittrack_web" {
 
 package "fittrack contexts" {
   component "Accounts" as Accounts
-  component "Training" as Training
+  component "Training context" as Training
   component "Nutrition" as Nutrition
+}
+
+package "Exercise media import/cache" {
+  component "Fittrack.Training.Wger.MediaClient" as WgerMediaClient
+  component "Fittrack.Training.ExerciseMediaBackfill" as Backfill
+  component "MediaValidator" as MediaValidator
+  component "ExerciseMediaCache" as ExerciseMediaCache
 }
 
 package "Persistence" {
   component "Fittrack.Repo" as Repo
-  database "Database tables" as Tables
+  database "PostgreSQL tables\nexercise_media metadata" as Tables
 }
 
+Browser --> Router : HTTP routes + LiveView websocket
 Router --> Auth
+Router --> MediaController
 Auth --> DashboardLive
 Auth --> WorkoutLive
 Auth --> WorkoutPlanLive
+Auth --> ExerciseLive
+Auth --> AdminExerciseLibraryLive
 Auth --> NutritionLive
 Auth --> MealLive
+Router --> ExerciseLibraryLive
+Router --> ExerciseLibraryDetailLive
 
 DashboardLive --> Layouts
 WorkoutLive --> Layouts
 WorkoutPlanLive --> Layouts
+ExerciseLibraryLive --> Layouts
+ExerciseLibraryDetailLive --> Layouts
+AdminExerciseLibraryLive --> Layouts
+ExerciseLive --> Layouts
 NutritionLive --> Layouts
 MealLive --> Layouts
 Layouts --> AppJS
 
-DashboardLive --> Training
+ExerciseLibraryLive --> Training
+ExerciseLibraryDetailLive --> Training
+AdminExerciseLibraryLive --> Training
+ExerciseLive --> Training
 WorkoutLive --> Training
 WorkoutPlanLive --> Training
+MediaController --> Training : load ExerciseMedia metadata
+MediaController --> MediaStorage : send_file cached media
 NutritionLive --> Nutrition
 MealLive --> Nutrition
 Router --> Accounts
+
+Operator --> Backfill : mix task
+Backfill --> WgerMediaClient : fetch media records
+WgerMediaClient --> WGER : Req API requests
+Backfill --> Training : match/upsert templates + media
+Backfill --> MediaValidator : validate URL/content
+MediaValidator --> WGER : HEAD/GET remote media metadata
+Backfill --> ExerciseMediaCache : cache valid media
+ExerciseMediaCache --> WGER : download media bytes
+ExerciseMediaCache --> MediaStorage : write files
 
 Accounts --> Repo
 Training --> Repo
@@ -80,7 +153,7 @@ Repo --> Tables
 @enduml
 
 @startuml Fittrack_Authenticated_Routing
-title Fittrack - Authenticated Route Flow
+title Fittrack - Route Scope Flow
 
 skinparam shadowing false
 
@@ -88,22 +161,38 @@ start
 :Browser request;
 :browser pipeline;
 :fetch_current_scope_for_user;
-if (authenticated?) then (yes)
+
+if (route requires login?) then (yes)
   :require_authenticated_user;
   :live_session :require_authenticated_user;
   :Mount LiveView with @current_scope;
   :Call context with current_scope;
   :Run user-scoped query;
 else (no)
-  :Redirect to log in;
+  if (current-user-aware public LiveView?) then (yes)
+    :live_session :current_user;
+    :mount_current_scope;
+    :Render public content with optional @current_scope;
+  else (controller route)
+    :Run controller action from :browser pipeline;
+  endif
 endif
 stop
 
 note right
-Authenticated app routes are under:
-- scope "/", FittrackWeb
-- pipe_through [:browser, :require_authenticated_user]
-- live_session :require_authenticated_user
+Authenticated app routes:
+- /dashboard
+- /my-exercises personal CRUD
+- /workout-plans, /workouts, /nutrition
+- /admin/exercises admin exercise dashboard
+
+Public/current-user-aware library routes:
+- /exercises
+- /exercises/:slug
+
+Controller media routes:
+- /exercise-media/:id safely serves cached media or SVG fallback
+- /exercise-template-images/:id serves primary cached/fallback media
 
 Use @current_scope.user in templates.
 Do not use @current_user.
@@ -124,20 +213,125 @@ class User {
 class Exercise {
   id
   user_id
+  source_template_id
   name
   primary_muscle
   equipment
   notes
-  source_template_id
+  custom_media
 }
 
 class ExerciseTemplate {
   id
   source_id
+  slug
+  canonical_slug
   name
   primary_muscle
+  secondary_muscles
   equipment
-  image_url
+  exercise_category
+  movement_pattern
+  difficulty
+  weighted_tags
+  training_style_tags
+  quality_score
+  is_verified
+  is_ai_generated
+  is_deprecated
+  normalized_name
+  normalized_equipment
+}
+
+class ExerciseAlias {
+  id
+  exercise_template_id
+  name
+  normalized_name
+  slug
+  kind
+  source
+  weight
+}
+
+class ExerciseMedia {
+  id
+  exercise_template_id
+  kind
+  source
+  source_id
+  source_exercise_id
+  source_url
+  cache_status
+  local_path
+  storage_key
+  content_hash
+  mime_type
+  file_size
+  display_order
+  is_primary
+  failure_reason
+  cached_at
+  checked_at
+}
+
+class ExerciseTemplateSource {
+  id
+  exercise_template_id
+  source
+  external_id
+  source_url
+  payload
+  imported_at
+}
+
+class Muscle {
+  id
+  name
+  normalized_name
+  region
+  source
+  source_id
+}
+
+class Equipment {
+  id
+  name
+  normalized_name
+  category
+  source
+  source_id
+}
+
+class ExerciseTemplateMuscle {
+  id
+  exercise_template_id
+  exercise_muscle_id
+  role
+  position
+}
+
+class ExerciseTemplateEquipment {
+  id
+  exercise_template_id
+  exercise_equipment_id
+  position
+}
+
+class ExerciseVariation {
+  id
+  base_exercise_template_id
+  variation_exercise_template_id
+  relationship
+  notes
+}
+
+class ExerciseSubstitution {
+  id
+  exercise_template_id
+  substitute_exercise_template_id
+  reason
+  priority
   notes
 }
 
@@ -169,6 +363,7 @@ class Workout {
   id
   user_id
   started_at
+  completed_at
   notes
 }
 
@@ -187,11 +382,30 @@ class WorkoutSet {
 User "1" --> "*" Exercise
 User "1" --> "*" WorkoutPlan
 User "1" --> "*" Workout
+ExerciseTemplate "1" --> "*" ExerciseAlias
+ExerciseTemplate "1" --> "*" ExerciseMedia
+ExerciseTemplate "1" --> "*" ExerciseTemplateSource
 ExerciseTemplate "1" --> "*" Exercise
+ExerciseTemplate "1" --> "*" ExerciseTemplateMuscle
+ExerciseTemplateMuscle "*" --> "1" Muscle
+ExerciseTemplate "1" --> "*" ExerciseTemplateEquipment
+ExerciseTemplateEquipment "*" --> "1" Equipment
+ExerciseTemplate "1" --> "*" ExerciseVariation : base
+ExerciseVariation "*" --> "1" ExerciseTemplate : variation
+ExerciseTemplate "1" --> "*" ExerciseSubstitution : base
+ExerciseSubstitution "*" --> "1" ExerciseTemplate : substitute
 WorkoutPlan "1" --> "*" WorkoutPlanExercise
 Exercise "1" --> "*" WorkoutPlanExercise
 Workout "1" --> "*" WorkoutSet
 Exercise "1" --> "*" WorkoutSet
+
+note right of ExerciseMedia
+Storage rule:
+- local_path/storage_key are relative paths only
+- files live under EXERCISE_MEDIA_STORAGE_ROOT
+- no DB binaries
+- no priv/static or deploy-managed static storage
+end note
 @enduml
 
 @startuml Fittrack_Nutrition_Domain
@@ -306,6 +520,101 @@ User -> WorkoutLive : Log performed set
 WorkoutLive -> Training : create_workout_set(current_scope, workout, attrs)
 Training -> Repo : Insert performed set
 Repo --> WorkoutLive : WorkoutSet
+@enduml
+
+@startuml Fittrack_Exercise_Media_Backfill_Flow
+title Fittrack - Exercise Media Backfill Flow
+
+skinparam shadowing false
+
+actor Operator
+participant "mix fittrack.backfill_exercise_media" as MixTask
+participant "ExerciseMediaBackfill" as Backfill
+participant "WGER MediaClient" as MediaClient
+participant "WGER API / media URLs" as WGER
+participant "Training context" as Training
+participant "MediaValidator" as Validator
+participant "ExerciseMediaCache" as Cache
+database "PostgreSQL\nexercise_media metadata" as DB
+collections "EXERCISE_MEDIA_STORAGE_ROOT\n<exercise_template_id>/<sha256>.<extension>" as MediaStorage
+
+Operator -> MixTask : Run backfill task
+MixTask -> MixTask : Load env\nEXERCISE_MEDIA_STORAGE_ROOT
+MixTask -> Backfill : run(opts)
+Backfill -> MediaClient : fetch_media(limit, media_type, api_key)
+MediaClient -> WGER : Fetch WGER media records
+WGER --> MediaClient : image/video media records
+MediaClient --> Backfill : records
+
+Backfill -> Backfill : Task.async_stream\nbounded concurrency\n(default 3)
+
+loop per media record
+  Backfill -> Training : find_template_for_wger_media(record)
+  alt template matched
+    Backfill -> Validator : validate_url(source_url)
+    Validator -> WGER : Validate URL/content
+    alt valid media
+      Backfill -> Training : upsert initial exercise_media
+      Training -> DB : Insert/update metadata
+      Backfill -> Cache : cache(media)
+      Cache -> WGER : Download bytes
+      Cache -> MediaStorage : Write file
+      Cache --> Backfill : relative local_path/storage_key
+      Backfill -> Training : update exercise_media cached fields
+      Training -> DB : Store relative paths + metadata only
+    else missing/skipped/stale/failed
+      Backfill -> Training : mark cache_status + failure_reason
+      Training -> DB : Update metadata only
+    end
+  else no template or unsupported input
+    Backfill -> Backfill : Count missing/skipped/failed
+  end
+end
+
+Backfill --> MixTask : Report counts
+MixTask --> Operator : fetched, cached, already_cached,\nmissing, skipped, stale, failed,\nexercises_with_no_media
+
+note right of DB
+No media bytes are stored in PostgreSQL.
+local_path and storage_key are relative paths.
+end note
+@enduml
+
+@startuml Fittrack_Public_Exercise_Media_Serving_Flow
+title Fittrack - Public Exercise Media Serving Flow
+
+skinparam shadowing false
+
+actor Browser
+participant "Router" as Router
+participant "ExerciseTemplateImageController" as Controller
+participant "Training context" as Training
+database "PostgreSQL\nexercise_media metadata" as DB
+collections "EXERCISE_MEDIA_STORAGE_ROOT" as MediaStorage
+
+Browser -> Router : GET /exercise-media/:id
+Router -> Controller : media(conn, id)
+Controller -> Training : get_exercise_media(id)
+Training -> DB : Load ExerciseMedia metadata
+DB --> Training : metadata row
+Training --> Controller : ExerciseMedia
+Controller -> Training : exercise_media_path(media)
+Training -> MediaStorage : Check cached file path
+
+alt cached file exists
+  MediaStorage --> Training : absolute file path
+  Training --> Controller : {:ok, path}
+  Controller --> Browser : send_file 200\ncontent-type = media.mime_type
+else missing, non-cached, invalid id, or read error
+  Training --> Controller : {:error, reason} or nil
+  Controller --> Browser : Safe SVG fallback\nimage/svg+xml
+end
+
+note right of DB
+DB stores metadata only.
+Media binaries are served from disk
+under EXERCISE_MEDIA_STORAGE_ROOT.
+end note
 @enduml
 
 @startuml Fittrack_Nutrition_Import_Flow
