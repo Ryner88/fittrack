@@ -18,18 +18,4 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- `[todo]` Remove leftover ignored Sparky runtime folder from production filesystem.
-   Scope:
-   - This is an external filesystem cleanup, not a Git change.
-   - Active repo search found no Sparky references in `lib`, `config`, `priv`,
-     `assets`, `README.md`, `deploy.sh`, or `mix.exs`.
-   - Local `sparkyfitness/` is absent.
-   - Remove `/opt/fittrack/sparkyfitness` when comfortable.
-   - Confirm `rg -i "sparky|sparkyfitness"` has no active app matches after
-     cleanup.
-   - No production database changes.
-   Verification:
-   - `/opt/fittrack/sparkyfitness` no longer exists or has been archived outside
-     the deploy directory
-   - `rg -i "sparky|sparkyfitness"` has no active app matches
-   - `git status --short` in `/opt/fittrack` remains clean
+No immediate priority fixes.

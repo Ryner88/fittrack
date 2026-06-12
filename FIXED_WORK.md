@@ -12,6 +12,20 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Production Sparky Runtime Folder Cleanup
+
+- Confirmed the ignored `sparkyfitness/` runtime folder is absent from
+  `/opt/fittrack`.
+- Ran the requested idempotent cleanup command:
+  `rm -rf sparkyfitness`.
+- Verified active app paths contain no Sparky references with:
+  `rg -i "sparky|sparkyfitness" lib config priv assets README.md deploy.sh mix.exs`.
+- Verified `ls -la sparkyfitness` returns:
+  `No such file or directory`.
+- Confirmed `git status --short` remained clean before recording this tracker
+  update.
+- No production database changes were made.
+
 ### Production Exercise Media Backfill Verification
 
 - Completed the limited production backfill verification after fast-forwarding
