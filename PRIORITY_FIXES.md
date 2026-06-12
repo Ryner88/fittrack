@@ -18,28 +18,6 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- `[todo]` Implement exercise media backfill concurrency.
-   Scope:
-   - `Fittrack.Training.ExerciseMediaBackfill` already receives/parses
-     `:concurrency`, but processing is still sequential.
-   - Use `Task.async_stream/3` with a safe default concurrency of `3`.
-   - Preserve `dry_run`, `skip_download`, `force_check`, `limit`, `media_type`,
-     and `exercise_id` behavior.
-   - Preserve idempotent upserts.
-   - Aggregate report counts deterministically:
-     `fetched`, `cached`, `already_cached`, `missing`, `skipped`, `stale`,
-     `failed`, and `exercises_with_no_media`.
-   - Handle task exits/timeouts as failed records where possible.
-   - Do not change storage behavior:
-     files stay under `EXERCISE_MEDIA_STORAGE_ROOT`, `local_path`/`storage_key`
-     stay relative, no `priv/static`, and no DB binaries.
-   Verification:
-   - `mix format`
-   - `mix precommit`
-   - tests proving concurrent cached/missing/skipped/stale/failed counts
-   - tests proving `already_cached` and `dry_run` behavior still work
-   - test proving the Mix task passes the concurrency option through
-
 - `[todo]` Run limited production exercise media backfill verification.
    Scope:
    - Run only after concurrency passes locally.

@@ -31,9 +31,9 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
       report =
         records
         |> maybe_filter_by_exercise(opts)
-        |> Enum.reduce(%{@empty_report | fetched: length(records)}, fn record, report ->
-          process_record(record, report, opts)
-        end)
+        |> process_records(opts)
+        |> merge_reports()
+        |> Map.update!(:fetched, &(&1 + length(records)))
         |> Map.put(:exercises_with_no_media, exercises_with_no_cached_media())
 
       {:ok, report}
@@ -51,40 +51,52 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
     )
   end
 
-  defp process_record(record, report, opts) do
+  defp process_records(records, opts) do
+    records
+    |> Task.async_stream(&process_record(&1, opts),
+      max_concurrency: Keyword.get(opts, :concurrency),
+      timeout: Keyword.get(opts, :timeout, :infinity),
+      on_timeout: :kill_task
+    )
+    |> Enum.map(fn
+      {:ok, report} -> report
+      {:exit, _reason} -> increment(@empty_report, :failed)
+    end)
+  end
+
+  defp process_record(record, opts) do
     cond do
       blank?(record.source_url) ->
-        record_missing(record, report, opts, "missing URL")
+        record_missing(record, opts, "missing URL")
 
       record.kind not in allowed_media_kinds(opts) ->
-        record_skipped(record, report, opts, "unsupported media type")
-
-      is_nil(Training.find_template_for_wger_media(record)) ->
-        increment(report, :missing)
+        record_skipped(record, opts, "unsupported media type")
 
       true ->
-        template = Training.find_template_for_wger_media(record)
-        persist_and_cache(template, record, report, opts)
+        case Training.find_template_for_wger_media(record) do
+          %ExerciseTemplate{} = template -> persist_and_cache(template, record, opts)
+          nil -> increment(@empty_report, :missing)
+        end
     end
   end
 
-  defp persist_and_cache(template, record, report, opts) do
+  defp persist_and_cache(template, record, opts) do
     media = upsert_initial_media(template, record, opts)
 
     cond do
       media.cache_status == "cached" and not Keyword.get(opts, :force_check, false) ->
-        increment(report, :already_cached)
+        increment(@empty_report, :already_cached)
 
       Keyword.get(opts, :skip_download, false) ->
         mark_media(media, %{cache_status: "skipped", failure_reason: "download skipped"}, opts)
-        increment(report, :skipped)
+        increment(@empty_report, :skipped)
 
       true ->
-        validate_and_cache(media, report, opts)
+        validate_and_cache(media, opts)
     end
   end
 
-  defp validate_and_cache(media, report, opts) do
+  defp validate_and_cache(media, opts) do
     validator = Keyword.get(opts, :validator, MediaValidator)
     cache = Keyword.get(opts, :cache, ExerciseMediaCache)
     http_client = Keyword.get(opts, :http_client, Req)
@@ -110,36 +122,36 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
               opts
             )
 
-            increment(report, :cached)
+            increment(@empty_report, :cached)
 
           {:error, :stale_url} ->
             mark_media(media, stale_attrs("stale URL", checked_at), opts)
-            increment(report, :stale)
+            increment(@empty_report, :stale)
 
           {:error, reason} ->
             mark_media(media, failure_attrs(reason, checked_at), opts)
-            increment(report, :failed)
+            increment(@empty_report, :failed)
         end
 
       {:error, :missing_url} ->
         mark_media(media, missing_attrs("missing URL", checked_at), opts)
-        increment(report, :missing)
+        increment(@empty_report, :missing)
 
       {:error, :invalid_url} ->
         mark_media(media, failure_attrs(:invalid_url, checked_at), opts)
-        increment(report, :failed)
+        increment(@empty_report, :failed)
 
       {:error, :unsupported_content_type} ->
         mark_media(media, skipped_attrs("unsupported content type", checked_at), opts)
-        increment(report, :skipped)
+        increment(@empty_report, :skipped)
 
       {:error, :stale_url} ->
         mark_media(media, stale_attrs("stale URL", checked_at), opts)
-        increment(report, :stale)
+        increment(@empty_report, :stale)
 
       {:error, reason} ->
         mark_media(media, failure_attrs(reason, checked_at), opts)
-        increment(report, :failed)
+        increment(@empty_report, :failed)
     end
   end
 
@@ -167,7 +179,7 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
     end
   end
 
-  defp record_missing(record, report, opts, reason) do
+  defp record_missing(record, opts, reason) do
     with %ExerciseTemplate{} = template <- Training.find_template_for_wger_media(record) do
       media = upsert_initial_media(template, record, opts)
 
@@ -178,10 +190,10 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
       )
     end
 
-    increment(report, :missing)
+    increment(@empty_report, :missing)
   end
 
-  defp record_skipped(record, report, opts, reason) do
+  defp record_skipped(record, opts, reason) do
     with %ExerciseTemplate{} = template <- Training.find_template_for_wger_media(record) do
       media = upsert_initial_media(template, record, opts)
 
@@ -192,7 +204,7 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
       )
     end
 
-    increment(report, :skipped)
+    increment(@empty_report, :skipped)
   end
 
   defp mark_media(media, attrs, opts) do
@@ -246,6 +258,16 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
     opts
     |> Keyword.put_new(:limit, 100)
     |> Keyword.put_new(:media_type, "all")
+    |> Keyword.update(:concurrency, 3, fn
+      concurrency when is_integer(concurrency) and concurrency > 0 -> concurrency
+      _invalid -> 3
+    end)
+  end
+
+  defp merge_reports(reports) do
+    Enum.reduce(reports, @empty_report, fn report, acc ->
+      Map.merge(acc, report, fn _key, left, right -> left + right end)
+    end)
   end
 
   defp increment(report, key), do: Map.update!(report, key, &(&1 + 1))

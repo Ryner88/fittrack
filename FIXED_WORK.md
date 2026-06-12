@@ -12,6 +12,16 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Exercise Media Backfill Concurrency
+
+- Implemented bounded concurrent exercise media backfill processing with `Task.async_stream/3`.
+- Added a safe default concurrency of `3` while preserving the parsed `--concurrency` option.
+- Kept `dry_run`, `skip_download`, `force_check`, `limit`, `media_type`, `exercise_id`, and idempotent upsert behavior intact.
+- Aggregated per-record reports deterministically for `fetched`, `cached`, `already_cached`, `missing`, `skipped`, `stale`, `failed`, and `exercises_with_no_media`.
+- Counted worker exits/timeouts as failed records.
+- Added regression coverage for concurrent cached/missing/skipped/stale/failed counts, dry-run no-write behavior, timeout failure accounting, idempotent already-cached behavior, and Mix task concurrency option forwarding.
+- Verified `mix precommit` passes with 236 tests and 0 failures.
+
 ### UI Polish And FitTrack README
 
 - Cleaned up visual consistency across the authenticated workspace without changing product behavior or database schema.
