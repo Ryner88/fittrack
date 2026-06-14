@@ -14,16 +14,37 @@ or materially addressed on the recent branches.
 
 ### Production Sparky Runtime Folder Cleanup
 
-- Confirmed the ignored `sparkyfitness/` runtime folder is absent from
-  `/opt/fittrack`.
-- Ran the requested idempotent cleanup command:
-  `rm -rf sparkyfitness`.
-- Verified active app paths contain no Sparky references with:
-  `rg -i "sparky|sparkyfitness" lib config priv assets README.md deploy.sh mix.exs`.
-- Verified `ls -la sparkyfitness` returns:
-  `No such file or directory`.
-- Confirmed `git status --short` remained clean before recording this tracker
-  update.
+- Fast-forwarded production from `ec7b8a9` to `6775ae0` before cleanup.
+- Confirmed `/opt/fittrack/sparkyfitness` was already absent, so there was no
+  folder to archive or remove.
+- Found and stopped one stale local Vite process still running from the old
+  Sparky checkout path on `127.0.0.1:3004`.
+- Confirmed no Sparky systemd units are active.
+- Confirmed no visible systemd config references Sparky; `/etc/nginx` is not
+  present on this host.
+- Removed the stale `/sparkyfitness/` ignore rule from `.gitignore`.
+- Verified the active app/reference scan is limited to historical or planning
+  documentation.
+- No production database changes were made.
+
+### Normalized Exercise Library Baseline
+
+- Confirmed the completed normalized exercise library foundation is tracked as
+  shipped work rather than open planning:
+  `exercise_templates`, aliases, media, normalized muscles/equipment, template
+  muscle/equipment links, variations, and substitutions are present.
+- Confirmed the WGER importer and media pipeline foundation is in place:
+  template import, source ids, normalized muscle/equipment persistence, media
+  reference import, media validation, and app-owned cache storage.
+- Confirmed the exercise media backfill contract is documented in
+  `EXERCISE_MEDIA_BACKFILL.md`.
+- Confirmed cached exercise media remains rooted at
+  `EXERCISE_MEDIA_STORAGE_ROOT`; media binaries should stay out of
+  `priv/static`, `assets`, deploy-managed static directories, and database
+  binaries.
+- Confirmed local DB readiness is no longer the current exercise media blocker:
+  migration `20260605144506_add_cache_fields_to_exercise_media` is applied and
+  the required cache fields exist.
 - No production database changes were made.
 
 ### Production Exercise Media Backfill Verification

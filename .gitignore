@@ -42,6 +42,3 @@ priv/data/
 
 node_modules/
 assets/node_modules/
-
-# Legacy Sparky deployment artifacts are not part of FitTrack.
-/sparkyfitness/

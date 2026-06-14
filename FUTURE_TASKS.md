@@ -11,35 +11,8 @@ This file is the broader roadmap beyond the immediate execution queue.
 
 ## Now
 
-No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` when it becomes active.
-
-## Current Exercise Library Status
-
-- Normalized exercise library mostly exists:
-  `exercise_templates`, aliases, media, normalized muscles/equipment, template
-  muscle/equipment links, variations, and substitutions are present.
-- WGER importer and media pipeline mostly exist:
-  template import, source ids, normalized muscle/equipment persistence, media
-  reference import, media validation, and app-owned cache storage are in place.
-- Exercise media backfill contract is documented in `EXERCISE_MEDIA_BACKFILL.md`.
-- `EXERCISE_MEDIA_STORAGE_ROOT` remains the media storage root. Cached exercise
-  media must not be stored in `priv/static`, `assets`, deploy-managed static
-  directories, or DB binaries.
-- Local DB readiness for exercise media is no longer the current blocker:
-  `20260605144506_add_cache_fields_to_exercise_media` is applied locally and the
-  required `exercise_media` cache fields exist: `cache_status`, `checked_at`,
-  `content_hash`, `display_order`, `duration_seconds`, `file_size`, `local_path`,
-  `source_exercise_id`, and `storage_key`.
-- Non-blocking local migration history drift remains:
-  `20260502000000` is recorded as applied locally but has no migration file in
-  the repo. Do not reset or delete migration rows unless it starts blocking local
-  migration or rollback workflows.
-- Production data was not touched while resolving local DB readiness.
-- Sparky cleanup status:
-  no active repo references to `sparky`/`sparkyfitness` are present, and the
-  local ignored `sparkyfitness/` folder is absent. Production had a stale ignored
-  Sparky checkout under `/opt/fittrack/sparkyfitness`; archive/remove it outside
-  the FitTrack deploy directory rather than committing anything here.
+Roadmap items are organized below. Promote only the active next item into
+`PRIORITY_FIXES.md` when it becomes delivery work.
 
 ## Next
 
@@ -64,16 +37,6 @@ No immediate roadmap items. Promote work from `Next` into `PRIORITY_FIXES.md` wh
   - decide whether dedicated `exercise_categories` and `exercise_tags` tables are
     worth adding before admin CRUD expands.
   - avoid introducing tables until the query/UI benefit is clear.
-
-- Build admin CRUD for shared exercise templates.
-  Status:
-  - `/admin/exercises` currently works more like an internal dashboard, metrics,
-    and recent imports view.
-  Scope:
-  - add create/edit/delete/search/review workflows for shared exercise templates.
-  - include media status review.
-  - include alias/tag/source visibility.
-  - keep destructive actions protected.
 
 - Add public category and muscle routes.
   Scope:
