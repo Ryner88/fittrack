@@ -42,3 +42,10 @@ priv/data/
 
 node_modules/
 assets/node_modules/
+
+# Environment / secrets
+.env
+.env.*
+*.env
+fittrack.env
+!.env.example
