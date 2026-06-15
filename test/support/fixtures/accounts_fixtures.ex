@@ -8,6 +8,7 @@ defmodule Fittrack.AccountsFixtures do
 
   alias Fittrack.Accounts
   alias Fittrack.Accounts.Scope
+  alias Fittrack.Repo
 
   def unique_user_email, do: "user#{System.unique_integer()}@example.com"
   def valid_user_password, do: "hello world!"
@@ -30,6 +31,8 @@ defmodule Fittrack.AccountsFixtures do
   end
 
   def user_fixture(attrs \\ %{}) do
+    is_admin = Map.get(attrs, :is_admin, false)
+    attrs = Map.drop(attrs, [:is_admin])
     user = unconfirmed_user_fixture(attrs)
 
     token =
@@ -40,7 +43,13 @@ defmodule Fittrack.AccountsFixtures do
     {:ok, {user, _expired_tokens}} =
       Accounts.login_user_by_magic_link(token)
 
-    user
+    if is_admin do
+      user
+      |> Ecto.Changeset.change(is_admin: true)
+      |> Repo.update!()
+    else
+      user
+    end
   end
 
   def user_scope_fixture do

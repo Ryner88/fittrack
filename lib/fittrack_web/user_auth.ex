@@ -230,6 +230,21 @@ defmodule FittrackWeb.UserAuth do
     end
   end
 
+  def on_mount(:require_admin, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    if admin_scope?(socket.assigns.current_scope) do
+      {:cont, socket}
+    else
+      socket =
+        socket
+        |> Phoenix.LiveView.put_flash(:error, "You must be an admin to access this page.")
+        |> Phoenix.LiveView.redirect(to: ~p"/dashboard")
+
+      {:halt, socket}
+    end
+  end
+
   def on_mount(:require_sudo_mode, _params, session, socket) do
     socket = mount_current_scope(socket, session)
 
@@ -278,6 +293,23 @@ defmodule FittrackWeb.UserAuth do
       |> halt()
     end
   end
+
+  @doc """
+  Plug for routes that require the user to be authenticated as an admin.
+  """
+  def require_admin_user(conn, _opts) do
+    if admin_scope?(conn.assigns.current_scope) do
+      conn
+    else
+      conn
+      |> put_flash(:error, "You must be an admin to access this page.")
+      |> redirect(to: ~p"/dashboard")
+      |> halt()
+    end
+  end
+
+  defp admin_scope?(%Scope{user: %Accounts.User{is_admin: true}}), do: true
+  defp admin_scope?(_scope), do: false
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do
     put_session(conn, :user_return_to, current_path(conn))

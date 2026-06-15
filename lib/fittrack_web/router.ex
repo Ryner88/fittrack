@@ -67,9 +67,6 @@ defmodule FittrackWeb.Router do
       live "/my-exercises/:id/edit", ExerciseLive.Form, :edit
       live "/my-exercises/:id", ExerciseLive.Show, :show
 
-      # Exercise Admin
-      live "/admin/exercises", Admin.ExerciseLibraryLive, :index
-
       # Workout Plans
       live "/workout-plans", WorkoutPlanLive.Index, :index
       live "/workout-plans/generator", WorkoutPlanLive.Generator, :new
@@ -104,6 +101,19 @@ defmodule FittrackWeb.Router do
     end
 
     post "/users/update-password", UserSessionController, :update_password
+  end
+
+  scope "/", FittrackWeb do
+    pipe_through [:browser, :require_authenticated_user, :require_admin_user]
+
+    live_session :require_admin_user,
+      on_mount: [{FittrackWeb.UserAuth, :require_admin}] do
+      # Exercise Admin: authenticated admin-only CRUD for shared exercise templates.
+      live "/admin/exercises", Admin.ExerciseLibraryLive, :index
+      live "/admin/exercises/new", Admin.ExerciseLibraryLive, :new
+      live "/admin/exercises/:id", Admin.ExerciseLibraryLive, :show
+      live "/admin/exercises/:id/edit", Admin.ExerciseLibraryLive, :edit
+    end
   end
 
   scope "/", FittrackWeb do

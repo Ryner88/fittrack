@@ -12,6 +12,39 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Admin Shared Exercise Template CRUD
+
+- Added admin-only CRUD for shared exercise templates under the authenticated
+  admin router scope:
+  - `scope "/", FittrackWeb`
+  - `pipe_through [:browser, :require_authenticated_user, :require_admin_user]`
+  - `live_session :require_admin_user`
+  This keeps the admin library behind both login and the new admin flag while
+  preserving `current_scope` assignment.
+- Added a minimal `users.is_admin` flag with router plug and LiveView `on_mount`
+  enforcement so non-admin authenticated users cannot access `/admin/exercises`.
+- Expanded `/admin/exercises` from a read-only metrics page into an admin
+  workflow for listing, searching/filtering, viewing review details, creating,
+  editing, and archiving shared templates.
+- Search/filter support covers name, slug, alias, source, tag, muscle,
+  equipment, media status, review status, category, and difficulty.
+- Reused normalized exercise library structures for aliases, weighted tags,
+  template source metadata/payloads, normalized muscles, normalized equipment,
+  and media review.
+- Media review distinguishes cached media, remote-only media, missing media, and
+  failed/stale media, and surfaces source URLs, cached paths, failure reasons,
+  and provider attribution.
+- Destructive behavior intentionally archives via
+  `exercise_templates.is_deprecated`; hard delete was not implemented to avoid
+  accidental cascades into normalized library relationships or user workout data.
+- Deferred direct media file editing/recache controls to the importer/backfill
+  pipeline; admin media support in this work is review/status visibility only.
+- Added regression coverage for admin list/search, create, edit, review details,
+  archive confirmation, and admin access protection.
+- Verified:
+  - `mix test test/fittrack_web/live/admin/exercise_library_live_test.exs`
+  - `mix test test/fittrack/training`
+
 ### Production Sparky Runtime Folder Cleanup
 
 - Fast-forwarded production from `ec7b8a9` to `6775ae0` before cleanup.
@@ -45,7 +78,6 @@ or materially addressed on the recent branches.
 - Confirmed local DB readiness is no longer the current exercise media blocker:
   migration `20260605144506_add_cache_fields_to_exercise_media` is applied and
   the required cache fields exist.
-- No production database changes were made.
 
 ### Production Exercise Media Backfill Verification
 
