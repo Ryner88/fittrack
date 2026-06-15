@@ -284,6 +284,80 @@ defmodule Fittrack.Training do
     }
   end
 
+  def admin_exercise_template_filter_options do
+    base_options = exercise_template_filter_options()
+
+    Map.merge(base_options, %{
+      sources:
+        ExerciseTemplateSource
+        |> where([source], not is_nil(source.source) and source.source != "")
+        |> distinct(true)
+        |> order_by([source], asc: source.source)
+        |> select([source], source.source)
+        |> Repo.all(),
+      tags:
+        ExerciseTemplate
+        |> where([template], not is_nil(template.weighted_tags))
+        |> select([template], template.weighted_tags)
+        |> Repo.all()
+        |> List.flatten()
+        |> Enum.reject(&(&1 in [nil, ""]))
+        |> Enum.uniq()
+        |> Enum.sort(),
+      media_statuses: [
+        "cached",
+        "remote_only",
+        "missing_media",
+        "missing",
+        "failed",
+        "stale",
+        "skipped",
+        "queued"
+      ],
+      review_statuses: ["needs_review", "verified", "archived", "ai_generated"]
+    })
+  end
+
+  def paginate_admin_exercise_templates(opts \\ %{}) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    page = opts |> get_option(:page, 1) |> parse_positive_integer(1)
+    per_page = opts |> get_option(:per_page, 20) |> parse_positive_integer(20) |> min(100)
+
+    query =
+      ExerciseTemplate
+      |> maybe_filter_admin_templates(get_option(opts, :search))
+      |> maybe_filter_by_muscle_group(get_option(opts, :muscle_group))
+      |> maybe_filter_by_equipment(get_option(opts, :equipment))
+      |> maybe_filter_by_category(get_option(opts, :category))
+      |> maybe_filter_by_difficulty(get_option(opts, :difficulty))
+      |> maybe_filter_by_source(get_option(opts, :source))
+      |> maybe_filter_by_tag(get_option(opts, :tag))
+      |> maybe_filter_by_media_status(get_option(opts, :media_status))
+      |> maybe_filter_by_review_status(get_option(opts, :review_status))
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = min(page, total_pages)
+
+    preloads = admin_template_preloads()
+
+    templates =
+      query
+      |> order_by([template], desc: template.updated_at, asc: template.name)
+      |> preload(^preloads)
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      entries: templates,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
   def list_matching_exercise_templates(search, opts \\ %{}) do
     opts = if is_list(opts), do: Map.new(opts), else: opts
 
@@ -323,6 +397,42 @@ defmodule Fittrack.Training do
     ExerciseTemplate
     |> preload(:media)
     |> Repo.get(id)
+  end
+
+  def get_admin_exercise_template!(id) do
+    preloads = admin_template_preloads()
+
+    ExerciseTemplate
+    |> preload(^preloads)
+    |> Repo.get!(id)
+  end
+
+  def change_exercise_template(%ExerciseTemplate{} = template, attrs \\ %{}) do
+    ExerciseTemplate.changeset(template, attrs)
+  end
+
+  def create_exercise_template(attrs) when is_map(attrs) do
+    {template_attrs, related_attrs} = split_admin_template_attrs(attrs)
+
+    %ExerciseTemplate{}
+    |> ExerciseTemplate.changeset(template_attrs)
+    |> Repo.insert()
+    |> sync_admin_template_relations(related_attrs)
+  end
+
+  def update_exercise_template(%ExerciseTemplate{} = template, attrs) when is_map(attrs) do
+    {template_attrs, related_attrs} = split_admin_template_attrs(attrs)
+
+    template
+    |> ExerciseTemplate.changeset(template_attrs)
+    |> Repo.update()
+    |> sync_admin_template_relations(related_attrs)
+  end
+
+  def archive_exercise_template(%ExerciseTemplate{} = template) do
+    template
+    |> ExerciseTemplate.changeset(%{is_deprecated: true, is_verified: false})
+    |> Repo.update()
   end
 
   def get_exercise_media(id) do
@@ -573,6 +683,226 @@ defmodule Fittrack.Training do
 
   def add_template_to_user(_, _template_id), do: {:error, :unauthorized}
 
+  defp admin_template_preloads do
+    [
+      :aliases,
+      :media,
+      :template_sources,
+      template_muscles: [:exercise_muscle],
+      template_equipment: [:exercise_equipment]
+    ]
+  end
+
+  defp split_admin_template_attrs(attrs) do
+    attrs = normalize_admin_template_attrs(attrs)
+
+    related_keys = [
+      "aliases_text",
+      "muscle_names",
+      "equipment_names",
+      "source_name",
+      "source_external_id",
+      "source_url",
+      "source_payload"
+    ]
+
+    {Map.drop(attrs, related_keys), Map.take(attrs, related_keys)}
+  end
+
+  defp normalize_admin_template_attrs(attrs) do
+    attrs
+    |> stringify_admin_keys()
+    |> normalize_admin_array_field("secondary_muscles")
+    |> normalize_admin_array_field("weighted_tags")
+    |> normalize_admin_array_field("training_style_tags")
+    |> normalize_admin_source_id()
+  end
+
+  defp normalize_admin_array_field(attrs, field) do
+    Map.update(attrs, field, [], &split_admin_text/1)
+  end
+
+  defp normalize_admin_source_id(%{"source_id" => ""} = attrs),
+    do: Map.put(attrs, "source_id", nil)
+
+  defp normalize_admin_source_id(attrs), do: attrs
+
+  defp sync_admin_template_relations({:ok, %ExerciseTemplate{} = template}, related_attrs) do
+    case sync_admin_template_relations(template, related_attrs) do
+      {:ok, template} -> {:ok, template}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp sync_admin_template_relations({:error, changeset}, _related_attrs), do: {:error, changeset}
+
+  defp sync_admin_template_relations(%ExerciseTemplate{} = template, related_attrs) do
+    Repo.transaction(fn ->
+      template
+      |> sync_template_aliases(Map.get(related_attrs, "aliases_text"))
+      |> sync_template_muscles(Map.get(related_attrs, "muscle_names"))
+      |> sync_template_equipment(Map.get(related_attrs, "equipment_names"))
+      |> sync_template_source(related_attrs)
+      |> Repo.preload(admin_template_preloads(), force: true)
+    end)
+  end
+
+  defp sync_template_aliases(template, aliases_text) when is_binary(aliases_text) do
+    aliases = split_admin_text(aliases_text)
+
+    Repo.delete_all(
+      from exercise_alias in ExerciseAlias,
+        where: exercise_alias.exercise_template_id == ^template.id
+    )
+
+    Enum.each(aliases, fn alias_name ->
+      %ExerciseAlias{}
+      |> ExerciseAlias.changeset(%{
+        exercise_template_id: template.id,
+        name: alias_name,
+        kind: "alias",
+        source: "admin",
+        weight: 5
+      })
+      |> Repo.insert!()
+    end)
+
+    template
+  end
+
+  defp sync_template_aliases(template, _aliases_text), do: template
+
+  defp sync_template_muscles(template, muscle_names) when is_binary(muscle_names) do
+    muscles = split_admin_text(muscle_names)
+
+    Repo.delete_all(
+      from template_muscle in ExerciseTemplateMuscle,
+        where: template_muscle.exercise_template_id == ^template.id
+    )
+
+    Enum.with_index(muscles)
+    |> Enum.each(fn {name, position} ->
+      muscle = get_or_create_exercise_muscle!(name)
+
+      %ExerciseTemplateMuscle{}
+      |> ExerciseTemplateMuscle.changeset(%{
+        exercise_template_id: template.id,
+        exercise_muscle_id: muscle.id,
+        role: if(position == 0, do: "primary", else: "secondary"),
+        position: position
+      })
+      |> Repo.insert!()
+    end)
+
+    template
+  end
+
+  defp sync_template_muscles(template, _muscle_names), do: template
+
+  defp sync_template_equipment(template, equipment_names) when is_binary(equipment_names) do
+    equipment_names = split_admin_text(equipment_names)
+
+    Repo.delete_all(
+      from template_equipment in ExerciseTemplateEquipment,
+        where: template_equipment.exercise_template_id == ^template.id
+    )
+
+    Enum.with_index(equipment_names)
+    |> Enum.each(fn {name, position} ->
+      equipment = get_or_create_exercise_equipment!(name)
+
+      %ExerciseTemplateEquipment{}
+      |> ExerciseTemplateEquipment.changeset(%{
+        exercise_template_id: template.id,
+        exercise_equipment_id: equipment.id,
+        position: position
+      })
+      |> Repo.insert!()
+    end)
+
+    template
+  end
+
+  defp sync_template_equipment(template, _equipment_names), do: template
+
+  defp sync_template_source(template, related_attrs) do
+    source = related_attrs |> Map.get("source_name") |> normalize_optional_text()
+    external_id = related_attrs |> Map.get("source_external_id") |> normalize_optional_text()
+
+    if source && external_id do
+      source_record =
+        Repo.get_by(ExerciseTemplateSource, source: source, external_id: external_id) ||
+          %ExerciseTemplateSource{}
+
+      payload =
+        related_attrs
+        |> Map.get("source_payload")
+        |> decode_admin_payload()
+
+      source_record
+      |> ExerciseTemplateSource.changeset(%{
+        exercise_template_id: template.id,
+        source: source,
+        external_id: external_id,
+        source_url: related_attrs |> Map.get("source_url") |> normalize_optional_text(),
+        payload: payload || %{},
+        imported_at: DateTime.utc_now(:second)
+      })
+      |> Repo.insert_or_update!()
+    end
+
+    template
+  end
+
+  defp get_or_create_exercise_muscle!(name) do
+    normalized_name = Normalizer.normalize_text(name)
+
+    Repo.get_by(ExerciseMuscle, normalized_name: normalized_name) ||
+      %ExerciseMuscle{}
+      |> ExerciseMuscle.changeset(%{name: name, source: "admin"})
+      |> Repo.insert!()
+  end
+
+  defp get_or_create_exercise_equipment!(name) do
+    normalized_name = Normalizer.normalize_text(name)
+
+    Repo.get_by(ExerciseEquipment, normalized_name: normalized_name) ||
+      %ExerciseEquipment{}
+      |> ExerciseEquipment.changeset(%{name: name, source: "admin"})
+      |> Repo.insert!()
+  end
+
+  defp decode_admin_payload(value) when value in [nil, ""], do: %{}
+
+  defp decode_admin_payload(value) when is_binary(value) do
+    case Jason.decode(value) do
+      {:ok, payload} when is_map(payload) -> payload
+      _ -> %{"raw" => value}
+    end
+  end
+
+  defp decode_admin_payload(value) when is_map(value), do: value
+  defp decode_admin_payload(_value), do: %{}
+
+  defp stringify_admin_keys(attrs) do
+    Map.new(attrs, fn
+      {key, value} when is_atom(key) -> {Atom.to_string(key), value}
+      {key, value} -> {key, value}
+    end)
+  end
+
+  defp split_admin_text(value) when is_list(value), do: Enum.flat_map(value, &split_admin_text/1)
+
+  defp split_admin_text(value) when is_binary(value) do
+    value
+    |> String.split([",", "\n"], trim: true)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+  end
+
+  defp split_admin_text(_value), do: []
+
   defp count_templates_missing(field) do
     ExerciseTemplate
     |> where([template], is_nil(field(template, ^field)) or field(template, ^field) == "")
@@ -808,6 +1138,34 @@ defmodule Fittrack.Training do
     end
   end
 
+  defp maybe_filter_admin_templates(query, search) when search in [nil, ""], do: query
+
+  defp maybe_filter_admin_templates(query, search) do
+    search = String.trim(search)
+    like = "%#{search}%"
+    normalized = Normalizer.normalize_text(search)
+
+    query
+    |> join(:left, [template], exercise_alias in assoc(template, :aliases), as: :admin_alias)
+    |> join(:left, [template], template_source in assoc(template, :template_sources),
+      as: :admin_source
+    )
+    |> where(
+      [template, admin_alias: exercise_alias, admin_source: template_source],
+      ilike(template.name, ^like) or
+        ilike(template.slug, ^like) or
+        ilike(template.primary_muscle, ^like) or
+        ilike(template.equipment, ^like) or
+        ilike(template.normalized_name, ^like) or
+        ilike(exercise_alias.name, ^like) or
+        ilike(exercise_alias.normalized_name, ^like) or
+        ilike(template_source.source, ^like) or
+        ilike(template_source.external_id, ^like) or
+        fragment("? = ANY(?)", ^normalized, template.weighted_tags)
+    )
+    |> distinct([template], template.id)
+  end
+
   defp maybe_filter_by_muscle_group(query, nil), do: query
   defp maybe_filter_by_muscle_group(query, ""), do: query
 
@@ -833,9 +1191,87 @@ defmodule Fittrack.Training do
     if equipment_terms == [] do
       query
     else
-      where(query, [template], fragment("lower(?)", template.equipment) in ^equipment_terms)
+      where(
+        query,
+        [template],
+        fragment("lower(?)", template.equipment) in ^equipment_terms or
+          fragment(
+            "EXISTS (SELECT 1 FROM exercise_template_equipment ete JOIN exercise_equipment ee ON ee.id = ete.exercise_equipment_id WHERE ete.exercise_template_id = ? AND lower(ee.name) = ANY(?))",
+            template.id,
+            ^equipment_terms
+          )
+      )
     end
   end
+
+  defp maybe_filter_by_source(query, nil), do: query
+  defp maybe_filter_by_source(query, ""), do: query
+
+  defp maybe_filter_by_source(query, source) do
+    where(
+      query,
+      [template],
+      fragment(
+        "EXISTS (SELECT 1 FROM exercise_template_sources ets WHERE ets.exercise_template_id = ? AND ets.source = ?)",
+        template.id,
+        ^source
+      )
+    )
+  end
+
+  defp maybe_filter_by_tag(query, nil), do: query
+  defp maybe_filter_by_tag(query, ""), do: query
+
+  defp maybe_filter_by_tag(query, tag) do
+    where(query, [template], fragment("? = ANY(?)", ^tag, template.weighted_tags))
+  end
+
+  defp maybe_filter_by_media_status(query, nil), do: query
+  defp maybe_filter_by_media_status(query, ""), do: query
+
+  defp maybe_filter_by_media_status(query, "missing_media") do
+    where(
+      query,
+      [template],
+      fragment(
+        "NOT EXISTS (SELECT 1 FROM exercise_media em WHERE em.exercise_template_id = ?)",
+        template.id
+      )
+    )
+  end
+
+  defp maybe_filter_by_media_status(query, status) do
+    where(
+      query,
+      [template],
+      fragment(
+        "EXISTS (SELECT 1 FROM exercise_media em WHERE em.exercise_template_id = ? AND em.cache_status = ?)",
+        template.id,
+        ^status
+      )
+    )
+  end
+
+  defp maybe_filter_by_review_status(query, nil), do: query
+  defp maybe_filter_by_review_status(query, ""), do: query
+
+  defp maybe_filter_by_review_status(query, "needs_review") do
+    where(query, [template], not template.is_verified and not template.is_deprecated)
+  end
+
+  defp maybe_filter_by_review_status(query, "verified") do
+    where(query, [template], template.is_verified)
+  end
+
+  defp maybe_filter_by_review_status(query, "archived") do
+    where(query, [template], template.is_deprecated)
+  end
+
+  defp maybe_filter_by_review_status(query, "ai_generated") do
+    where(query, [template], template.is_ai_generated)
+  end
+
+  defp maybe_filter_by_review_status(query, _status), do: query
 
   defp maybe_filter_by_category(query, nil), do: query
   defp maybe_filter_by_category(query, ""), do: query
@@ -861,6 +1297,10 @@ defmodule Fittrack.Training do
   end
 
   defp parse_positive_integer(_value, default), do: default
+
+  defp get_option(opts, key, default \\ nil) do
+    Map.get(opts, key, Map.get(opts, to_string(key), default))
+  end
 
   defp maybe_search_exercise_templates(query, ""), do: query
 
