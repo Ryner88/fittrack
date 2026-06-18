@@ -227,7 +227,11 @@ defmodule FittrackWeb.LibraryLive.Index do
               loading="lazy"
             />
           <% else %>
-            <div class="flex h-full items-center justify-center bg-gradient-to-br from-base-200 to-base-300">
+            <div
+              id={"exercise-card-media-placeholder-#{@template.id}"}
+              data-media-placeholder="true"
+              class="flex h-full items-center justify-center bg-gradient-to-br from-base-200 to-base-300"
+            >
               <.icon name="hero-bolt" class="h-10 w-10 text-base-content/25" />
             </div>
           <% end %>

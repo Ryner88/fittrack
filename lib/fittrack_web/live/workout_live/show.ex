@@ -354,7 +354,11 @@ defmodule FittrackWeb.WorkoutLive.Show do
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-start gap-3">
-                      <.media_thumb src={exercise_media_url(template)} name={template.name} />
+                      <.media_thumb
+                        id={"library-template-media-#{template.id}"}
+                        src={exercise_media_url(template)}
+                        name={template.name}
+                      />
                       <div class="min-w-0">
                         <p class="truncate text-sm font-semibold text-base-content">
                           {template.name}
@@ -658,7 +662,11 @@ defmodule FittrackWeb.WorkoutLive.Show do
           class="flex items-center justify-between rounded-xl border border-base-200 px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:text-primary"
         >
           <span class="flex min-w-0 items-center gap-3">
-            <.media_thumb src={exercise_media_url(exercise)} name={exercise.name} />
+            <.media_thumb
+              id={"#{@id_prefix}-shortcut-media-#{exercise.id}"}
+              src={exercise_media_url(exercise)}
+              name={exercise.name}
+            />
             <span class="min-w-0">
               <span class="block truncate font-semibold">{exercise.name}</span>
               <span class="text-xs text-base-content/60">{format_exercise_meta(exercise)}</span>
@@ -671,6 +679,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
     """
   end
 
+  attr :id, :string, default: nil
   attr :src, :string, default: nil
   attr :name, :string, required: true
 
@@ -678,13 +687,18 @@ defmodule FittrackWeb.WorkoutLive.Show do
     ~H"""
     <%= if @src do %>
       <img
+        id={@id}
         src={@src}
         alt={"#{@name} exercise reference"}
         class="h-10 w-10 shrink-0 rounded-lg object-cover"
         loading="lazy"
       />
     <% else %>
-      <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-base-200">
+      <span
+        id={@id}
+        data-media-placeholder="true"
+        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-base-200"
+      >
         <.icon name="hero-bolt" class="h-5 w-5 text-base-content/25" />
       </span>
     <% end %>

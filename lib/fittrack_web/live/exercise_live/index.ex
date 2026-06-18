@@ -128,7 +128,14 @@ defmodule FittrackWeb.ExerciseLive.Index do
         />
       </div>
     <% else %>
-      <span class="block h-12 w-12" aria-hidden="true"></span>
+      <span
+        id={"exercise-thumbnail-placeholder-#{@exercise.id}"}
+        data-media-placeholder="true"
+        class="flex h-12 w-12 items-center justify-center rounded-lg bg-base-200"
+        aria-hidden="true"
+      >
+        <.icon name="hero-bolt" class="h-5 w-5 text-base-content/25" />
+      </span>
     <% end %>
     """
   end

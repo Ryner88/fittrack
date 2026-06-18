@@ -87,7 +87,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert has_element?(view, ~s(option[value="#{substitute.id}"][selected]))
   end
 
-  test "workout logging library rows render safe placeholders for noncached media", %{conn: conn} do
+  test "workout logging library rows render app placeholders for noncached media", %{conn: conn} do
     user = Fittrack.AccountsFixtures.user_fixture()
     scope = %Scope{user: user}
 
@@ -114,8 +114,9 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     conn = log_in_user(conn, user)
     {:ok, view, html} = live(conn, ~p"/workouts/#{workout}")
 
-    assert has_element?(view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+    assert has_element?(view, "#library-template-media-#{template.id}[data-media-placeholder]")
     refute html =~ template.image_url
+    refute html =~ "/exercise-template-images/#{template.id}"
   end
 
   test "workout logging library rows render cached primary media", %{conn: conn} do

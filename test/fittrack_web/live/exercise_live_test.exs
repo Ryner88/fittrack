@@ -41,7 +41,7 @@ defmodule FittrackWeb.ExerciseLiveTest do
       assert html =~ exercise.name
     end
 
-    test "renders safe placeholders for failed source media", %{conn: conn, user: user} do
+    test "renders app placeholders for failed source media", %{conn: conn, user: user} do
       scope = %Fittrack.Accounts.Scope{user: user}
 
       {:ok, template} =
@@ -73,12 +73,14 @@ defmodule FittrackWeb.ExerciseLiveTest do
       conn = log_in_user(conn, user)
       {:ok, index_view, index_html} = live(conn, ~p"/my-exercises")
 
-      assert has_element?(index_view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+      assert has_element?(index_view, "#exercise-thumbnail-placeholder-#{exercise.id}")
       refute index_html =~ template.image_url
+      refute index_html =~ "/exercise-template-images/#{template.id}"
 
       {:ok, show_view, show_html} = live(conn, ~p"/my-exercises/#{exercise}")
-      assert has_element?(show_view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+      refute has_element?(show_view, "#exercise-image")
       refute show_html =~ template.image_url
+      refute show_html =~ "/exercise-template-images/#{template.id}"
     end
 
     test "renders exercise images through the local proxy", %{conn: conn, user: user} do
