@@ -105,27 +105,18 @@ defmodule FittrackWeb.LibraryLive.Show do
           <div class="space-y-6">
             <% media_urls = exercise_media_urls(@template) %>
             <section
+              :if={media_urls != []}
               id="exercise-media"
               class="overflow-hidden rounded-lg border border-base-200 bg-base-100 shadow-sm"
             >
-              <%= if media_urls == [] do %>
-                <div
-                  id={"exercise-detail-media-placeholder-#{@template.id}"}
-                  data-media-placeholder="true"
-                  class="flex aspect-[16/9] items-center justify-center bg-gradient-to-br from-base-200 to-base-300"
-                >
-                  <.icon name="hero-bolt" class="h-12 w-12 text-base-content/25" />
-                </div>
-              <% else %>
-                <div class="grid gap-2">
-                  <img
-                    :for={media_url <- media_urls}
-                    src={media_url}
-                    alt={"#{@template.name} exercise reference"}
-                    class="max-h-[34rem] w-full object-cover"
-                  />
-                </div>
-              <% end %>
+              <div class="grid gap-2">
+                <img
+                  :for={media_url <- media_urls}
+                  src={media_url}
+                  alt={"#{@template.name} exercise reference"}
+                  class="max-h-[34rem] w-full object-cover"
+                />
+              </div>
             </section>
 
             <section

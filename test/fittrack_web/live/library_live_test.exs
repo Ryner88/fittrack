@@ -82,7 +82,9 @@ defmodule FittrackWeb.LibraryLiveTest do
     assert html =~ "Powerlifting"
   end
 
-  test "library index and detail use app placeholders for noncached media", %{conn: conn} do
+  test "library index and detail omit oversized media placeholders for noncached media", %{
+    conn: conn
+  } do
     template =
       template_fixture(
         name: "Stale Media Row",
@@ -99,12 +101,13 @@ defmodule FittrackWeb.LibraryLiveTest do
     })
 
     {:ok, index_view, index_html} = live(conn, ~p"/exercises")
-    assert has_element?(index_view, "#exercise-card-media-placeholder-#{template.id}")
+    assert has_element?(index_view, "#exercise-library-results")
+    refute has_element?(index_view, "#exercise-card-media-placeholder-#{template.id}")
     refute index_html =~ template.image_url
     refute index_html =~ "/exercise-template-images/#{template.id}"
 
     {:ok, show_view, show_html} = live(conn, ~p"/exercises/#{template.slug}")
-    assert has_element?(show_view, "#exercise-detail-media-placeholder-#{template.id}")
+    refute has_element?(show_view, "#exercise-media")
     refute show_html =~ template.image_url
     refute show_html =~ "/exercise-template-images/#{template.id}"
   end

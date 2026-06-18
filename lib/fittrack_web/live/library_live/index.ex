@@ -213,28 +213,19 @@ defmodule FittrackWeb.LibraryLive.Index do
 
   defp exercise_card(assigns) do
     ~H"""
+    <% media_url = exercise_media_url(@template) %>
     <article
       id={@id}
       class="group flex h-full flex-col overflow-hidden rounded-2xl border border-base-200 bg-base-100 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
     >
-      <.link navigate={~p"/exercises/#{@template.slug}"} class="block">
+      <.link :if={media_url} navigate={~p"/exercises/#{@template.slug}"} class="block">
         <div class="aspect-[16/10] bg-base-200">
-          <%= if media_url = exercise_media_url(@template) do %>
-            <img
-              src={media_url}
-              alt={"#{@template.name} exercise reference"}
-              class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
-              loading="lazy"
-            />
-          <% else %>
-            <div
-              id={"exercise-card-media-placeholder-#{@template.id}"}
-              data-media-placeholder="true"
-              class="flex h-full items-center justify-center bg-gradient-to-br from-base-200 to-base-300"
-            >
-              <.icon name="hero-bolt" class="h-10 w-10 text-base-content/25" />
-            </div>
-          <% end %>
+          <img
+            src={media_url}
+            alt={"#{@template.name} exercise reference"}
+            class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+            loading="lazy"
+          />
         </div>
       </.link>
       <div class="flex flex-1 flex-col space-y-4 p-5">
