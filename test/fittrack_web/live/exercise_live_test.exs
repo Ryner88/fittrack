@@ -41,6 +41,46 @@ defmodule FittrackWeb.ExerciseLiveTest do
       assert html =~ exercise.name
     end
 
+    test "renders safe placeholders for failed source media", %{conn: conn, user: user} do
+      scope = %Fittrack.Accounts.Scope{user: user}
+
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          name: "Failed Media Pull-up",
+          primary_muscle: "Back",
+          equipment: "Pull-up bar",
+          image_url: "https://wger.de/media/exercise-images/failed-main.jpg"
+        })
+        |> Repo.insert()
+
+      {:ok, exercise} = Training.add_template_to_user(scope, template.id)
+
+      {:ok, _media} =
+        %ExerciseMedia{}
+        |> ExerciseMedia.changeset(%{
+          exercise_template_id: template.id,
+          kind: "image",
+          source: "wger",
+          source_id: "failed-#{template.id}",
+          source_url: template.image_url,
+          cache_status: "failed",
+          failure_reason: "timeout",
+          is_primary: true
+        })
+        |> Repo.insert()
+
+      conn = log_in_user(conn, user)
+      {:ok, index_view, index_html} = live(conn, ~p"/my-exercises")
+
+      assert has_element?(index_view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+      refute index_html =~ template.image_url
+
+      {:ok, show_view, show_html} = live(conn, ~p"/my-exercises/#{exercise}")
+      assert has_element?(show_view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+      refute show_html =~ template.image_url
+    end
+
     test "renders exercise images through the local proxy", %{conn: conn, user: user} do
       scope = %Fittrack.Accounts.Scope{user: user}
 

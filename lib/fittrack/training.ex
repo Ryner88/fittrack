@@ -304,16 +304,7 @@ defmodule Fittrack.Training do
         |> Enum.reject(&(&1 in [nil, ""]))
         |> Enum.uniq()
         |> Enum.sort(),
-      media_statuses: [
-        "cached",
-        "remote_only",
-        "missing_media",
-        "missing",
-        "failed",
-        "stale",
-        "skipped",
-        "queued"
-      ],
+      media_statuses: ["missing_media" | ExerciseMedia.cache_statuses()],
       review_statuses: ["needs_review", "verified", "archived", "ai_generated"]
     })
   end
@@ -407,6 +398,56 @@ defmodule Fittrack.Training do
     |> Repo.get!(id)
   end
 
+  def admin_exercise_media_filter_options do
+    %{
+      statuses: ExerciseMedia.cache_statuses(),
+      sources:
+        ExerciseMedia
+        |> where([media], not is_nil(media.source) and media.source != "")
+        |> distinct(true)
+        |> order_by([media], asc: media.source)
+        |> select([media], media.source)
+        |> Repo.all()
+    }
+  end
+
+  def paginate_admin_exercise_media(opts \\ %{}) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    page = opts |> get_option(:page, 1) |> parse_positive_integer(1)
+    per_page = opts |> get_option(:per_page, 50) |> parse_positive_integer(50) |> min(100)
+
+    query =
+      ExerciseMedia
+      |> join(:inner, [media], template in assoc(media, :exercise_template))
+      |> maybe_filter_media_report_by_status(get_option(opts, :status))
+      |> maybe_filter_media_report_by_source(get_option(opts, :source))
+      |> maybe_filter_media_report_by_search(get_option(opts, :search))
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = min(page, total_pages)
+
+    entries =
+      query
+      |> order_by([media, template],
+        desc: fragment("coalesce(?, ?, ?)", media.checked_at, media.cached_at, media.updated_at),
+        asc: template.name,
+        asc: media.id
+      )
+      |> preload([_media, template], exercise_template: template)
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
   def change_exercise_template(%ExerciseTemplate{} = template, attrs \\ %{}) do
     ExerciseTemplate.changeset(template, attrs)
   end
@@ -473,9 +514,13 @@ defmodule Fittrack.Training do
 
   def exercise_media_path(%ExerciseMedia{local_path: local_path, cache_status: "cached"})
       when is_binary(local_path) do
-    path = ExerciseMediaCache.absolute_path(local_path)
-
-    if File.regular?(path), do: {:ok, path}, else: {:error, :missing_file}
+    with {:ok, path} <- ExerciseMediaCache.safe_absolute_path(local_path),
+         true <- File.regular?(path) do
+      {:ok, path}
+    else
+      false -> {:error, :missing_file}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   def exercise_media_path(_media), do: {:error, :not_cached}
@@ -618,6 +663,7 @@ defmodule Fittrack.Training do
       skipped_media: count_media_with_status("skipped"),
       stale_media: count_media_with_status("stale"),
       failed_media: count_media_with_status("failed"),
+      unsupported_media: count_media_with_status("unsupported"),
       sources: Repo.aggregate(ExerciseTemplateSource, :count, :id),
       missing_primary_muscle: count_templates_missing(:primary_muscle),
       missing_equipment: count_templates_missing(:equipment),
@@ -1250,6 +1296,42 @@ defmodule Fittrack.Training do
         ^status
       )
     )
+  end
+
+  defp maybe_filter_media_report_by_status(query, nil), do: query
+  defp maybe_filter_media_report_by_status(query, ""), do: query
+
+  defp maybe_filter_media_report_by_status(query, status) do
+    where(query, [media, _template], media.cache_status == ^status)
+  end
+
+  defp maybe_filter_media_report_by_source(query, nil), do: query
+  defp maybe_filter_media_report_by_source(query, ""), do: query
+
+  defp maybe_filter_media_report_by_source(query, source) do
+    where(query, [media, _template], media.source == ^source)
+  end
+
+  defp maybe_filter_media_report_by_search(query, search) do
+    case normalize_optional_text(search) do
+      nil ->
+        query
+
+      search ->
+        pattern = "%#{search}%"
+
+        where(
+          query,
+          [media, template],
+          ilike(template.name, ^pattern) or
+            ilike(media.source_url, ^pattern) or
+            ilike(media.source, ^pattern) or
+            ilike(media.source_id, ^pattern) or
+            ilike(media.source_exercise_id, ^pattern) or
+            ilike(media.storage_key, ^pattern) or
+            ilike(media.local_path, ^pattern)
+        )
+    end
   end
 
   defp maybe_filter_by_review_status(query, nil), do: query

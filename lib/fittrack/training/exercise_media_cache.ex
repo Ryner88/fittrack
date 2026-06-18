@@ -19,10 +19,11 @@ defmodule Fittrack.Training.ExerciseMediaCache do
       checksum = :crypto.hash(:sha256, body) |> Base.encode16(case: :lower)
       extension = MediaValidator.extension(metadata.content_type)
       relative_path = Path.join([to_string(exercise_template_id), "#{checksum}#{extension}"])
-      absolute_path = Path.join(root, relative_path)
 
-      File.mkdir_p!(Path.dirname(absolute_path))
-      File.write!(absolute_path, body)
+      with {:ok, absolute_path} <- safe_absolute_path(relative_path, root) do
+        File.mkdir_p!(Path.dirname(absolute_path))
+        File.write!(absolute_path, body)
+      end
 
       {:ok,
        metadata
@@ -34,12 +35,30 @@ defmodule Fittrack.Training.ExerciseMediaCache do
   end
 
   def absolute_path(local_path) when is_binary(local_path) do
-    Path.join(storage_root(), local_path)
+    case safe_absolute_path(local_path) do
+      {:ok, path} -> path
+      {:error, _reason} -> Path.join(storage_root(), "__invalid_media_path__")
+    end
   end
+
+  def safe_absolute_path(local_path, root \\ storage_root())
+
+  def safe_absolute_path(local_path, root) when is_binary(local_path) and is_binary(root) do
+    root = Path.expand(root)
+    path = Path.expand(local_path, root)
+
+    if under_root?(path, root), do: {:ok, path}, else: {:error, :unsafe_path}
+  end
+
+  def safe_absolute_path(_local_path, _root), do: {:error, :invalid_path}
 
   def storage_root do
     Application.get_env(:fittrack, :exercise_media_storage_root) ||
       Path.join(System.tmp_dir!(), "fittrack/exercise_media")
+  end
+
+  defp under_root?(path, root) do
+    path == root or String.starts_with?(path, root <> "/")
   end
 
   defp validate_cache_uri(url) when is_binary(url) do

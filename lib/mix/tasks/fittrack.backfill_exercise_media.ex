@@ -9,10 +9,11 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
   Backfills WGER exercise media into app-owned storage.
 
       MIX_ENV=prod mix fittrack.backfill_exercise_media --dry-run
-      MIX_ENV=prod mix fittrack.backfill_exercise_media --limit 50
+      MIX_ENV=prod mix fittrack.backfill_exercise_media --batch-size 50 --max-batches 10
+      MIX_ENV=prod mix fittrack.backfill_exercise_media --batch-size 50 --limit 500
       MIX_ENV=prod mix fittrack.backfill_exercise_media --exercise-id 123
       MIX_ENV=prod mix fittrack.backfill_exercise_media --force-check
-      MIX_ENV=prod mix fittrack.backfill_exercise_media
+      MIX_ENV=prod mix fittrack.backfill_exercise_media --sync-remote --limit 100
   """
 
   @impl true
@@ -28,9 +29,12 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
         switches: [
           dry_run: :boolean,
           limit: :integer,
+          batch_size: :integer,
+          max_batches: :integer,
           exercise_id: :integer,
           force_check: :boolean,
           skip_download: :boolean,
+          sync_remote: :boolean,
           media_type: :string,
           concurrency: :integer
         ]
@@ -64,14 +68,16 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
 
   def print_report(report) do
     Mix.shell().info("""
-    Exercise media backfill completed
+    Exercise media backfill complete
 
-    Fetched remote records: #{report.fetched}
+    Batches: #{Map.get(report, :batches, 0)}
+    Fetched: #{report.fetched}
     Cached: #{report.cached}
-    Already cached: #{report.already_cached}
-    Missing URL: #{report.missing}
-    Skipped unsupported type: #{report.skipped}
-    Broken/stale URL: #{report.stale}
+    Already cached: #{Map.get(report, :already_cached, 0)}
+    Missing: #{report.missing}
+    Skipped: #{report.skipped}
+    Unsupported: #{Map.get(report, :unsupported, 0)}
+    Stale: #{report.stale}
     Failed: #{report.failed}
     Exercises with no media: #{report.exercises_with_no_media}
     """)

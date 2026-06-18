@@ -110,6 +110,7 @@ defmodule FittrackWeb.Router do
       on_mount: [{FittrackWeb.UserAuth, :require_admin}] do
       # Exercise Admin: authenticated admin-only CRUD for shared exercise templates.
       live "/admin/exercises", Admin.ExerciseLibraryLive, :index
+      live "/admin/exercises/media", Admin.ExerciseLibraryLive, :media
       live "/admin/exercises/new", Admin.ExerciseLibraryLive, :new
       live "/admin/exercises/:id", Admin.ExerciseLibraryLive, :show
       live "/admin/exercises/:id/edit", Admin.ExerciseLibraryLive, :edit

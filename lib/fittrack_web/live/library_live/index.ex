@@ -219,9 +219,9 @@ defmodule FittrackWeb.LibraryLive.Index do
     >
       <.link navigate={~p"/exercises/#{@template.slug}"} class="block">
         <div class="aspect-[16/10] bg-base-200">
-          <%= if media = primary_cached_media(@template) do %>
+          <%= if media_url = exercise_media_url(@template) do %>
             <img
-              src={~p"/exercise-media/#{media.id}"}
+              src={media_url}
               alt={"#{@template.name} exercise reference"}
               class="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]"
               loading="lazy"
@@ -349,15 +349,6 @@ defmodule FittrackWeb.LibraryLive.Index do
     first = (page - 1) * per_page + 1
     last = min(page * per_page, total_count)
     "#{first}-#{last} of #{total_count} exercises"
-  end
-
-  defp primary_cached_media(template) do
-    template.media
-    |> Enum.filter(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
-    |> Enum.sort_by(fn media ->
-      {not media.is_primary, media.display_order || 0, media.id || 0}
-    end)
-    |> List.first()
   end
 
   defp summary_line(template) do

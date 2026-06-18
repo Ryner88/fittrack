@@ -69,6 +69,63 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     refute has_element?(view, "#admin-exercise-template-#{squat.id}")
   end
 
+  test "admin can inspect and filter media health report", %{conn: conn} do
+    cached_template = template_fixture(%{name: "Cached Media Press", primary_muscle: "Chest"})
+
+    unsupported_template =
+      template_fixture(%{name: "Unsupported Media Pull", primary_muscle: "Back"})
+
+    failed_template = template_fixture(%{name: "Failed Media Squat", primary_muscle: "Quads"})
+
+    cached =
+      media_fixture(cached_template, %{
+        cache_status: "cached",
+        local_path: "cached/press.jpg",
+        storage_key: "cached/press.jpg",
+        file_size: 128,
+        mime_type: "image/jpeg",
+        checked_at: ~U[2026-06-01 12:00:00Z],
+        cached_at: ~U[2026-06-01 12:00:00Z]
+      })
+
+    unsupported =
+      media_fixture(unsupported_template, %{
+        cache_status: "unsupported",
+        source_url: "https://wger.de/media/unsupported.webp",
+        failure_reason: "unsupported content type",
+        checked_at: ~U[2026-06-02 12:00:00Z]
+      })
+
+    failed =
+      media_fixture(failed_template, %{
+        cache_status: "failed",
+        source_url: "https://wger.de/media/failed.jpg",
+        failure_reason: "timeout",
+        checked_at: ~U[2026-06-03 12:00:00Z]
+      })
+
+    {:ok, view, html} = live(conn, ~p"/admin/exercises/media")
+
+    assert has_element?(view, "#admin-exercise-media-report")
+    assert has_element?(view, "#admin-media-filter-form")
+    assert has_element?(view, "#admin-exercise-media-#{cached.id}")
+    assert has_element?(view, "#admin-exercise-media-#{unsupported.id}")
+    assert has_element?(view, "#admin-exercise-media-#{failed.id}")
+    assert html =~ "cached/press.jpg"
+    assert html =~ "unsupported content type"
+    assert html =~ "https://wger.de/media/failed.jpg"
+
+    view
+    |> form("#admin-media-filter-form",
+      filters: %{status: "unsupported", search: "unsupported.webp"}
+    )
+    |> render_change()
+
+    assert has_element?(view, "#admin-exercise-media-#{unsupported.id}")
+    refute has_element?(view, "#admin-exercise-media-#{cached.id}")
+    refute has_element?(view, "#admin-exercise-media-#{failed.id}")
+  end
+
   test "admin can create a shared exercise template", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/admin/exercises/new")
 
@@ -139,6 +196,113 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     assert Enum.map(updated.template_equipment, & &1.exercise_equipment.name) == ["Cable"]
   end
 
+  test "admin can validate the temporary template CRUD workflow end to end", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin/exercises/new")
+
+    attrs = %{
+      name: "Admin Test Push-Up",
+      slug: "admin-test-push-up",
+      source_id: "",
+      primary_muscle: "chest",
+      equipment: "bodyweight",
+      difficulty: "beginner",
+      movement_pattern: "push",
+      exercise_category: "bodyweight",
+      movement_direction: "horizontal_push",
+      quality_score: "80",
+      fatigue_score: "2",
+      skill_requirement: "low",
+      notes: "Temporary admin CRUD validation template. Safe to archive after testing.",
+      image_url: "",
+      aliases_text: "admin test pushup\ntest push-up\ntemporary push-up",
+      weighted_tags: "horizontal_push, chest, bodyweight, admin_test",
+      training_style_tags: "strength, hypertrophy, beginner",
+      secondary_muscles: "triceps, shoulders",
+      muscle_names: "chest\ntriceps\nshoulders",
+      equipment_names: "bodyweight",
+      source_name: "admin_test",
+      source_external_id: "admin-test-001",
+      source_url: "",
+      source_payload: ~s({"source":"admin_test","purpose":"admin CRUD validation"}),
+      is_verified: "true",
+      is_ai_generated: "false",
+      is_deprecated: "false"
+    }
+
+    view
+    |> form("#admin-template-form", template: attrs)
+    |> render_submit()
+
+    template = Repo.get_by!(ExerciseTemplate, slug: "admin-test-push-up")
+    assert_redirect(view, ~p"/admin/exercises/#{template.id}")
+
+    assert_admin_filter_matches(conn, template, %{search: "Admin Test Push-Up"})
+
+    {:ok, edit_view, _html} = live(conn, ~p"/admin/exercises/#{template.id}/edit")
+
+    edited_attrs =
+      Map.put(attrs, :aliases_text, attrs.aliases_text <> "\ncrud validation push-up")
+
+    edit_view
+    |> form("#admin-template-form", template: edited_attrs)
+    |> render_submit()
+
+    assert_redirect(edit_view, ~p"/admin/exercises/#{template.id}")
+
+    updated = Training.get_admin_exercise_template!(template.id)
+
+    assert Enum.map(updated.aliases, & &1.name) == [
+             "admin test pushup",
+             "test push-up",
+             "temporary push-up",
+             "crud validation push-up"
+           ]
+
+    assert_admin_filter_matches(conn, updated, %{search: "crud validation push-up"})
+    assert_admin_filter_matches(conn, updated, %{media_status: "missing_media"})
+    assert_admin_filter_matches(conn, updated, %{category: "bodyweight"})
+    assert_admin_filter_matches(conn, updated, %{difficulty: "beginner"})
+
+    {:ok, _show_view, html} = live(conn, ~p"/admin/exercises/#{template.id}")
+
+    assert html =~ "Admin Test Push-Up"
+    assert html =~ "admin test pushup"
+    assert html =~ "crud validation push-up"
+    assert html =~ "horizontal_push"
+    assert html =~ "admin_test"
+    assert html =~ "admin-test-001"
+    assert html =~ "Payload keys: purpose, source"
+    assert html =~ "chest"
+    assert html =~ "triceps"
+    assert html =~ "shoulders"
+    assert html =~ "bodyweight"
+    assert html =~ "Missing media"
+
+    {:ok, archive_view, _html} = live(conn, ~p"/admin/exercises/#{template.id}")
+
+    archive_view
+    |> form("#admin-template-archive-form", archive: %{confirm: "DELETE"})
+    |> render_submit()
+
+    refute Repo.reload!(template).is_deprecated
+
+    archive_view
+    |> form("#admin-template-archive-form", archive: %{confirm: "ARCHIVE"})
+    |> render_submit()
+
+    assert_redirect(archive_view, ~p"/admin/exercises/#{template.id}")
+    archived = Repo.reload!(template)
+    assert archived.is_deprecated
+
+    {:ok, list_view, _html} = live(conn, ~p"/admin/exercises")
+
+    list_view
+    |> form("#admin-template-filter-form", filters: %{search: "Admin Test Push-Up"})
+    |> render_change()
+
+    assert has_element?(list_view, "#admin-exercise-template-#{template.id}", "archived")
+  end
+
   test "admin can review media, source, alias, and tag info", %{conn: conn} do
     attrs =
       ExerciseTemplateImporter.normalize_exercise_from_wger(%{
@@ -199,9 +363,13 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     conn = admin_conn |> recycle() |> log_in_user(user)
 
     assert {:error, {:redirect, %{to: "/dashboard"}}} = live(conn, ~p"/admin/exercises")
+    assert {:error, {:redirect, %{to: "/dashboard"}}} = live(conn, ~p"/admin/exercises/media")
 
     guest_conn = recycle(admin_conn)
     assert {:error, {:redirect, %{to: "/users/log-in"}}} = live(guest_conn, ~p"/admin/exercises")
+
+    assert {:error, {:redirect, %{to: "/users/log-in"}}} =
+             live(guest_conn, ~p"/admin/exercises/media")
   end
 
   defp template_fixture(attrs) do
@@ -278,6 +446,16 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
       )
     )
     |> Repo.insert!()
+  end
+
+  defp assert_admin_filter_matches(conn, template, filters) do
+    {:ok, view, _html} = live(conn, ~p"/admin/exercises")
+
+    view
+    |> form("#admin-template-filter-form", filters: filters)
+    |> render_change()
+
+    assert has_element?(view, "#admin-exercise-template-#{template.id}")
   end
 
   defp media_fixture(template, attrs) do

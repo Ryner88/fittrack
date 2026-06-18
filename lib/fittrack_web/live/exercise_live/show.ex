@@ -20,11 +20,11 @@ defmodule FittrackWeb.ExerciseLive.Show do
         </:actions>
       </.header>
 
-      <%= if exercise_image_url(@exercise) do %>
+      <%= if media_url = exercise_media_url(@exercise) do %>
         <div class="mb-6 overflow-hidden rounded-2xl border border-base-200 bg-base-200 shadow-sm">
           <img
             id="exercise-image"
-            src={exercise_image_url(@exercise)}
+            src={media_url}
             alt={"#{@exercise.name} exercise reference"}
             class="max-h-[28rem] w-full object-cover"
           />
@@ -51,17 +51,4 @@ defmodule FittrackWeb.ExerciseLive.Show do
        Training.get_exercise!(socket.assigns.current_scope, id, preload_source_template: true)
      )}
   end
-
-  defp exercise_image_url(%{source_template: %{media: media}}) when is_list(media) do
-    media
-    |> Enum.filter(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
-    |> Enum.sort_by(fn item -> {not item.is_primary, item.display_order || 0, item.id || 0} end)
-    |> List.first()
-    |> case do
-      nil -> nil
-      item -> ~p"/exercise-media/#{item.id}"
-    end
-  end
-
-  defp exercise_image_url(_exercise), do: nil
 end

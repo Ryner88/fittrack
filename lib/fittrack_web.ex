@@ -86,6 +86,7 @@ defmodule FittrackWeb do
       import Phoenix.HTML
       # Core UI components
       import FittrackWeb.CoreComponents
+      import FittrackWeb.ExerciseMediaHelper
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

@@ -4,6 +4,8 @@ defmodule Fittrack.Training.ExerciseMedia do
 
   alias Fittrack.Training.ExerciseTemplate
 
+  @cache_statuses ~w(remote_only queued cached missing skipped failed stale unsupported)
+
   schema "exercise_media" do
     field :kind, :string
     field :source, :string
@@ -60,15 +62,7 @@ defmodule Fittrack.Training.ExerciseMedia do
     ])
     |> validate_required([:exercise_template_id, :kind])
     |> validate_inclusion(:kind, ["image", "video", "thumbnail"])
-    |> validate_inclusion(:cache_status, [
-      "remote_only",
-      "queued",
-      "cached",
-      "missing",
-      "skipped",
-      "failed",
-      "stale"
-    ])
+    |> validate_inclusion(:cache_status, @cache_statuses)
     |> validate_number(:file_size, greater_than: 0)
     |> validate_number(:width, greater_than: 0)
     |> validate_number(:height, greater_than: 0)
@@ -90,4 +84,6 @@ defmodule Fittrack.Training.ExerciseMedia do
 
   defp trim_optional(value) when is_binary(value), do: String.trim(value)
   defp trim_optional(value), do: value
+
+  def cache_statuses, do: @cache_statuses
 end

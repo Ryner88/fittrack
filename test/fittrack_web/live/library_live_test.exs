@@ -82,6 +82,31 @@ defmodule FittrackWeb.LibraryLiveTest do
     assert html =~ "Powerlifting"
   end
 
+  test "library index and detail use safe placeholders for noncached media", %{conn: conn} do
+    template =
+      template_fixture(
+        name: "Stale Media Row",
+        primary_muscle: "Back",
+        equipment: "Cable",
+        image_url: "https://wger.de/media/exercise-images/stale-row.jpg"
+      )
+
+    media_fixture(template, %{
+      cache_status: "stale",
+      local_path: nil,
+      source_url: template.image_url,
+      failure_reason: "stale URL"
+    })
+
+    {:ok, index_view, index_html} = live(conn, ~p"/exercises")
+    assert has_element?(index_view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+    refute index_html =~ template.image_url
+
+    {:ok, show_view, show_html} = live(conn, ~p"/exercises/#{template.slug}")
+    assert has_element?(show_view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+    refute show_html =~ template.image_url
+  end
+
   test "library index and detail render cached exercise media", %{conn: conn} do
     template =
       template_fixture(
@@ -213,21 +238,26 @@ defmodule FittrackWeb.LibraryLiveTest do
     |> Repo.insert!()
   end
 
-  defp media_fixture(template) do
+  defp media_fixture(template, attrs \\ %{}) do
     %ExerciseMedia{}
-    |> ExerciseMedia.changeset(%{
-      exercise_template_id: template.id,
-      kind: "image",
-      source: "wger",
-      source_id: "cached-#{template.id}",
-      source_exercise_id: to_string(template.source_id),
-      source_url: template.image_url || "https://wger.de/media/#{template.id}.jpg",
-      cache_status: "cached",
-      local_path: "#{template.id}/cached.jpg",
-      mime_type: "image/jpeg",
-      file_size: 12,
-      is_primary: true
-    })
+    |> ExerciseMedia.changeset(
+      Map.merge(
+        %{
+          exercise_template_id: template.id,
+          kind: "image",
+          source: "wger",
+          source_id: "cached-#{template.id}",
+          source_exercise_id: to_string(template.source_id),
+          source_url: template.image_url || "https://wger.de/media/#{template.id}.jpg",
+          cache_status: "cached",
+          local_path: "#{template.id}/cached.jpg",
+          mime_type: "image/jpeg",
+          file_size: 12,
+          is_primary: true
+        },
+        attrs
+      )
+    )
     |> Repo.insert!()
   end
 end

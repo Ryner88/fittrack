@@ -87,6 +87,37 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert has_element?(view, ~s(option[value="#{substitute.id}"][selected]))
   end
 
+  test "workout logging library rows render safe placeholders for noncached media", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    template =
+      template_fixture(
+        name: "Placeholder Row",
+        primary_muscle: "Back",
+        equipment: "Cable",
+        image_url: "https://wger.de/media/exercise-images/placeholder-row.jpg"
+      )
+
+    media_fixture(template, %{
+      cache_status: "failed",
+      local_path: nil,
+      source_url: template.image_url,
+      failure_reason: "timeout"
+    })
+
+    {:ok, workout} =
+      Training.create_workout(scope, %{
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
+
+    conn = log_in_user(conn, user)
+    {:ok, view, html} = live(conn, ~p"/workouts/#{workout}")
+
+    assert has_element?(view, ~s(img[src="/exercise-template-images/#{template.id}"]))
+    refute html =~ template.image_url
+  end
+
   test "workout logging library rows render cached primary media", %{conn: conn} do
     user = Fittrack.AccountsFixtures.user_fixture()
     scope = %Scope{user: user}
@@ -146,7 +177,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert html =~ ~s(href="/exercise-media/#{media.id}")
   end
 
-  test "selected linked exercise shows safe external form video when video is remote-only", %{
+  test "selected linked exercise does not hotlink remote-only form video", %{
     conn: conn
   } do
     user = Fittrack.AccountsFixtures.user_fixture()
@@ -170,10 +201,10 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     conn = log_in_user(conn, user)
     {:ok, _view, html} = live(conn, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
 
-    assert html =~ "Form video"
-    assert html =~ ~s(href="https://wger.de/media/exercise-videos/external-row.mp4")
-    assert html =~ ~s(target="_blank")
-    assert html =~ ~s(rel="noopener noreferrer")
+    assert html =~ "No form reference available"
+    refute html =~ "Form video"
+    refute html =~ ~s(href="https://wger.de/media/exercise-videos/external-row.mp4")
+    refute html =~ ~s(target="_blank")
   end
 
   test "selected linked exercise with no usable media shows fallback and no broken link", %{

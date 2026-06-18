@@ -108,7 +108,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
                     id="workout-form-reference"
                     class="rounded-xl border border-base-200 bg-base-50 px-4 py-3 text-sm md:col-span-2"
                   >
-                    <%= if reference = form_reference_for_exercise(@selected_exercise) do %>
+                    <%= if reference = exercise_media_reference(@selected_exercise) do %>
                       <div class="flex flex-wrap items-center justify-between gap-2">
                         <span class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
                           Form reference
@@ -354,7 +354,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
                 >
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex min-w-0 items-start gap-3">
-                      <.media_thumb src={template_image_url(template)} name={template.name} />
+                      <.media_thumb src={exercise_media_url(template)} name={template.name} />
                       <div class="min-w-0">
                         <p class="truncate text-sm font-semibold text-base-content">
                           {template.name}
@@ -658,7 +658,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
           class="flex items-center justify-between rounded-xl border border-base-200 px-3 py-2 text-left text-sm transition hover:border-primary/40 hover:text-primary"
         >
           <span class="flex min-w-0 items-center gap-3">
-            <.media_thumb src={exercise_image_url(exercise)} name={exercise.name} />
+            <.media_thumb src={exercise_media_url(exercise)} name={exercise.name} />
             <span class="min-w-0">
               <span class="block truncate font-semibold">{exercise.name}</span>
               <span class="text-xs text-base-content/60">{format_exercise_meta(exercise)}</span>
@@ -721,88 +721,6 @@ defmodule FittrackWeb.WorkoutLive.Show do
     [template.primary_muscle, template.equipment]
     |> Enum.filter(&(&1 && &1 != ""))
     |> Enum.join(" • ")
-  end
-
-  defp exercise_image_url(%{source_template: %{media: media}}) when is_list(media),
-    do: media_url(media)
-
-  defp exercise_image_url(_exercise), do: nil
-
-  defp template_image_url(%{media: media}) when is_list(media), do: media_url(media)
-  defp template_image_url(_template), do: nil
-
-  defp form_reference_for_exercise(%{source_template: %{media: media}}) when is_list(media),
-    do: form_reference_from_media(media)
-
-  defp form_reference_for_exercise(_exercise), do: nil
-
-  defp form_reference_from_media(media) do
-    cached_video_reference(media) ||
-      external_video_reference(media) ||
-      cached_image_reference(media)
-  end
-
-  defp cached_video_reference(media) do
-    media
-    |> pick_media(
-      &(&1.cache_status == "cached" and &1.kind == "video" and is_binary(&1.local_path))
-    )
-    |> case do
-      nil -> nil
-      item -> %{kind: :internal, url: ~p"/exercise-media/#{item.id}", label: "Form video"}
-    end
-  end
-
-  defp external_video_reference(media) do
-    media
-    |> pick_media(&external_video_reference?/1)
-    |> case do
-      nil -> nil
-      item -> %{kind: :external, url: item.source_url, label: "Form video"}
-    end
-  end
-
-  defp cached_image_reference(media) do
-    media
-    |> pick_media(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
-    |> case do
-      nil -> nil
-      item -> %{kind: :internal, url: ~p"/exercise-media/#{item.id}", label: "Form reference"}
-    end
-  end
-
-  defp external_video_reference?(media) do
-    media.kind == "video" and media.cache_status in ["remote_only", "queued"] and
-      valid_external_url?(media.source_url)
-  end
-
-  defp valid_external_url?(url) when is_binary(url) do
-    uri = url |> String.trim() |> URI.parse()
-    uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != ""
-  end
-
-  defp valid_external_url?(_url), do: false
-
-  defp media_url(media) do
-    media
-    |> pick_media(&(&1.cache_status == "cached" and &1.kind in ["image", "thumbnail"]))
-    |> case do
-      nil -> nil
-      item -> ~p"/exercise-media/#{item.id}"
-    end
-  end
-
-  defp pick_media(media, filter_fun) do
-    media
-    |> Enum.filter(filter_fun)
-    |> sort_media()
-    |> List.first()
-  end
-
-  defp sort_media(media) do
-    Enum.sort_by(media, fn item ->
-      {not item.is_primary, item.display_order || 0, item.id || 0}
-    end)
   end
 
   defp filter_library_templates(templates, search, filter) do

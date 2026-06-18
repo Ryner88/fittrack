@@ -28,6 +28,13 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
               <.icon name="hero-plus" class="h-4 w-4" /> New template
             </.link>
             <.link
+              id="admin-exercise-media-link"
+              navigate={~p"/admin/exercises/media"}
+              class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+            >
+              <.icon name="hero-chart-bar-square" class="h-4 w-4" /> Media health
+            </.link>
+            <.link
               id="admin-exercise-library-link"
               navigate={~p"/exercises"}
               class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
@@ -46,6 +53,13 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
               filters={@filters}
               filter_form={@filter_form}
               filter_options={@filter_options}
+            />
+          <% :media -> %>
+            <.media_report_view
+              media_page={@media_page}
+              media_filters={@media_filters}
+              media_filter_form={@media_filter_form}
+              media_filter_options={@media_filter_options}
             />
           <% action when action in [:new, :edit] -> %>
             <.form_view
@@ -75,7 +89,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
         <.metric label="Sources" value={@summary.sources} icon="hero-link" />
       </section>
 
-      <section id="exercise-media-status-metrics" class="grid gap-4 md:grid-cols-5">
+      <section id="exercise-media-status-metrics" class="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
         <.quality_panel
           id="cached-media"
           label="Cached"
@@ -105,6 +119,12 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
           label="Failed"
           value={@summary.failed_media}
           icon="hero-x-circle"
+        />
+        <.quality_panel
+          id="unsupported-media"
+          label="Unsupported"
+          value={@summary.unsupported_media}
+          icon="hero-shield-exclamation"
         />
       </section>
     </div>
@@ -299,6 +319,145 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
           class="px-5 py-12 text-center text-sm text-base-content/60"
         >
           No templates match those filters.
+        </div>
+      </div>
+    </section>
+    """
+  end
+
+  attr :media_page, :map, required: true
+  attr :media_filters, :map, required: true
+  attr :media_filter_form, :map, required: true
+  attr :media_filter_options, :map, required: true
+
+  defp media_report_view(assigns) do
+    ~H"""
+    <section
+      id="admin-exercise-media-report"
+      class="rounded-xl border border-base-200 bg-base-100 shadow-sm"
+    >
+      <div class="border-b border-base-200 px-5 py-4">
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 class="text-base font-semibold text-base-content">Media Health</h2>
+            <p class="text-sm text-base-content/60">
+              Inspect cached files, source URLs, status reasons, and timestamps for cleanup.
+            </p>
+          </div>
+          <p id="admin-exercise-media-count" class="text-sm font-semibold text-base-content/60">
+            {@media_page.total_count} media records
+          </p>
+        </div>
+
+        <.form
+          for={@media_filter_form}
+          id="admin-media-filter-form"
+          phx-change="media_filter"
+          phx-submit="media_filter"
+          class="mt-4 grid gap-3 lg:grid-cols-[1fr_12rem_12rem_auto]"
+        >
+          <.input
+            field={@media_filter_form[:search]}
+            type="search"
+            label="Search"
+            placeholder="Exercise, source URL, cached path"
+          />
+          <.input
+            field={@media_filter_form[:status]}
+            type="select"
+            label="Status"
+            prompt="Any"
+            options={@media_filter_options.statuses}
+          />
+          <.input
+            field={@media_filter_form[:source]}
+            type="select"
+            label="Source"
+            prompt="Any"
+            options={@media_filter_options.sources}
+          />
+          <div class="flex items-end">
+            <button
+              id="admin-media-search-submit"
+              type="submit"
+              class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-base-content px-4 py-2 text-sm font-semibold text-base-100 transition hover:bg-base-content/85"
+            >
+              <.icon name="hero-magnifying-glass" class="h-4 w-4" /> Search
+            </button>
+          </div>
+        </.form>
+      </div>
+
+      <div id="admin-exercise-media-list" class="divide-y divide-base-200">
+        <div
+          :for={media <- @media_page.entries}
+          id={"admin-exercise-media-#{media.id}"}
+          class="grid gap-4 px-5 py-4 xl:grid-cols-[1fr_0.75fr_1.2fr_1fr]"
+        >
+          <div class="min-w-0">
+            <.link
+              navigate={~p"/admin/exercises/#{media.exercise_template_id}"}
+              class="font-semibold text-base-content transition hover:text-primary"
+            >
+              {media.exercise_template.name}
+            </.link>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-semibold text-base-content/70">
+                {status_label(media.cache_status)}
+              </span>
+              <span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-semibold text-base-content/70">
+                {media.kind}
+              </span>
+              <span class="rounded-full bg-base-200 px-2.5 py-1 text-xs font-semibold text-base-content/70">
+                {media.source || "unknown"}
+              </span>
+            </div>
+          </div>
+
+          <dl class="grid gap-2 text-xs text-base-content/70">
+            <div>
+              <dt class="font-semibold text-base-content">Source ID</dt>
+              <dd>{media.source_id || media.source_exercise_id || "None"}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-base-content">Checked</dt>
+              <dd>{format_datetime(media.checked_at)}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-base-content">Fetched</dt>
+              <dd>{format_datetime(media.cached_at)}</dd>
+            </div>
+          </dl>
+
+          <dl class="grid gap-2 text-xs text-base-content/70">
+            <div>
+              <dt class="font-semibold text-base-content">Source URL</dt>
+              <dd class="break-all">{media.source_url || "None"}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-base-content">Cached path / key</dt>
+              <dd class="break-all">{media_cache_path(media)}</dd>
+            </div>
+          </dl>
+
+          <dl class="grid gap-2 text-xs text-base-content/70">
+            <div>
+              <dt class="font-semibold text-base-content">Reason</dt>
+              <dd>{media.failure_reason || "None"}</dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-base-content">Size / type</dt>
+              <dd>{media_size_label(media)} / {media.mime_type || "unknown"}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <div
+          :if={@media_page.entries == []}
+          id="admin-exercise-media-empty"
+          class="px-5 py-12 text-center text-sm text-base-content/60"
+        >
+          No media records match those filters.
         </div>
       </div>
     </section>
@@ -654,7 +813,8 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
      socket
      |> assign(:page_title, "Exercise Admin")
      |> assign(:summary, Training.exercise_library_admin_summary())
-     |> assign(:filter_options, Training.admin_exercise_template_filter_options())}
+     |> assign(:filter_options, Training.admin_exercise_template_filter_options())
+     |> assign(:media_filter_options, Training.admin_exercise_media_filter_options())}
   end
 
   @impl true
@@ -665,6 +825,10 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
   @impl true
   def handle_event("filter", %{"filters" => filters}, socket) do
     {:noreply, push_patch(socket, to: ~p"/admin/exercises?#{clean_params(filters)}")}
+  end
+
+  def handle_event("media_filter", %{"filters" => filters}, socket) do
+    {:noreply, push_patch(socket, to: ~p"/admin/exercises/media?#{clean_params(filters)}")}
   end
 
   def handle_event("save", %{"template" => template_params}, socket) do
@@ -697,6 +861,17 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
     |> assign(:filters, filters)
     |> assign(:filter_form, to_form(filters, as: :filters))
     |> assign(:page, page)
+  end
+
+  defp apply_action(socket, :media, params) do
+    filters = clean_params(params)
+    media_page = Training.paginate_admin_exercise_media(filters)
+
+    socket
+    |> assign(:page_title, "Exercise Media Health")
+    |> assign(:media_filters, filters)
+    |> assign(:media_filter_form, to_form(filters, as: :filters))
+    |> assign(:media_page, media_page)
   end
 
   defp apply_action(socket, :new, _params) do
@@ -832,6 +1007,23 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
   end
 
   defp payload_summary(_payload), do: "raw"
+
+  defp format_datetime(nil), do: "Never"
+
+  defp format_datetime(datetime), do: Calendar.strftime(datetime, "%b %d, %Y %H:%M")
+
+  defp media_cache_path(media), do: media.local_path || media.storage_key || "Not cached"
+
+  defp media_size_label(%{file_size: size}) when is_integer(size), do: "#{size} bytes"
+  defp media_size_label(_media), do: "unknown size"
+
+  defp status_label(nil), do: "unknown"
+
+  defp status_label(status) do
+    status
+    |> String.replace("_", " ")
+    |> String.capitalize()
+  end
 
   defp media_statuses(%ExerciseTemplate{media: media}) do
     media = loaded_or_empty(media)
