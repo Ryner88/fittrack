@@ -12,6 +12,40 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Complete Exercise Media Reliability
+
+- Commit references:
+  - `5fac11e` Complete exercise media reliability
+  - `d125175` Prevent media backfill task from starting endpoint
+- Completed the exercise media reliability phase for the normalized exercise library.
+- Added the bounded, idempotent production task `mix fittrack.exercise_media.backfill` with batch size, max batches, limit, dry-run, force-check, skip-download, media-type, and remote-sync options.
+- Hardened media caching so files resolve and write only under `EXERCISE_MEDIA_STORAGE_ROOT`.
+- Set production `EXERCISE_MEDIA_STORAGE_ROOT=/opt/fittrack/storage/exercise_media` and created `/opt/fittrack/storage/exercise_media` with deploy-safe permissions.
+- Centralized user-facing display behavior in `FittrackWeb.ExerciseMediaHelper`.
+- Updated public library cards, exercise detail pages, personal exercise pages, workout logging library rows, shortcuts, and form references to prefer cached local media and safe placeholders.
+- Removed normal user-facing hotlinking for remote-only media references.
+- Added admin media health reporting at `/admin/exercises/media` behind the existing admin-only router scope and `live_session :require_admin_user`.
+- Admin reporting now surfaces exercise name, source, source URL, cached path/storage key, status, reason/failure, checked/fetched timestamps, and status/source/search filters.
+- Verified production dry-run and first bounded production run completed without endpoint port conflicts.
+- Production bounded run result:
+  - fetched: 3
+  - cached: 0
+  - already cached: 0
+  - missing: 0
+  - skipped: 0
+  - unsupported: 0
+  - stale: 0
+  - failed: 3
+  - exercises with no media: 363
+- Confirmed the three failed rows are WGER `.MOV` videos rejected as `:file_too_large`, so remaining media coverage is now a source/data population issue rather than a cache-worker reliability blocker.
+- Verified:
+  - `mix test`
+  - `mix precommit`
+  - `git diff --check`
+  - `./deploy.sh`
+  - `MIX_ENV=prod mix fittrack.exercise_media.backfill --batch-size 50 --max-batches 1 --dry-run`
+  - `MIX_ENV=prod mix fittrack.exercise_media.backfill --batch-size 50 --max-batches 1`
+
 ### Admin Shared Exercise Template CRUD
 
 - Added admin-only CRUD for shared exercise templates under the authenticated
