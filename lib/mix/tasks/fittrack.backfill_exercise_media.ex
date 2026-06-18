@@ -20,9 +20,7 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
   def run(args), do: run(args, ExerciseMediaBackfill)
 
   def run(args, backfill_module) do
-    Application.load(:fittrack)
-    disable_endpoint_server()
-    Mix.Task.run("app.start")
+    start_application_without_endpoint()
 
     {opts, _argv, invalid} =
       OptionParser.parse(args,
@@ -55,13 +53,30 @@ defmodule Mix.Tasks.Fittrack.BackfillExerciseMedia do
     end
   end
 
+  defp start_application_without_endpoint do
+    Mix.Task.run("app.config")
+    Application.load(:fittrack)
+    disable_endpoint_server()
+
+    case Application.ensure_all_started(:fittrack) do
+      {:ok, _apps} ->
+        :ok
+
+      {:error, reason} ->
+        Mix.raise("Could not start Fittrack for media backfill: #{inspect(reason)}")
+    end
+  end
+
   defp disable_endpoint_server do
     endpoint_config = Application.get_env(:fittrack, FittrackWeb.Endpoint, [])
 
     Application.put_env(
       :fittrack,
       FittrackWeb.Endpoint,
-      Keyword.put(endpoint_config, :server, false),
+      endpoint_config
+      |> Keyword.put(:server, false)
+      |> Keyword.delete(:http)
+      |> Keyword.delete(:https),
       persistent: true
     )
   end
