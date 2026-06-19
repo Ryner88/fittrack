@@ -237,6 +237,119 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
     end
   end
 
+  describe "refresh_existing_templates/2" do
+    test "updates matching templates and skips unmatched WGER records" do
+      source_id = unique_source_id()
+      unmatched_source_id = unique_source_id()
+      image_id = "refresh-image-#{source_id}"
+
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          name: "Cable Row",
+          primary_muscle: "Back",
+          equipment: "Cable",
+          notes: "Legacy notes"
+        })
+        |> Repo.insert()
+
+      matching_attrs =
+        ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+          "id" => source_id,
+          "translations" => [
+            %{
+              "language" => 2,
+              "name" => "Cable Row",
+              "description" => "Fresh row notes."
+            }
+          ],
+          "muscles" => [%{"name_en" => "Back"}],
+          "equipment" => [%{"name" => "Cable"}],
+          "images" => [
+            %{
+              "id" => image_id,
+              "image" => "https://wger.de/media/exercise-images/#{source_id}/main.jpg",
+              "is_main" => true,
+              "license_author" => "wger"
+            }
+          ]
+        })
+
+      unmatched_attrs =
+        ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+          "id" => unmatched_source_id,
+          "translations" => [
+            %{"language" => 2, "name" => "Unmatched Jump", "description" => "Skip me."}
+          ],
+          "muscles" => [%{"name_en" => "Quads"}],
+          "equipment" => [%{"name" => "body weight"}]
+        })
+
+      result =
+        ExerciseTemplateImporter.refresh_existing_templates([matching_attrs, unmatched_attrs])
+
+      assert result.matched == 1
+      assert result.updated == 1
+      assert result.skipped == 1
+      assert result.failed == 0
+      assert result.failures == []
+
+      reloaded = Repo.get!(ExerciseTemplate, template.id)
+      assert reloaded.source_id == source_id
+      assert reloaded.notes == "Fresh row notes."
+
+      media = Repo.get_by!(ExerciseMedia, source: "wger", source_id: image_id)
+      assert media.exercise_template_id == template.id
+      assert media.cache_status == "remote_only"
+      assert media.source_url == "https://wger.de/media/exercise-images/#{source_id}/main.jpg"
+
+      refute Repo.get_by(ExerciseTemplate, source_id: unmatched_source_id)
+    end
+
+    test "dry run reports matches without writing template or media changes" do
+      source_id = unique_source_id()
+
+      {:ok, template} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          source_id: source_id,
+          name: "Dry Run Row",
+          primary_muscle: "Back",
+          equipment: "Cable",
+          notes: "Original notes"
+        })
+        |> Repo.insert()
+
+      attrs =
+        ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+          "id" => source_id,
+          "translations" => [
+            %{"language" => 2, "name" => "Dry Run Row", "description" => "Fresh notes."}
+          ],
+          "muscles" => [%{"name_en" => "Back"}],
+          "equipment" => [%{"name" => "Cable"}],
+          "images" => [
+            %{
+              "id" => "dry-run-image-#{source_id}",
+              "image" => "https://wger.de/media/exercise-images/#{source_id}/main.jpg",
+              "is_main" => true
+            }
+          ]
+        })
+
+      result = ExerciseTemplateImporter.refresh_existing_templates([attrs], dry_run: true)
+
+      assert result.matched == 1
+      assert result.updated == 0
+      assert result.skipped == 0
+      assert result.failed == 0
+
+      reloaded = Repo.get!(ExerciseTemplate, template.id)
+      assert reloaded.notes == "Original notes"
+      refute Repo.get_by(ExerciseMedia, source: "wger", source_id: "dry-run-image-#{source_id}")
+    end
+  end
+
   describe "insert_templates/1" do
     test "returns detailed failure metadata while keeping successful records" do
       result =
@@ -271,5 +384,61 @@ defmodule Fittrack.Training.ExerciseTemplateImporterPersistenceTest do
 
       assert Repo.get_by!(ExerciseTemplate, source_id: 5005).name == "Cable Row"
     end
+  end
+
+  test "reimporting WGER metadata preserves cached media fields" do
+    source_id = unique_source_id()
+    image_id = "cached-image-#{source_id}"
+
+    attrs =
+      ExerciseTemplateImporter.normalize_exercise_from_wger(%{
+        "id" => source_id,
+        "translations" => [
+          %{"language" => 2, "name" => "Cached Media Row", "description" => "Original."}
+        ],
+        "muscles" => [%{"name_en" => "Chest"}],
+        "equipment" => [%{"name" => "Dumbbell"}],
+        "images" => [
+          %{
+            "id" => image_id,
+            "image" => "https://wger.de/media/exercise-images/#{source_id}/main.jpg",
+            "is_main" => true
+          }
+        ]
+      })
+
+    assert {:ok, :inserted, template} = ExerciseTemplateImporter.upsert_template(attrs)
+
+    media = Repo.get_by!(ExerciseMedia, source: "wger", source_id: image_id)
+    cached_at = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    assert {:ok, cached_media} =
+             media
+             |> ExerciseMedia.changeset(%{
+               cache_status: "cached",
+               local_path: "#{template.id}/main.jpg",
+               storage_key: "#{template.id}/main.jpg",
+               content_hash: "same-hash",
+               cached_at: cached_at,
+               mime_type: "image/jpeg",
+               file_size: 123
+             })
+             |> Repo.update()
+
+    assert {:ok, :updated, _template} =
+             ExerciseTemplateImporter.upsert_template(%{attrs | notes: "Updated."})
+
+    reloaded = Repo.reload!(cached_media)
+    assert reloaded.cache_status == "cached"
+    assert reloaded.local_path == "#{template.id}/main.jpg"
+    assert reloaded.storage_key == "#{template.id}/main.jpg"
+    assert reloaded.content_hash == "same-hash"
+    assert reloaded.cached_at == cached_at
+    assert reloaded.mime_type == "image/jpeg"
+    assert reloaded.file_size == 123
+  end
+
+  defp unique_source_id do
+    System.unique_integer([:positive]) + 900_000
   end
 end

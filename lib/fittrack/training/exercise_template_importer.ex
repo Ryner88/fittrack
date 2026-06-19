@@ -24,6 +24,18 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   @wger_english_language_ids MapSet.new([2])
   @line_break_token "__FITTRACK_LINE_BREAK__"
   @paragraph_break_token "__FITTRACK_PARAGRAPH_BREAK__"
+  @cached_media_fields [
+    :cache_status,
+    :local_path,
+    :storage_key,
+    :content_hash,
+    :cached_at,
+    :mime_type,
+    :file_size,
+    :width,
+    :height,
+    :duration_seconds
+  ]
   @named_html_entities %{
     "amp" => "&",
     "apos" => "'",
@@ -147,6 +159,67 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
   def sanitize_notes(value), do: value |> to_string() |> sanitize_notes()
 
   @doc """
+  Refreshes existing exercise templates from WGER without inserting new templates.
+
+  This is intended for repairing source metadata, taxonomy, and media references
+  for templates already present in the app. WGER records that cannot be matched
+  to an existing template are skipped.
+  """
+  def refresh_existing_from_wger(opts \\ []) do
+    limit = Keyword.get(opts, :limit, 100)
+    api_key = Keyword.get(opts, :api_key)
+    http_client = Keyword.get(opts, :http_client, Req)
+
+    with {:ok, exercises} <- fetch_exercises_from_wger(api_key, limit, http_client) do
+      normalized = normalize_exercises_from_wger(exercises)
+
+      normalized
+      |> refresh_existing_templates(dry_run: Keyword.get(opts, :dry_run, false))
+      |> Map.put(:fetched, length(exercises))
+      |> Map.put(:attempted, length(normalized))
+    end
+  end
+
+  @doc """
+  Refreshes existing templates from normalized WGER attrs without inserting new templates.
+  """
+  def refresh_existing_templates(templates, opts \\ []) when is_list(templates) do
+    dry_run = Keyword.get(opts, :dry_run, false)
+
+    {matched, updated, skipped, failed, failures} =
+      Enum.reduce(templates, {0, 0, 0, 0, []}, fn attrs,
+                                                  {matched, updated, skipped, failed, failures} ->
+        case refresh_existing_template(attrs, dry_run) do
+          {:ok, :matched, _template} ->
+            {matched + 1, updated, skipped, failed, failures}
+
+          {:ok, :updated, _template} ->
+            {matched + 1, updated + 1, skipped, failed, failures}
+
+          {:ok, :skipped, _template} ->
+            {matched, updated, skipped + 1, failed, failures}
+
+          {:error, changeset} ->
+            failure = %{
+              source_id: Map.get(attrs, :source_id),
+              name: Map.get(attrs, :name),
+              errors: changeset_errors(changeset)
+            }
+
+            {matched, updated, skipped, failed + 1, [failure | failures]}
+        end
+      end)
+
+    %{
+      matched: matched,
+      updated: updated,
+      skipped: skipped,
+      failed: failed,
+      failures: Enum.reverse(failures)
+    }
+  end
+
+  @doc """
   Inserts normalized templates into the database using changesets.
 
   Returns a map with counts for inserted, updated, and failed operations.
@@ -199,16 +272,26 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
         end
 
       %ExerciseTemplate{} = template ->
-        template
-        |> ExerciseTemplate.changeset(attrs)
-        |> Repo.update()
-        |> case do
-          {:ok, updated_template} ->
-            persist_normalized_catalog(updated_template, attrs)
-            {:ok, :updated, updated_template}
+        update_existing_template(template, attrs)
 
-          {:error, changeset} ->
-            {:error, changeset}
+      {:error, :ambiguous_legacy_match} ->
+        {:error, ambiguous_legacy_match_changeset(attrs)}
+
+      {:error, :unsafe_legacy_match} ->
+        {:error, ambiguous_legacy_match_changeset(attrs)}
+    end
+  end
+
+  defp refresh_existing_template(attrs, dry_run) do
+    case find_existing_template(attrs) do
+      nil ->
+        {:ok, :skipped, nil}
+
+      %ExerciseTemplate{} = template ->
+        if dry_run do
+          {:ok, :matched, template}
+        else
+          update_existing_template(template, attrs)
         end
 
       {:error, :ambiguous_legacy_match} ->
@@ -216,6 +299,20 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
 
       {:error, :unsafe_legacy_match} ->
         {:error, ambiguous_legacy_match_changeset(attrs)}
+    end
+  end
+
+  defp update_existing_template(template, attrs) do
+    template
+    |> ExerciseTemplate.changeset(attrs)
+    |> Repo.update()
+    |> case do
+      {:ok, updated_template} ->
+        persist_normalized_catalog(updated_template, attrs)
+        {:ok, :updated, updated_template}
+
+      {:error, changeset} ->
+        {:error, changeset}
     end
   end
 
@@ -379,11 +476,24 @@ defmodule Fittrack.Training.ExerciseTemplateImporter do
         Repo.get_by(ExerciseMedia, source_url: source_url) ||
           %ExerciseMedia{}
 
+      attrs =
+        media_attrs
+        |> Map.put(:exercise_template_id, template.id)
+        |> preserve_cached_media_fields(media)
+
       media
-      |> ExerciseMedia.changeset(Map.put(media_attrs, :exercise_template_id, template.id))
+      |> ExerciseMedia.changeset(attrs)
       |> Repo.insert_or_update()
     end)
   end
+
+  defp preserve_cached_media_fields(attrs, %ExerciseMedia{cache_status: "cached"} = media) do
+    Enum.reduce(@cached_media_fields, attrs, fn field, acc ->
+      Map.put(acc, field, Map.get(media, field))
+    end)
+  end
+
+  defp preserve_cached_media_fields(attrs, _media), do: attrs
 
   defp upsert_muscle(name) do
     normalized_name = Normalizer.normalize_text(name)
