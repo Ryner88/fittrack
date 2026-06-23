@@ -1,7 +1,7 @@
 ' Fittrack architecture diagrams.
 ' Render with PlantUML, or import into Astah via a PlantUML-compatible workflow.
-' Legacy SparkyFitness runtime footprint has been removed; SparkyFitness is not
-' part of the current FitTrack architecture.
+' The legacy Sparky runtime footprint has been removed. It is not a FitTrack
+' runtime dependency, service, route, or deployment component.
 
 @startuml Fittrack_System_Context
 title Fittrack - System Context
@@ -11,6 +11,7 @@ skinparam shadowing false
 
 actor "Authenticated user" as User
 actor "Public visitor" as Visitor
+actor "Administrator" as Admin
 actor "Operator" as Operator
 node "Web browser" as Browser
 component "Fittrack Phoenix app\nLiveView + controllers + Mix tasks" as App
@@ -24,9 +25,10 @@ cloud "OpenAI image parser" as OpenAI
 
 User --> Browser
 Visitor --> Browser
+Admin --> Browser
 Browser --> App : HTTP / LiveView websocket
 Browser --> App : GET /exercise-media/:id
-Operator --> App : mix fittrack.backfill_exercise_media
+Operator --> App : source refresh + bounded media backfill
 
 App --> DB : Ecto metadata queries
 App --> MediaStorage : read/write cached media files
@@ -52,6 +54,13 @@ exercise_media.local_path and
 exercise_media.storage_key are
 relative paths only.
 end note
+
+note bottom of App
+Current FitTrack capabilities include the public exercise catalog,
+admin shared-template CRUD, workout logging, nutrition, and media caching.
+
+There is no Sparky runtime dependency or service in this architecture.
+end note
 @enduml
 
 @startuml Fittrack_Phoenix_Containers
@@ -67,14 +76,14 @@ folder "EXERCISE_MEDIA_STORAGE_ROOT" as MediaStorage
 
 package "fittrack_web" {
   component "Router" as Router
-  component "UserAuth\nplugs + LiveView on_mount" as Auth
+  component "UserAuth\nuser/admin plugs + LiveView on_mount" as Auth
   component "Layouts + CoreComponents" as Layouts
   component "DashboardLive" as DashboardLive
   component "WorkoutLive\nWorkoutHistoryLive" as WorkoutLive
   component "WorkoutPlanLive" as WorkoutPlanLive
-  component "ExerciseLibraryLive\n/exercises" as ExerciseLibraryLive
-  component "ExerciseLibraryDetailLive\n/exercises/:slug" as ExerciseLibraryDetailLive
-  component "AdminExerciseLibraryLive\n/admin/exercises" as AdminExerciseLibraryLive
+  component "Public ExerciseLibraryLive\n/exercises" as ExerciseLibraryLive
+  component "Public ExerciseLibraryDetailLive\n/exercises/:slug" as ExerciseLibraryDetailLive
+  component "AdminExerciseLibraryLive\nlist/create/edit/archive + media health" as AdminExerciseLibraryLive
   component "ExerciseLive\n/my-exercises CRUD" as ExerciseLive
   component "ExerciseTemplateImageController\n/exercise-media/:id\nfallback media" as MediaController
   component "NutritionLive" as NutritionLive
@@ -84,7 +93,7 @@ package "fittrack_web" {
 
 package "fittrack contexts" {
   component "Accounts" as Accounts
-  component "Training context" as Training
+  component "Training context\nnormalized exercise library + workouts" as Training
   component "Nutrition" as Nutrition
 }
 
@@ -97,7 +106,7 @@ package "Exercise media import/cache" {
 
 package "Persistence" {
   component "Fittrack.Repo" as Repo
-  database "PostgreSQL tables\nexercise_media metadata" as Tables
+  database "PostgreSQL\nnormalized exercise library, workouts,\nusers, nutrition, media metadata" as Tables
 }
 
 Browser --> Router : HTTP routes + LiveView websocket
@@ -124,11 +133,11 @@ NutritionLive --> Layouts
 MealLive --> Layouts
 Layouts --> AppJS
 
-ExerciseLibraryLive --> Training
-ExerciseLibraryDetailLive --> Training
-AdminExerciseLibraryLive --> Training
+ExerciseLibraryLive --> Training : browse/search shared templates
+ExerciseLibraryDetailLive --> Training : template detail + add to workout
+AdminExerciseLibraryLive --> Training : CRUD/archive + media reporting
 ExerciseLive --> Training
-WorkoutLive --> Training
+WorkoutLive --> Training : log user exercise linked to shared template
 WorkoutPlanLive --> Training
 MediaController --> Training : load ExerciseMedia metadata
 MediaController --> MediaStorage : send_file cached media
@@ -136,7 +145,7 @@ NutritionLive --> Nutrition
 MealLive --> Nutrition
 Router --> Accounts
 
-Operator --> Backfill : mix task
+Operator --> Backfill : mix fittrack.exercise_media.backfill
 Backfill --> WgerMediaClient : fetch media records
 WgerMediaClient --> WGER : Req API requests
 Backfill --> Training : match/upsert templates + media
@@ -150,6 +159,10 @@ Accounts --> Repo
 Training --> Repo
 Nutrition --> Repo
 Repo --> Tables
+
+note bottom of Tables
+Sparky is absent from the runtime and persistence architecture.
+end note
 @enduml
 
 @startuml Fittrack_Authenticated_Routing
@@ -162,31 +175,42 @@ start
 :browser pipeline;
 :fetch_current_scope_for_user;
 
-if (route requires login?) then (yes)
-  :require_authenticated_user;
-  :live_session :require_authenticated_user;
+if (admin route?) then (yes)
+  :require_authenticated_user + require_admin_user;
+  :live_session :require_admin_user;
   :Mount LiveView with @current_scope;
-  :Call context with current_scope;
-  :Run user-scoped query;
+  :Run admin-scoped operation;
 else (no)
-  if (current-user-aware public LiveView?) then (yes)
-    :live_session :current_user;
-    :mount_current_scope;
-    :Render public content with optional @current_scope;
-  else (controller route)
-    :Run controller action from :browser pipeline;
+  if (route requires login?) then (yes)
+    :require_authenticated_user;
+    :live_session :require_authenticated_user;
+    :Mount LiveView with @current_scope;
+    :Call context with current_scope;
+    :Run user-scoped query;
+  else (no)
+    if (current-user-aware public LiveView?) then (yes)
+      :live_session :current_user;
+      :mount_current_scope;
+      :Render public content with optional @current_scope;
+    else (controller route)
+      :Run controller action from :browser pipeline;
+    endif
   endif
 endif
 stop
 
 note right
-Authenticated app routes:
+Authenticated app routes use :require_authenticated_user:
 - /dashboard
 - /my-exercises personal CRUD
 - /workout-plans, /workouts, /nutrition
-- /admin/exercises admin exercise dashboard
 
-Public/current-user-aware library routes:
+Admin routes use :require_authenticated_user + :require_admin_user
+and live_session :require_admin_user:
+- /admin/exercises shared-template CRUD
+- /admin/exercises/media media health reporting
+
+Public/current-user-aware library routes use live_session :current_user:
 - /exercises
 - /exercises/:slug
 
@@ -406,6 +430,18 @@ Storage rule:
 - no DB binaries
 - no priv/static or deploy-managed static storage
 end note
+
+note left of ExerciseTemplate
+Shared normalized catalog record used by:
+- public /exercises browse and detail
+- admin /admin/exercises CRUD and review
+- user exercise creation for workout logging
+end note
+
+note left of Exercise
+User-owned/loggable exercise.
+source_template_id preserves its shared-template origin.
+end note
 @enduml
 
 @startuml Fittrack_Nutrition_Domain
@@ -497,22 +533,31 @@ skinparam shadowing false
 actor User
 participant "Shared Layout /\nCommand Bar" as Layout
 participant "WorkoutPlanLive" as PlanLive
+participant "Public Exercise Catalog" as LibraryLive
 participant "WorkoutLive" as WorkoutLive
 participant "Training context" as Training
 participant "Repo" as Repo
 
-User -> Layout : Start empty workout or Start from plan
-
-alt Start from plan
+alt Add a shared template from the public catalog
+  User -> LibraryLive : Add template to workout
+  LibraryLive -> Training : add_template_to_user(current_scope, template_id)
+  Training -> Repo : Find/create user Exercise\nwith source_template_id
+  Repo --> Training : Exercise
+  LibraryLive -> Training : Use active workout or create workout
+  Training --> LibraryLive : Workout
+  LibraryLive --> WorkoutLive : Navigate with exercise_id
+else Start from plan
+  User -> Layout : Open workout plans
   Layout -> PlanLive : Navigate to plans
   User -> PlanLive : Start from plan
   PlanLive -> Training : create_workout_from_plan(current_scope, plan_id)
 else Start empty workout
+  User -> Layout : Start empty workout
   Layout -> WorkoutLive : Navigate to /workouts/new
   WorkoutLive -> Training : create_workout(current_scope, attrs)
 end
 
-Training -> Repo : Insert workout session
+Training -> Repo : Create or load workout session
 Repo --> Training : Workout
 Training --> WorkoutLive : Active workout
 
@@ -528,7 +573,9 @@ title Fittrack - Exercise Media Backfill Flow
 skinparam shadowing false
 
 actor Operator
-participant "mix fittrack.backfill_exercise_media" as MixTask
+participant "mix fittrack.refresh_exercise_sources" as SourceTask
+participant "ExerciseTemplateImporter" as Importer
+participant "mix fittrack.exercise_media.backfill" as MixTask
 participant "ExerciseMediaBackfill" as Backfill
 participant "WGER MediaClient" as MediaClient
 participant "WGER API / media URLs" as WGER
@@ -538,41 +585,62 @@ participant "ExerciseMediaCache" as Cache
 database "PostgreSQL\nexercise_media metadata" as DB
 collections "EXERCISE_MEDIA_STORAGE_ROOT\n<exercise_template_id>/<sha256>.<extension>" as MediaStorage
 
-Operator -> MixTask : Run backfill task
+opt Repair source metadata and media references for existing templates
+  Operator -> SourceTask : Run bounded source refresh
+  SourceTask -> Importer : refresh_existing_from_wger(opts)
+  Importer -> WGER : Fetch existing-template source data via Req
+  Importer -> Training : Update matched templates, taxonomy, sources, media refs
+  Training -> DB : Persist normalized metadata only
+end
+
+Operator -> MixTask : Run bounded cache backfill
 MixTask -> MixTask : Load env\nEXERCISE_MEDIA_STORAGE_ROOT
 MixTask -> Backfill : run(opts)
-Backfill -> MediaClient : fetch_media(limit, media_type, api_key)
-MediaClient -> WGER : Fetch WGER media records
-WGER --> MediaClient : image/video media records
-MediaClient --> Backfill : records
+
+alt --sync-remote
+  Backfill -> MediaClient : fetch_media(limit, media_type, api_key)
+  MediaClient -> WGER : Fetch WGER media records via Req
+  WGER --> MediaClient : image/video media records
+  MediaClient --> Backfill : records
+else default bounded database mode
+  Backfill -> DB : Fetch eligible exercise_media rows\nby batch size and batch/record limits
+  DB --> Backfill : remote_only/queued/missing/failed/stale rows
+end
 
 Backfill -> Backfill : Task.async_stream\nbounded concurrency\n(default 3)
 
-loop per media record
-  Backfill -> Training : find_template_for_wger_media(record)
-  alt template matched
+loop per selected media record
+  alt remote-sync record
+    Backfill -> Training : find_template_for_wger_media(record)
+    alt template matched
+      Backfill -> Training : upsert initial exercise_media
+      Training -> DB : Insert/update metadata
+    else no matching template
+      Backfill -> Backfill : Count missing and skip record
+    end
+  else existing database media row
+    Backfill -> Backfill : Use persisted ExerciseMedia metadata
+  end
+
+  opt matched remote record or existing media row
     Backfill -> Validator : validate_url(source_url)
     Validator -> WGER : Validate URL/content
     alt valid media
-      Backfill -> Training : upsert initial exercise_media
-      Training -> DB : Insert/update metadata
       Backfill -> Cache : cache(media)
       Cache -> WGER : Download bytes
       Cache -> MediaStorage : Write file
       Cache --> Backfill : relative local_path/storage_key
       Backfill -> Training : update exercise_media cached fields
       Training -> DB : Store relative paths + metadata only
-    else missing/skipped/stale/failed
+    else missing/skipped/unsupported/stale/failed
       Backfill -> Training : mark cache_status + failure_reason
       Training -> DB : Update metadata only
     end
-  else no template or unsupported input
-    Backfill -> Backfill : Count missing/skipped/failed
   end
 end
 
 Backfill --> MixTask : Report counts
-MixTask --> Operator : fetched, cached, already_cached,\nmissing, skipped, stale, failed,\nexercises_with_no_media
+MixTask --> Operator : fetched, cached, already_cached,\nmissing, skipped, unsupported, stale, failed,\nexercises_with_no_media
 
 note right of DB
 No media bytes are stored in PostgreSQL.

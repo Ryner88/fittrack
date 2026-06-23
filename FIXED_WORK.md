@@ -12,12 +12,14 @@ or materially addressed on the recent branches.
 
 ## Now
 
-### Complete Exercise Media Reliability
+### Exercise Media Reliability Foundation
 
 - Commit references:
   - `5fac11e` Complete exercise media reliability
   - `d125175` Prevent media backfill task from starting endpoint
-- Completed the exercise media reliability phase for the normalized exercise library.
+- Completed the tooling, cache-serving, fallback, and reporting phase for the
+  normalized exercise library. Full production media population remains in
+  progress in `PRIORITY_FIXES.md`.
 - Added the bounded, idempotent production task `mix fittrack.exercise_media.backfill` with batch size, max batches, limit, dry-run, force-check, skip-download, media-type, and remote-sync options.
 - Hardened media caching so files resolve and write only under `EXERCISE_MEDIA_STORAGE_ROOT`.
 - Set production `EXERCISE_MEDIA_STORAGE_ROOT=/opt/fittrack/storage/exercise_media` and created `/opt/fittrack/storage/exercise_media` with deploy-safe permissions.
@@ -48,6 +50,7 @@ or materially addressed on the recent branches.
 
 ### Admin Shared Exercise Template CRUD
 
+- Completed and deployed admin CRUD for shared exercise templates.
 - Added admin-only CRUD for shared exercise templates under the authenticated
   admin router scope:
   - `scope "/", FittrackWeb`
@@ -81,6 +84,8 @@ or materially addressed on the recent branches.
 
 ### Production Sparky Runtime Folder Cleanup
 
+- Completed the production cleanup of the old Sparky runtime footprint; Sparky
+  is not an active FitTrack dependency or service.
 - Fast-forwarded production from `ec7b8a9` to `6775ae0` before cleanup.
 - Confirmed `/opt/fittrack/sparkyfitness` was already absent, so there was no
   folder to archive or remove.

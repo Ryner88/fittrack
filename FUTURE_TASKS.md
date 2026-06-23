@@ -22,6 +22,8 @@ Roadmap items are organized below. Promote only the active next item into
 - WGER importer and media pipeline mostly exist:
   template import, source ids, normalized muscle/equipment persistence, media
   reference import, media validation, and app-owned cache storage are in place.
+- Full exercise media population remains active in `PRIORITY_FIXES.md`; limited
+  production verification does not establish complete catalog coverage.
 - Exercise media backfill contract is documented in `EXERCISE_MEDIA_BACKFILL.md`.
 - `EXERCISE_MEDIA_STORAGE_ROOT` remains the media storage root. Cached exercise
   media must not be stored in `priv/static`, `assets`, deploy-managed static
@@ -37,10 +39,9 @@ Roadmap items are organized below. Promote only the active next item into
   migration or rollback workflows.
 - Production data was not touched while resolving local DB readiness.
 - Sparky cleanup status:
-  no active repo references to `sparky`/`sparkyfitness` are present, and the
-  local ignored `sparkyfitness/` folder is absent. Production had a stale ignored
-  Sparky checkout under `/opt/fittrack/sparkyfitness`; archive/remove it outside
-  the FitTrack deploy directory rather than committing anything here.
+  the old runtime folder and process are gone, no Sparky service is active, and
+  Sparky is not a FitTrack runtime dependency. Remaining mentions are historical
+  cleanup records or regression-work descriptions only.
 
 ## Next
 
@@ -63,7 +64,7 @@ Roadmap items are organized below. Promote only the active next item into
   - Current tags use `weighted_tags` and `training_style_tags` arrays.
   Scope:
   - decide whether dedicated `exercise_categories` and `exercise_tags` tables are
-    worth adding before admin CRUD expands.
+    worth adding before further taxonomy expansion.
   - avoid introducing tables until the query/UI benefit is clear.
 
 - Add public category and muscle routes.
@@ -112,7 +113,7 @@ Roadmap items are organized below. Promote only the active next item into
   - add user-facing substitutions and exercise variations
   - show equipment and muscle metadata consistently across library browse, detail, and workout logging
   - support aliases/synonyms in exercise search and AI workout matching
-  - add admin tools for reviewing imported template quality
+  - extend the existing admin CRUD with focused imported-data quality review
 
 - Improve exercise library search ranking.
   Scope:
