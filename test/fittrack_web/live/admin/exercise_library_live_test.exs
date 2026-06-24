@@ -200,8 +200,8 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     {:ok, view, _html} = live(conn, ~p"/admin/exercises/new")
 
     attrs = %{
-      name: "Admin Test Push-Up",
-      slug: "admin-test-push-up",
+      name: "TEMP TAXONOMY BACKFILL VALIDATION - DELETE ME",
+      slug: "temp-taxonomy-backfill-validation-delete-me",
       source_id: "",
       primary_muscle: "chest",
       equipment: "bodyweight",
@@ -221,7 +221,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
       muscle_names: "chest\ntriceps\nshoulders",
       equipment_names: "bodyweight",
       source_name: "admin_test",
-      source_external_id: "admin-test-001",
+      source_external_id: "temp-taxonomy-backfill-validation",
       source_url: "",
       source_payload: ~s({"source":"admin_test","purpose":"admin CRUD validation"}),
       is_verified: "true",
@@ -233,10 +233,12 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     |> form("#admin-template-form", template: attrs)
     |> render_submit()
 
-    template = Repo.get_by!(ExerciseTemplate, slug: "admin-test-push-up")
+    template = Repo.get_by!(ExerciseTemplate, slug: "temp-taxonomy-backfill-validation-delete-me")
     assert_redirect(view, ~p"/admin/exercises/#{template.id}")
 
-    assert_admin_filter_matches(conn, template, %{search: "Admin Test Push-Up"})
+    assert_admin_filter_matches(conn, template, %{
+      search: "TEMP TAXONOMY BACKFILL VALIDATION - DELETE ME"
+    })
 
     {:ok, edit_view, _html} = live(conn, ~p"/admin/exercises/#{template.id}/edit")
 
@@ -262,15 +264,18 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     assert_admin_filter_matches(conn, updated, %{media_status: "missing_media"})
     assert_admin_filter_matches(conn, updated, %{category: "bodyweight"})
     assert_admin_filter_matches(conn, updated, %{difficulty: "beginner"})
+    assert_admin_filter_matches(conn, updated, %{muscle_group: "chest"})
+    assert_admin_filter_matches(conn, updated, %{equipment: "bodyweight"})
+    assert_admin_filter_matches(conn, updated, %{source: "admin_test"})
 
     {:ok, _show_view, html} = live(conn, ~p"/admin/exercises/#{template.id}")
 
-    assert html =~ "Admin Test Push-Up"
+    assert html =~ "TEMP TAXONOMY BACKFILL VALIDATION - DELETE ME"
     assert html =~ "admin test pushup"
     assert html =~ "crud validation push-up"
     assert html =~ "horizontal_push"
     assert html =~ "admin_test"
-    assert html =~ "admin-test-001"
+    assert html =~ "temp-taxonomy-backfill-validation"
     assert html =~ "Payload keys: purpose, source"
     assert html =~ "chest"
     assert html =~ "triceps"
@@ -297,7 +302,9 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     {:ok, list_view, _html} = live(conn, ~p"/admin/exercises")
 
     list_view
-    |> form("#admin-template-filter-form", filters: %{search: "Admin Test Push-Up"})
+    |> form("#admin-template-filter-form",
+      filters: %{search: "TEMP TAXONOMY BACKFILL VALIDATION - DELETE ME"}
+    )
     |> render_change()
 
     assert has_element?(list_view, "#admin-exercise-template-#{template.id}", "archived")

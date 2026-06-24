@@ -39,7 +39,7 @@ This file is the execution queue for the highest-priority work.
     `Failed: 3`, and `Exercises with no media: 363`; the three failures are
     oversized WGER `.MOV` videos.
 
-- [TODO] Repair remaining normalized exercise taxonomy/source metadata.
+- [DONE] Repair remaining normalized exercise taxonomy/source metadata.
   Scope:
   - backfill muscles and equipment for existing shared exercise templates.
   - populate non-media source records and source visibility from WGER metadata.
