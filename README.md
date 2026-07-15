@@ -42,13 +42,13 @@ mix precommit
 
 ## Project Tracking And Branch Workflow
 
-Project planning lives in three root-level docs:
+Project planning lives under `docs/`:
 
-- `PRIORITY_FIXES.md`: active delivery queue. Each item should include the
+- `docs/PRIORITY_FIXES.md`: active delivery queue. Each item should include the
   Git branch intended for the work.
-- `FUTURE_TASKS.md`: backlog and roadmap. Promote only the next active work
-  into `PRIORITY_FIXES.md`.
-- `FIXED_WORK.md`: completed-work log. Move finished priority items here with
+- `docs/FUTURE_TASKS.md`: backlog and roadmap. Promote only the next active work
+  into `docs/PRIORITY_FIXES.md`.
+- `docs/FIXED_WORK.md`: completed-work log. Move finished priority items here with
   verification notes.
 
 Branch workflow:
@@ -61,7 +61,7 @@ Branch workflow:
 5. Leave historical documentation references intact only when they explain
    shipped or retired work.
 
-Current priority branch names are listed directly in `PRIORITY_FIXES.md` so
+Current priority branch names are listed directly in `docs/PRIORITY_FIXES.md` so
 the task queue and GitHub branch set stay in sync.
 
 ## Environment Variables
@@ -108,8 +108,9 @@ mix fittrack.import_templates priv/data/exercise_templates.csv
 
 `mix populate_exercise_images` also exists, but it is a legacy/demo helper that fills missing template image URLs with placeholders. Prefer the cached media backfill for production exercise media.
 
-See `EXERCISE_MEDIA_BACKFILL.md` for the exact cached exercise media backfill
-contract, matching rules, status semantics, and production verification gates.
+See `docs/EXERCISE_MEDIA_BACKFILL.md` for the exact cached exercise media
+backfill contract, matching rules, status semantics, and production
+verification gates.
 
 ## Production And Deployment
 

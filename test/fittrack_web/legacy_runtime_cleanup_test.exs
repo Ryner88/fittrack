@@ -5,9 +5,9 @@ defmodule FittrackWeb.LegacyRuntimeCleanupTest do
   @legacy_name "spar" <> "ky"
   @legacy_runtime @legacy_name <> "fitness"
   @historical_reference_files MapSet.new([
-                                "ARCHITECTURE.puml",
-                                "FIXED_WORK.md",
-                                "FUTURE_TASKS.md"
+                                "docs/diagrams/ARCHITECTURE.puml",
+                                "docs/FIXED_WORK.md",
+                                "docs/FUTURE_TASKS.md"
                               ])
   @ignored_dirs MapSet.new([
                   ".agents",

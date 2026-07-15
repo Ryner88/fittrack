@@ -1,5 +1,11 @@
-' Fittrack architecture diagrams.
-' Render with PlantUML, or import into Astah via a PlantUML-compatible workflow.
+' FitTrack architecture diagrams.
+' Source: docs/diagrams/ARCHITECTURE.puml
+' Export from the repository root:
+'   plantuml -tsvg -o ../architecture docs/diagrams/ARCHITECTURE.puml
+'   plantuml -tpng -o ../architecture docs/diagrams/ARCHITECTURE.puml
+' Astah handoff:
+'   create/update docs/diagrams/astah/fittrack-architecture.asta from this
+'   PlantUML source, then export images to docs/architecture/.
 ' The legacy Sparky runtime footprint has been removed. It is not a FitTrack
 ' runtime dependency, service, route, or deployment component.
 

@@ -32,8 +32,8 @@ or materially addressed on the recent branches.
   digested asset manifests, source/digested asset files, app configuration, or
   deployment scripts.
 - Added a repository text scan that permits Sparky references only in historical
-  documentation files: `FIXED_WORK.md`, `FUTURE_TASKS.md`, and
-  `ARCHITECTURE.puml`.
+  documentation files: `docs/FIXED_WORK.md`, `docs/FUTURE_TASKS.md`, and
+  `docs/diagrams/ARCHITECTURE.puml`.
 - Verified the legacy paths `/sparky`, `/sparky/`, `/sparkyfitness`,
   `/sparkyfitness/`, and `/sparkyfitness/assets/app.js` do not resolve through
   `FittrackWeb.Router`.
