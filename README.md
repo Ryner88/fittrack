@@ -40,6 +40,30 @@ mix precommit
 
 `mix precommit` compiles with warnings as errors, checks unused dependency locks, formats the codebase, and runs the test suite through the project test alias.
 
+## Project Tracking And Branch Workflow
+
+Project planning lives in three root-level docs:
+
+- `PRIORITY_FIXES.md`: active delivery queue. Each item should include the
+  Git branch intended for the work.
+- `FUTURE_TASKS.md`: backlog and roadmap. Promote only the next active work
+  into `PRIORITY_FIXES.md`.
+- `FIXED_WORK.md`: completed-work log. Move finished priority items here with
+  verification notes.
+
+Branch workflow:
+
+1. Start new work from the branch named on the priority item.
+2. Keep `main` deployable and use it only for reviewed, verified baseline work.
+3. Run `mix precommit` before pushing or opening a pull request.
+4. Merge task branches back into `main`, then prune merged branches locally
+   and on GitHub.
+5. Leave historical documentation references intact only when they explain
+   shipped or retired work.
+
+Current priority branch names are listed directly in `PRIORITY_FIXES.md` so
+the task queue and GitHub branch set stay in sync.
+
 ## Environment Variables
 
 AI and import configuration:

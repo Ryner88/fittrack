@@ -7,6 +7,8 @@ This file is the broader roadmap beyond the immediate execution queue.
 - Use this file for backlog and roadmap planning.
 - Items here are not expected to be worked immediately.
 - Promote items into `PRIORITY_FIXES.md` when they become active.
+- Add a branch name during promotion so GitHub work can be created from the
+  priority queue without guessing.
 - Summarize shipped items in `FIXED_WORK.md`.
 
 ## Now

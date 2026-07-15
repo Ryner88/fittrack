@@ -8,6 +8,9 @@ This file is the execution queue for the highest-priority work.
 - Keep items here small enough to execute and verify.
 - Move completed items to `FIXED_WORK.md`.
 - Move deferred or larger roadmap items to `FUTURE_TASKS.md`.
+- Keep the `Branch:` line current for each active item.
+- Start implementation from the listed branch and merge back to `main` only after
+  verification passes.
 
 ## Status Key
 

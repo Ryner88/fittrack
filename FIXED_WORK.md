@@ -12,6 +12,19 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### GitHub Branch And Project Docs Organization
+
+- Organized the project tracking docs around a branch-per-priority workflow.
+- Promoted five roadmap items into `PRIORITY_FIXES.md` with explicit Git branch
+  names and left the remaining roadmap in `FUTURE_TASKS.md`.
+- Pushed the organized baseline to `main` and created the five task branches on
+  GitHub.
+- Pruned merged legacy remote branches, including old `codex/*` branches; the
+  only older unmerged remote branch left at the time of cleanup was
+  `origin/docs/project-tracking-md`.
+- Documented the workflow in `README.md` so future tasks, branches, and completed
+  work stay aligned.
+
 ### Sparky Regression Guardrails
 
 - Added regression coverage proving the legacy Sparky runtime is not active in
