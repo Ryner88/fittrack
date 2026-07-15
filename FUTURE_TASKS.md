@@ -19,11 +19,13 @@ Roadmap items are organized below. Promote only the active next item into
 - Normalized exercise library mostly exists:
   `exercise_templates`, aliases, media, normalized muscles/equipment, template
   muscle/equipment links, variations, and substitutions are present.
-- WGER importer and media pipeline mostly exist:
+- WGER importer and media pipeline exist:
   template import, source ids, normalized muscle/equipment persistence, media
   reference import, media validation, and app-owned cache storage are in place.
-- Full exercise media population remains active in `PRIORITY_FIXES.md`; limited
-  production verification does not establish complete catalog coverage.
+- Full exercise media population is complete for template-level local media
+  coverage. Final production counts are recorded in `FIXED_WORK.md`; remaining
+  stale/unsupported media rows are upstream/provider constraints, not active
+  population blockers.
 - Exercise media backfill contract is documented in `EXERCISE_MEDIA_BACKFILL.md`.
 - `EXERCISE_MEDIA_STORAGE_ROOT` remains the media storage root. Cached exercise
   media must not be stored in `priv/static`, `assets`, deploy-managed static
@@ -37,56 +39,22 @@ Roadmap items are organized below. Promote only the active next item into
   `20260502000000` is recorded as applied locally but has no migration file in
   the repo. Do not reset or delete migration rows unless it starts blocking local
   migration or rollback workflows.
-- Production data was not touched while resolving local DB readiness.
+- Production media data was updated during final media population: existing WGER
+  source/media references were refreshed, stale images were retried, and
+  oversized WGER `.MOV` rows were classified as unsupported.
 - Sparky cleanup status:
   the old runtime folder and process are gone, no Sparky service is active, and
-  Sparky is not a FitTrack runtime dependency. Remaining mentions are historical
-  cleanup records or regression-work descriptions only.
+  Sparky is not a FitTrack runtime dependency. Regression coverage now keeps
+  active routes, assets, config, and deploy scripts free of Sparky references;
+  remaining mentions are historical documentation only.
 
 ## Next
 
+The first five exercise-library follow-ups have been promoted into
+`PRIORITY_FIXES.md` with Git branch names for delivery. Remaining roadmap items
+stay below until a promoted task is completed.
+
 ### Exercise Library / Media Follow-ups
-
-- Resolve historical local migration drift.
-  Status:
-  - Non-blocking.
-  - Current `exercise_media` cache migration is verified up.
-  - Remaining drift is `20260502000000 ** FILE NOT FOUND **` in local migration
-    history.
-  Scope:
-  - decide later whether to restore a no-op historical migration file, document
-    it as local-only drift, or perform a local-only reset.
-  - do not modify production migration history manually.
-
-- Decide category/tag normalization.
-  Status:
-  - Current implementation stores `exercise_category` as a string/enum-like field.
-  - Current tags use `weighted_tags` and `training_style_tags` arrays.
-  Scope:
-  - decide whether dedicated `exercise_categories` and `exercise_tags` tables are
-    worth adding before further taxonomy expansion.
-  - avoid introducing tables until the query/UI benefit is clear.
-
-- Add public category and muscle routes.
-  Scope:
-  - add routes like `/exercises/category/:slug` and `/exercises/muscle/:slug`.
-  - reuse current search/filter behavior.
-  - ensure canonical slugs and SEO-friendly titles.
-
-- Expand variation/substitution metadata.
-  Status:
-  - Tables exist and detail pages render relationships.
-  Scope:
-  - add similarity score, equipment requirements, difficulty delta, and
-    substitution reason quality.
-  - use this for better workout substitutions and AI workout generation.
-
-- Define trainer-shared exercise behavior.
-  Status:
-  - User-created/private exercises exist under `/my-exercises`.
-  Scope:
-  - decide how trainers can publish/share exercises.
-  - define permissions, moderation, and visibility rules.
 
 - Add explicit workout lifecycle states.
   Scope:

@@ -230,6 +230,9 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
       {:error, :unsupported_content_type} ->
         mark_unsupported(media, "unsupported content type", checked_at, opts)
 
+      {:error, :file_too_large} ->
+        mark_unsupported(media, "file too large for configured cache limit", checked_at, opts)
+
       {:error, :stale_url} ->
         mark_media(media, stale_attrs("stale URL", checked_at), opts)
         increment(@empty_report, :stale)
@@ -273,6 +276,9 @@ defmodule Fittrack.Training.ExerciseMediaBackfill do
 
         {:error, :unsupported_content_type} ->
           mark_unsupported(media, "unsupported content type", checked_at, opts)
+
+        {:error, :file_too_large} ->
+          mark_unsupported(media, "file too large for configured cache limit", checked_at, opts)
 
         {:error, reason} ->
           mark_media(media, failure_attrs(reason, checked_at), opts)

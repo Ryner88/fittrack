@@ -51,6 +51,16 @@ defmodule Mix.Tasks.FittrackBackfillExerciseMediaTest do
            is_primary: false,
            display_order: 3,
            metadata: %{}
+         },
+         %{
+           kind: "video",
+           source: "wger",
+           source_id: "too-large-video",
+           source_exercise_id: "7001",
+           source_url: "https://example.com/large.mov",
+           is_primary: false,
+           display_order: 4,
+           metadata: %{}
          }
        ]}
     end
@@ -64,6 +74,8 @@ defmodule Mix.Tasks.FittrackBackfillExerciseMediaTest do
 
     def validate_url("https://example.com/video.mp4", _opts),
       do: {:error, :unsupported_content_type}
+
+    def validate_url("https://example.com/large.mov", _opts), do: {:error, :file_too_large}
   end
 
   defmodule CacheStub do
@@ -200,27 +212,28 @@ defmodule Mix.Tasks.FittrackBackfillExerciseMediaTest do
 
     assert {:ok,
             %{
-              fetched: 4,
+              fetched: 5,
               cached: 1,
               already_cached: 0,
               missing: 1,
-              skipped: 1,
+              skipped: 2,
               stale: 1,
               failed: 0,
-              unsupported: 1
+              unsupported: 2
             }} = ExerciseMediaBackfill.run(opts)
 
-    assert Repo.aggregate(ExerciseMedia, :count, :id) == 4
+    assert Repo.aggregate(ExerciseMedia, :count, :id) == 5
     assert Repo.get_by!(ExerciseMedia, source_id: "image-1").cache_status == "cached"
     assert Repo.get_by!(ExerciseMedia, source_id: "missing-url").cache_status == "missing"
     assert Repo.get_by!(ExerciseMedia, source_id: "broken").cache_status == "stale"
     assert Repo.get_by!(ExerciseMedia, source_id: "video-1").cache_status == "unsupported"
+    assert Repo.get_by!(ExerciseMedia, source_id: "too-large-video").cache_status == "unsupported"
 
-    assert {:ok, %{already_cached: 1, missing: 1, skipped: 1, stale: 1}} =
+    assert {:ok, %{already_cached: 1, missing: 1, skipped: 2, stale: 1, unsupported: 2}} =
              ExerciseMediaBackfill.run(opts)
 
-    assert Repo.aggregate(ExerciseMedia, :count, :id) == 4
-    assert Repo.preload(template, :media).media |> length() == 4
+    assert Repo.aggregate(ExerciseMedia, :count, :id) == 5
+    assert Repo.preload(template, :media).media |> length() == 5
   end
 
   test "processes records concurrently and aggregates all report counts" do
@@ -329,13 +342,13 @@ defmodule Mix.Tasks.FittrackBackfillExerciseMediaTest do
 
     assert {:ok,
             %{
-              fetched: 4,
+              fetched: 5,
               cached: 1,
               missing: 1,
-              skipped: 1,
+              skipped: 2,
               stale: 1,
               failed: 0,
-              unsupported: 1
+              unsupported: 2
             }} = ExerciseMediaBackfill.run(opts)
 
     assert Repo.aggregate(ExerciseMedia, :count, :id) == 0

@@ -12,14 +12,88 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Sparky Regression Guardrails
+
+- Added regression coverage proving the legacy Sparky runtime is not active in
+  FitTrack routes, route helper exports, verified static paths, asset paths,
+  digested asset manifests, source/digested asset files, app configuration, or
+  deployment scripts.
+- Added a repository text scan that permits Sparky references only in historical
+  documentation files: `FIXED_WORK.md`, `FUTURE_TASKS.md`, and
+  `ARCHITECTURE.puml`.
+- Verified the legacy paths `/sparky`, `/sparky/`, `/sparkyfitness`,
+  `/sparkyfitness/`, and `/sparkyfitness/assets/app.js` do not resolve through
+  `FittrackWeb.Router`.
+- Verified:
+  - `mix test test/fittrack_web/legacy_runtime_cleanup_test.exs`
+  - `mix precommit`
+
+### Exercise Media Population Completion
+
+- Completed production exercise media population for the normalized exercise
+  library with template-level local media coverage in place.
+- Refreshed existing WGER source and media references without inserting duplicate
+  templates:
+  - fetched: 841
+  - attempted: 841
+  - matched existing: 425
+  - updated: 425
+  - skipped unmatched: 416
+  - failed: 0
+- Retried the remaining stale image rows after the source refresh:
+  - batches: 1
+  - fetched: 5
+  - cached: 0
+  - already cached: 0
+  - missing: 0
+  - skipped: 0
+  - unsupported: 0
+  - stale: 5
+  - failed: 0
+  - exercises with no media: 0
+- Classified WGER media that exceeds the configured cache limit as
+  `unsupported` instead of `failed`, so oversized provider videos are treated as
+  a deliberate out-of-pipeline condition rather than a retryable cache failure.
+- Re-ran the video cache pass after that classifier change:
+  - batches: 1
+  - fetched: 3
+  - cached: 0
+  - already cached: 0
+  - missing: 0
+  - skipped: 3
+  - unsupported: 3
+  - stale: 0
+  - failed: 0
+  - exercises with no media: 0
+- Final production media status:
+  - templates: 488
+  - templates without cached media: 0
+  - cached media rows: 509
+  - stale media rows: 5
+  - unsupported media rows: 3
+  - failed media rows: 0
+  - cached rows without `local_path`: 0
+  - cached rows with absolute `local_path` or `storage_key`: 0
+  - distinct cached local paths: 504
+  - files under `/opt/fittrack/storage/exercise_media`: 504
+- The 5 stale rows are WGER image URLs that still return stale after refresh and
+  retry. The 3 unsupported rows are oversized WGER `.MOV` videos for Hip Thrust
+  and Facepull; those remain outside the configured local cache pipeline.
+- Verified:
+  - `mix test test/mix/tasks/fittrack_backfill_exercise_media_test.exs`
+  - `MIX_ENV=prod mix fittrack.refresh_exercise_sources --limit 1000 --dry-run`
+  - `MIX_ENV=prod mix fittrack.refresh_exercise_sources --limit 1000`
+  - `MIX_ENV=prod mix fittrack.exercise_media.backfill --batch-size 50 --max-batches 1 --media-type image --concurrency 3`
+  - `MIX_ENV=prod mix fittrack.exercise_media.backfill --batch-size 50 --max-batches 1 --media-type video --concurrency 3`
+
 ### Exercise Media Reliability Foundation
 
 - Commit references:
   - `5fac11e` Complete exercise media reliability
   - `d125175` Prevent media backfill task from starting endpoint
 - Completed the tooling, cache-serving, fallback, and reporting phase for the
-  normalized exercise library. Full production media population remains in
-  progress in `PRIORITY_FIXES.md`.
+  normalized exercise library. Final production media population is recorded in
+  the completion section above.
 - Added the bounded, idempotent production task `mix fittrack.exercise_media.backfill` with batch size, max batches, limit, dry-run, force-check, skip-download, media-type, and remote-sync options.
 - Hardened media caching so files resolve and write only under `EXERCISE_MEDIA_STORAGE_ROOT`.
 - Set production `EXERCISE_MEDIA_STORAGE_ROOT=/opt/fittrack/storage/exercise_media` and created `/opt/fittrack/storage/exercise_media` with deploy-safe permissions.
@@ -39,7 +113,7 @@ or materially addressed on the recent branches.
   - stale: 0
   - failed: 3
   - exercises with no media: 363
-- Confirmed the three failed rows are WGER `.MOV` videos rejected as `:file_too_large`, so remaining media coverage is now a source/data population issue rather than a cache-worker reliability blocker.
+- At this stage, the three remaining failed rows were WGER `.MOV` videos rejected as `:file_too_large`; their final `unsupported` disposition is recorded in the completion section above.
 - Verified:
   - `mix test`
   - `mix precommit`

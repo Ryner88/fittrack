@@ -18,38 +18,43 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- [IN-PROGRESS] Finish exercise media population for the normalized exercise
-  library.
+- [TODO] Resolve historical local migration drift.
+  Branch: `task/resolve-migration-drift`
   Scope:
-  - refresh missing WGER source metadata and media references for existing
-    shared templates without creating duplicate templates.
-  - run the remaining production cache work in bounded batches.
-  - keep local files under `EXERCISE_MEDIA_STORAGE_ROOT`.
-  - decide whether oversized WGER `.MOV` files should remain failed, use a
-    larger configured limit, or be handled outside the cache pipeline.
-  - record final fetched, cached, already-cached, missing, skipped,
-    unsupported, stale, failed, and exercises-with-no-media counts.
-  Progress:
-  - the bounded `mix fittrack.exercise_media.backfill` task is deployed.
-  - production storage is configured at
-    `/opt/fittrack/storage/exercise_media`.
-  - limited production verification runs succeeded, but full media population
-    is not complete.
-  - the latest documented bounded result is `Fetched: 3`, `Cached: 0`,
-    `Failed: 3`, and `Exercises with no media: 363`; the three failures are
-    oversized WGER `.MOV` videos.
+  - decide whether to restore a no-op historical migration file, document it as
+    local-only drift, or perform a local-only reset.
+  - keep production migration history untouched unless a real production
+    migration workflow requires it.
+  - verify local migration and rollback workflows still behave predictably.
 
-- [DONE] Repair remaining normalized exercise taxonomy/source metadata.
+- [TODO] Decide category/tag normalization.
+  Branch: `task/category-tag-normalization`
   Scope:
-  - backfill muscles and equipment for existing shared exercise templates.
-  - populate non-media source records and source visibility from WGER metadata.
-  - verify admin filters show real muscle, equipment, and source options.
-  - preserve existing templates and cached media.
-  - report counts for templates, muscles, equipment, sources, media cached,
-    missing, stale, and failed.
+  - decide whether dedicated `exercise_categories` and `exercise_tags` tables are
+    worth adding before further taxonomy expansion.
+  - document query/UI benefits and migration cost before adding schema.
+  - avoid introducing tables until the product benefit is clear.
 
-- [TODO] Add regression checks proving no active Sparky routes, assets, or
-  references remain.
+- [TODO] Add public category and muscle routes.
+  Branch: `feature/public-exercise-taxonomy-routes`
   Scope:
-  - cover route helpers, asset manifests, app config, and deployment scripts.
-  - allow clearly historical documentation references only.
+  - add routes like `/exercises/category/:slug` and `/exercises/muscle/:slug`.
+  - reuse current exercise library search/filter behavior.
+  - ensure canonical slugs, SEO-friendly titles, and guest/current-user route
+    scope behavior remain correct.
+
+- [TODO] Expand variation/substitution metadata.
+  Branch: `feature/exercise-relationship-metadata`
+  Scope:
+  - add similarity score, equipment requirements, difficulty delta, and
+    substitution reason quality.
+  - use the metadata for better workout substitutions and AI workout generation.
+  - surface the metadata consistently in admin review and exercise detail flows.
+
+- [TODO] Define trainer-shared exercise behavior.
+  Branch: `feature/trainer-shared-exercises`
+  Scope:
+  - decide how trainers can publish/share exercises.
+  - define permissions, moderation, and visibility rules.
+  - keep private `/my-exercises` behavior intact while designing shared
+    trainer-created exercise flows.
