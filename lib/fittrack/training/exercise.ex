@@ -48,7 +48,6 @@ defmodule Fittrack.Training.Exercise do
       :instructions,
       :slug,
       :is_custom,
-      :is_private,
       :custom_media,
       :movement_pattern,
       :exercise_category,
@@ -67,6 +66,7 @@ defmodule Fittrack.Training.Exercise do
     |> update_change(:slug, &Slug.slugify/1)
     |> normalize_fields()
     |> put_default_slug()
+    |> put_default_private()
     |> unique_constraint([:user_id, :normalized_name, :normalized_equipment])
     |> unique_constraint([:user_id, :slug])
   end
@@ -85,6 +85,13 @@ defmodule Fittrack.Training.Exercise do
       nil -> put_change(changeset, :slug, Slug.slugify(get_field(changeset, :name)))
       "" -> put_change(changeset, :slug, Slug.slugify(get_field(changeset, :name)))
       _slug -> changeset
+    end
+  end
+
+  defp put_default_private(changeset) do
+    case get_field(changeset, :is_private) do
+      nil -> put_change(changeset, :is_private, true)
+      _private? -> changeset
     end
   end
 
