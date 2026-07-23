@@ -338,6 +338,55 @@ defmodule Fittrack.TrainingTest do
              end)
     end
 
+    test "generate_ai_workout_plan/2 includes curated substitution templates in exercise pool", %{
+      scope: scope
+    } do
+      {:ok, bench} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          source_id: 90_101,
+          name: "Template Barbell Bench Press",
+          primary_muscle: "Chest",
+          equipment: "Barbell",
+          difficulty: "beginner"
+        })
+        |> Fittrack.Repo.insert()
+
+      {:ok, dumbbell_press} =
+        %ExerciseTemplate{}
+        |> ExerciseTemplate.changeset(%{
+          source_id: 90_102,
+          name: "Template Dumbbell Bench Press",
+          primary_muscle: "Chest",
+          equipment: "Dumbbell",
+          difficulty: "beginner"
+        })
+        |> Fittrack.Repo.insert()
+
+      assert {:ok, _substitution} =
+               Training.create_exercise_substitution(bench, dumbbell_press, %{
+                 reason: "equipment",
+                 similarity_score: 94,
+                 reason_quality: 88,
+                 equipment_requirements: ["Dumbbell"],
+                 difficulty_delta: 0
+               })
+
+      params = %{
+        "primary_goal" => "strength",
+        "experience" => "beginner",
+        "equipment" => ["barbell"],
+        "days_per_week" => "2",
+        "duration_minutes" => "30"
+      }
+
+      assert {:ok, _plan} = Training.generate_ai_workout_plan(scope, params)
+
+      names = scope |> Training.list_exercises() |> Enum.map(& &1.name)
+      assert "Template Barbell Bench Press" in names
+      assert "Template Dumbbell Bench Press" in names
+    end
+
     test "generate_ai_workout_plan/2 rejects duplicate goals", %{scope: scope} do
       exercise_fixture(scope)
 

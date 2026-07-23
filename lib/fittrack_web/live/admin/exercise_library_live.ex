@@ -695,6 +695,21 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
             </div>
           </.review_block>
 
+          <.review_block title="Relationship Metadata">
+            <div id="admin-template-relationships" class="grid gap-3 lg:grid-cols-2">
+              <.relationship_review
+                title="Variations"
+                relationships={@template.variations}
+                template_key={:variation_exercise_template}
+              />
+              <.relationship_review
+                title="Substitutions"
+                relationships={@template.substitutions}
+                template_key={:substitute_exercise_template}
+              />
+            </div>
+          </.review_block>
+
           <.review_block title="Source Visibility">
             <div id="admin-template-sources" class="grid gap-3">
               <div
@@ -940,6 +955,57 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
          )}
     end
   end
+
+  attr :title, :string, required: true
+  attr :relationships, :list, required: true
+  attr :template_key, :atom, required: true
+
+  defp relationship_review(assigns) do
+    ~H"""
+    <section class="rounded-lg border border-base-200 p-4">
+      <h3 class="text-sm font-semibold text-base-content">{@title}</h3>
+      <div class="mt-3 grid gap-3">
+        <div
+          :for={relationship <- @relationships}
+          class="rounded-lg border border-base-200 bg-base-50 p-3 text-xs text-base-content/70"
+        >
+          <% template = Map.fetch!(relationship, @template_key) %>
+          <p class="font-semibold text-base-content">{template.name}</p>
+          <p class="mt-1">{relationship_meta(relationship)}</p>
+        </div>
+        <p :if={@relationships == []} class="text-sm text-base-content/60">None linked.</p>
+      </div>
+    </section>
+    """
+  end
+
+  defp relationship_meta(relationship) do
+    [
+      relationship_kind(relationship),
+      metadata_score("Match", relationship.similarity_score),
+      metadata_score("Reason", Map.get(relationship, :reason_quality)),
+      difficulty_delta_label(relationship.difficulty_delta),
+      equipment_requirement_label(relationship.equipment_requirements)
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" · ")
+  end
+
+  defp relationship_kind(%{relationship: relationship}), do: status_label(relationship)
+  defp relationship_kind(%{reason: reason}), do: status_label(reason)
+  defp relationship_kind(_relationship), do: nil
+
+  defp metadata_score(_label, nil), do: nil
+  defp metadata_score(label, score), do: "#{label} #{score}/100"
+
+  defp difficulty_delta_label(nil), do: nil
+  defp difficulty_delta_label(0), do: "Same difficulty"
+  defp difficulty_delta_label(delta) when delta > 0, do: "+#{delta} difficulty"
+  defp difficulty_delta_label(delta), do: "#{delta} difficulty"
+
+  defp equipment_requirement_label([]), do: nil
+  defp equipment_requirement_label(nil), do: nil
+  defp equipment_requirement_label(equipment), do: "Needs #{Enum.join(equipment, ", ")}"
 
   defp clean_params(params) do
     params

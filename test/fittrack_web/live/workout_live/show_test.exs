@@ -60,7 +60,11 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert {:ok, _substitution} =
              Training.create_exercise_substitution(bench, dumbbell, %{
                reason: "equipment",
-               priority: 1
+               priority: 1,
+               similarity_score: 91,
+               reason_quality: 84,
+               equipment_requirements: ["Dumbbell"],
+               difficulty_delta: 0
              })
 
     assert {:ok, exercise} = Training.add_template_to_user(scope, bench.id)
@@ -75,6 +79,10 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     assert html =~ "Can&#39;t do Barbell Bench Press?"
     assert html =~ "Dumbbell Bench Press"
+    assert html =~ "Match 91/100"
+    assert html =~ "Reason 84/100"
+    assert html =~ "Same difficulty"
+    assert html =~ "Needs Dumbbell"
 
     view
     |> element("#substitute-template-#{dumbbell.id}")

@@ -331,6 +331,25 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     assert {:ok, :inserted, template} = ExerciseTemplateImporter.upsert_template(attrs)
     alias_fixture(template, "import row")
     media_fixture(template, %{cache_status: "failed", failure_reason: "404 from source"})
+    incline = template_fixture(%{name: "Admin Incline Press", equipment: "Barbell"})
+    push_up = template_fixture(%{name: "Admin Push-Up", equipment: "Bodyweight"})
+
+    assert {:ok, _variation} =
+             Training.create_exercise_variation(template, incline, %{
+               relationship: "angle",
+               similarity_score: 87,
+               equipment_requirements: ["Incline bench"],
+               difficulty_delta: 1
+             })
+
+    assert {:ok, _substitution} =
+             Training.create_exercise_substitution(template, push_up, %{
+               reason: "home_training",
+               similarity_score: 91,
+               reason_quality: 82,
+               equipment_requirements: ["Bodyweight"],
+               difficulty_delta: -1
+             })
 
     {:ok, _view, html} = live(conn, ~p"/admin/exercises/#{template.id}")
 
@@ -341,6 +360,11 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLiveTest do
     assert html =~ "failed"
     assert html =~ "404 from source"
     assert html =~ "wger project"
+    assert html =~ "Relationship Metadata"
+    assert html =~ "Admin Incline Press"
+    assert html =~ "Admin Push-Up"
+    assert html =~ "Match 87/100"
+    assert html =~ "Reason 82/100"
   end
 
   test "archive requires explicit confirmation and does not hard delete the template", %{

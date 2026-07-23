@@ -133,12 +133,14 @@ defmodule FittrackWeb.LibraryLive.Show do
               <.relationship_panel
                 title="Variations"
                 empty_label="No variations linked yet."
-                relationships={variation_templates(@template)}
+                relationships={@template.variations}
+                template_key={:variation_exercise_template}
               />
               <.relationship_panel
                 title="Substitutions"
                 empty_label="No substitutions linked yet."
-                relationships={substitution_templates(@template)}
+                relationships={@template.substitutions}
+                template_key={:substitute_exercise_template}
               />
             </section>
           </div>
@@ -289,6 +291,7 @@ defmodule FittrackWeb.LibraryLive.Show do
   attr :title, :string, required: true
   attr :empty_label, :string, required: true
   attr :relationships, :list, required: true
+  attr :template_key, :atom, required: true
 
   defp relationship_panel(assigns) do
     ~H"""
@@ -296,11 +299,18 @@ defmodule FittrackWeb.LibraryLive.Show do
       <h2 class="text-lg font-semibold text-base-content">{@title}</h2>
       <div class="mt-3 space-y-2">
         <.link
-          :for={template <- @relationships}
-          navigate={~p"/exercises/#{template.slug}"}
-          class="flex items-center justify-between rounded-lg border border-base-200 px-3 py-2 text-sm transition hover:border-primary/30 hover:text-primary"
+          :for={relationship <- @relationships}
+          navigate={~p"/exercises/#{relationship_template(relationship, @template_key).slug}"}
+          class="flex items-center justify-between gap-3 rounded-lg border border-base-200 px-3 py-2 text-sm transition hover:border-primary/30 hover:text-primary"
         >
-          <span class="font-semibold">{template.name}</span>
+          <span class="min-w-0">
+            <span class="block font-semibold">
+              {relationship_template(relationship, @template_key).name}
+            </span>
+            <span class="mt-1 block text-xs text-base-content/60">
+              {relationship_meta(relationship)}
+            </span>
+          </span>
           <.icon name="hero-arrow-right" class="h-4 w-4" />
         </.link>
         <p :if={Enum.empty?(@relationships)} class="text-sm text-base-content/60">{@empty_label}</p>
@@ -359,15 +369,36 @@ defmodule FittrackWeb.LibraryLive.Show do
     Enum.uniq((template.weighted_tags || []) ++ (template.training_style_tags || []))
   end
 
-  defp variation_templates(template) do
-    Enum.map(template.variations, & &1.variation_exercise_template)
+  defp relationship_meta(relationship) do
+    [
+      relationship_kind(relationship),
+      metadata_score("Match", relationship.similarity_score),
+      metadata_score("Reason", Map.get(relationship, :reason_quality)),
+      difficulty_delta_label(relationship.difficulty_delta),
+      equipment_requirement_label(relationship.equipment_requirements)
+    ]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" · ")
   end
 
-  defp substitution_templates(template) do
-    template.substitutions
-    |> Enum.sort_by(& &1.priority)
-    |> Enum.map(& &1.substitute_exercise_template)
-  end
+  defp relationship_template(relationship, template_key),
+    do: Map.fetch!(relationship, template_key)
+
+  defp relationship_kind(%{relationship: relationship}), do: format_label(relationship)
+  defp relationship_kind(%{reason: reason}), do: format_label(reason)
+  defp relationship_kind(_relationship), do: nil
+
+  defp metadata_score(_label, nil), do: nil
+  defp metadata_score(label, score), do: "#{label} #{score}/100"
+
+  defp difficulty_delta_label(nil), do: nil
+  defp difficulty_delta_label(0), do: "Same difficulty"
+  defp difficulty_delta_label(delta) when delta > 0, do: "+#{delta} difficulty"
+  defp difficulty_delta_label(delta), do: "#{delta} difficulty"
+
+  defp equipment_requirement_label([]), do: nil
+  defp equipment_requirement_label(nil), do: nil
+  defp equipment_requirement_label(equipment), do: "Needs #{Enum.join(equipment, ", ")}"
 
   defp assign_workout_picker(%{assigns: %{current_scope: %{user: user}}} = socket)
        when not is_nil(user) do

@@ -8,6 +8,10 @@ defmodule Fittrack.Training.ExerciseSubstitution do
     field :reason, :string
     field :priority, :integer, default: 0
     field :notes, :string
+    field :similarity_score, :integer
+    field :equipment_requirements, {:array, :string}, default: []
+    field :difficulty_delta, :integer
+    field :reason_quality, :integer
 
     belongs_to :exercise_template, ExerciseTemplate
     belongs_to :substitute_exercise_template, ExerciseTemplate
@@ -22,6 +26,10 @@ defmodule Fittrack.Training.ExerciseSubstitution do
       :substitute_exercise_template_id,
       :reason,
       :priority,
+      :similarity_score,
+      :equipment_requirements,
+      :difficulty_delta,
+      :reason_quality,
       :notes
     ])
     |> validate_required([:exercise_template_id, :substitute_exercise_template_id])
@@ -33,6 +41,19 @@ defmodule Fittrack.Training.ExerciseSubstitution do
       "same_pattern"
     ])
     |> validate_number(:priority, greater_than_or_equal_to: 0)
+    |> validate_number(:similarity_score,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+    |> validate_number(:difficulty_delta,
+      greater_than_or_equal_to: -5,
+      less_than_or_equal_to: 5
+    )
+    |> validate_number(:reason_quality,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+    |> update_change(:equipment_requirements, &normalize_list/1)
     |> validate_not_self_referential()
     |> unique_constraint([:exercise_template_id, :substitute_exercise_template_id])
     |> check_constraint(:exercise_template_id, name: :exercise_substitutions_no_self_reference)
@@ -48,4 +69,16 @@ defmodule Fittrack.Training.ExerciseSubstitution do
       changeset
     end
   end
+
+  defp normalize_list(values) when is_list(values) do
+    values
+    |> Enum.map(&normalize_text/1)
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.uniq()
+  end
+
+  defp normalize_list(_values), do: []
+
+  defp normalize_text(value) when is_binary(value), do: String.trim(value)
+  defp normalize_text(_value), do: nil
 end
