@@ -126,17 +126,35 @@ defmodule FittrackWeb.LibraryLiveTest do
 
     incline = template_fixture(name: "Incline Bench Press", primary_muscle: "Chest")
     push_up = template_fixture(name: "Push-Up", primary_muscle: "Chest", equipment: "Bodyweight")
+    band_press = template_fixture(name: "Band Press", primary_muscle: "Chest", equipment: "Band")
     alias_fixture(bench, "Bench")
     muscle_fixture(bench, "Chest")
     equipment_fixture(bench, "Barbell")
 
     assert {:ok, _variation} =
-             Training.create_exercise_variation(bench, incline, %{relationship: "angle"})
+             Training.create_exercise_variation(bench, incline, %{
+               relationship: "angle",
+               similarity_score: 88,
+               equipment_requirements: ["Incline bench"],
+               difficulty_delta: 1
+             })
 
     assert {:ok, _substitution} =
              Training.create_exercise_substitution(bench, push_up, %{
                reason: "home_training",
-               priority: 1
+               priority: 1,
+               similarity_score: 92,
+               equipment_requirements: ["Bodyweight"],
+               difficulty_delta: -1,
+               reason_quality: 85
+             })
+
+    assert {:ok, _lower_ranked_substitution} =
+             Training.create_exercise_substitution(bench, band_press, %{
+               reason: "equipment",
+               priority: 0,
+               similarity_score: 20,
+               reason_quality: 20
              })
 
     {:ok, _view, html} = live(conn, ~p"/exercises/#{bench.slug}")
@@ -148,6 +166,12 @@ defmodule FittrackWeb.LibraryLiveTest do
     assert html =~ "Lower the bar with control."
     assert html =~ "Incline Bench Press"
     assert html =~ "Push-Up"
+    assert html =~ "Band Press"
+    assert html =~ ~r/Push-Up.*Band Press/s
+    assert html =~ "Match 88/100"
+    assert html =~ "Match 92/100"
+    assert html =~ "Reason 85/100"
+    assert html =~ "Needs Bodyweight"
     assert html =~ "Horizontal push"
     assert html =~ "Powerlifting"
   end

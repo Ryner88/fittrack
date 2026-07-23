@@ -3,6 +3,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
 
   alias Fittrack.Training
   alias Fittrack.Training.ExerciseTemplate
+  import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
   @impl true
   def render(assigns) do
@@ -695,6 +696,21 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
             </div>
           </.review_block>
 
+          <.review_block title="Relationship Metadata">
+            <div id="admin-template-relationships" class="grid gap-3 lg:grid-cols-2">
+              <.relationship_review
+                title="Variations"
+                relationships={@template.variations}
+                template_key={:variation_exercise_template}
+              />
+              <.relationship_review
+                title="Substitutions"
+                relationships={@template.substitutions}
+                template_key={:substitute_exercise_template}
+              />
+            </div>
+          </.review_block>
+
           <.review_block title="Source Visibility">
             <div id="admin-template-sources" class="grid gap-3">
               <div
@@ -939,6 +955,29 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
            to_form(Map.merge(template_params, errors_for(changeset)), as: :template)
          )}
     end
+  end
+
+  attr :title, :string, required: true
+  attr :relationships, :list, required: true
+  attr :template_key, :atom, required: true
+
+  defp relationship_review(assigns) do
+    ~H"""
+    <section class="rounded-lg border border-base-200 p-4">
+      <h3 class="text-sm font-semibold text-base-content">{@title}</h3>
+      <div class="mt-3 grid gap-3">
+        <div
+          :for={relationship <- @relationships}
+          class="rounded-lg border border-base-200 bg-base-50 p-3 text-xs text-base-content/70"
+        >
+          <% template = Map.fetch!(relationship, @template_key) %>
+          <p class="font-semibold text-base-content">{template.name}</p>
+          <p class="mt-1">{relationship_meta(relationship)}</p>
+        </div>
+        <p :if={@relationships == []} class="text-sm text-base-content/60">None linked.</p>
+      </div>
+    </section>
+    """
   end
 
   defp clean_params(params) do

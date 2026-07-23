@@ -161,7 +161,7 @@ defmodule Fittrack.Training do
            Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
       ExerciseSubstitution
       |> where([substitution], substitution.exercise_template_id == ^template_id)
-      |> order_by([substitution], asc: substitution.priority, asc: substitution.reason)
+      |> rank_substitutions()
       |> limit(^limit)
       |> preload(:substitute_exercise_template)
       |> Repo.all()
@@ -172,6 +172,27 @@ defmodule Fittrack.Training do
   end
 
   def list_substitution_templates_for_exercise(_, _exercise_id, _opts), do: []
+
+  def list_substitution_suggestions_for_exercise(scope, exercise_id, opts \\ %{})
+
+  def list_substitution_suggestions_for_exercise(%Scope{user: user}, exercise_id, opts) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    limit = opts |> Map.get(:limit, 4) |> parse_positive_integer(4)
+
+    with %Exercise{source_template_id: template_id} when not is_nil(template_id) <-
+           Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
+      ExerciseSubstitution
+      |> where([substitution], substitution.exercise_template_id == ^template_id)
+      |> rank_substitutions()
+      |> limit(^limit)
+      |> preload(:substitute_exercise_template)
+      |> Repo.all()
+    else
+      _ -> []
+    end
+  end
+
+  def list_substitution_suggestions_for_exercise(_, _exercise_id, _opts), do: []
 
   @doc """
   Creates a exercise scoped to the current user.
@@ -684,7 +705,9 @@ defmodule Fittrack.Training do
       :media,
       template_sources: [],
       template_muscles: [:exercise_muscle],
-      template_equipment: [:exercise_equipment]
+      template_equipment: [:exercise_equipment],
+      variations: [:variation_exercise_template],
+      substitutions: [:substitute_exercise_template]
     ])
     |> Repo.all()
   end
@@ -735,7 +758,9 @@ defmodule Fittrack.Training do
       :media,
       :template_sources,
       template_muscles: [:exercise_muscle],
-      template_equipment: [:exercise_equipment]
+      template_equipment: [:exercise_equipment],
+      variations: [:variation_exercise_template],
+      substitutions: [:substitute_exercise_template]
     ]
   end
 
@@ -1117,6 +1142,15 @@ defmodule Fittrack.Training do
 
   defp maybe_preload_source_template(query, true), do: preload(query, source_template: :media)
   defp maybe_preload_source_template(query, _), do: query
+
+  defp rank_substitutions(query) do
+    order_by(query, [substitution],
+      desc: fragment("coalesce(?, 0)", substitution.similarity_score),
+      desc: fragment("coalesce(?, 0)", substitution.reason_quality),
+      asc: substitution.priority,
+      asc: substitution.reason
+    )
+  end
 
   defp media_lookup(%{source: source, source_id: source_id})
        when is_binary(source) and is_binary(source_id) do
@@ -1745,7 +1779,22 @@ defmodule Fittrack.Training do
 
       db_matches ++ fuzzy_matches
     end)
+    |> include_ai_substitution_templates()
     |> Enum.uniq_by(&{&1.normalized_name, &1.normalized_equipment})
+  end
+
+  defp include_ai_substitution_templates(templates) do
+    template_ids = Enum.map(templates, & &1.id)
+
+    substitutions =
+      ExerciseSubstitution
+      |> where([substitution], substitution.exercise_template_id in ^template_ids)
+      |> rank_substitutions()
+      |> preload(:substitute_exercise_template)
+      |> Repo.all()
+      |> Enum.map(& &1.substitute_exercise_template)
+
+    templates ++ substitutions
   end
 
   defp source_exercise_names(%{structured: %{"exercises" => exercises}})
@@ -1796,6 +1845,7 @@ defmodule Fittrack.Training do
     equipment_matches =
       equipment
       |> Enum.flat_map(fn eq -> list_exercise_templates(%{equipment: eq}) end)
+      |> include_ai_substitution_templates()
       |> Enum.uniq_by(&{&1.normalized_name, &1.normalized_equipment})
 
     case equipment_matches do

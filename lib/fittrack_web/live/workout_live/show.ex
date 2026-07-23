@@ -3,6 +3,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   alias Fittrack.Training
   alias Fittrack.Training.WorkoutSet
+  import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
   @impl true
   def render(assigns) do
@@ -199,14 +200,21 @@ defmodule FittrackWeb.WorkoutLive.Show do
                 </div>
                 <div class="mt-3 grid gap-2">
                   <button
-                    :for={template <- @substitution_suggestions}
-                    id={"substitute-template-#{template.id}"}
+                    :for={suggestion <- @substitution_suggestions}
+                    id={"substitute-template-#{suggestion.substitute_exercise_template.id}"}
                     type="button"
                     phx-click="prefill_from_library"
-                    phx-value-template_id={template.id}
-                    class="flex items-center justify-between rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
+                    phx-value-template_id={suggestion.substitute_exercise_template.id}
+                    class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-sm text-base-content transition hover:border-primary hover:text-primary"
                   >
-                    <span>{template.name}</span>
+                    <span class="min-w-0">
+                      <span class="block font-semibold">
+                        {suggestion.substitute_exercise_template.name}
+                      </span>
+                      <span class="mt-1 block text-xs text-base-content/60">
+                        {relationship_meta(suggestion)}
+                      </span>
+                    </span>
                     <.icon name="hero-arrow-right" class="h-4 w-4" />
                   </button>
                 </div>
@@ -641,7 +649,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
   defp substitution_suggestions(_current_scope, nil), do: []
 
   defp substitution_suggestions(current_scope, exercise) do
-    Training.list_substitution_templates_for_exercise(current_scope, exercise.id, limit: 4)
+    Training.list_substitution_suggestions_for_exercise(current_scope, exercise.id, limit: 4)
   end
 
   attr :title, :string, required: true

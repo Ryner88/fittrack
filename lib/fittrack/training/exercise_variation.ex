@@ -3,10 +3,14 @@ defmodule Fittrack.Training.ExerciseVariation do
   import Ecto.Changeset
 
   alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.RelationshipNormalizer
 
   schema "exercise_variations" do
     field :relationship, :string
     field :notes, :string
+    field :similarity_score, :integer
+    field :equipment_requirements, {:array, :string}, default: []
+    field :difficulty_delta, :integer
 
     belongs_to :base_exercise_template, ExerciseTemplate
     belongs_to :variation_exercise_template, ExerciseTemplate
@@ -20,6 +24,9 @@ defmodule Fittrack.Training.ExerciseVariation do
       :base_exercise_template_id,
       :variation_exercise_template_id,
       :relationship,
+      :similarity_score,
+      :equipment_requirements,
+      :difficulty_delta,
       :notes
     ])
     |> validate_required([
@@ -34,6 +41,15 @@ defmodule Fittrack.Training.ExerciseVariation do
       "progression",
       "regression"
     ])
+    |> validate_number(:similarity_score,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+    |> validate_number(:difficulty_delta,
+      greater_than_or_equal_to: -5,
+      less_than_or_equal_to: 5
+    )
+    |> update_change(:equipment_requirements, &RelationshipNormalizer.normalize_list/1)
     |> validate_not_self_referential()
     |> unique_constraint([
       :base_exercise_template_id,
