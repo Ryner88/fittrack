@@ -2,6 +2,7 @@ defmodule FittrackWeb.LibraryLive.Show do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
   @impl true
   def render(assigns) do
@@ -369,36 +370,8 @@ defmodule FittrackWeb.LibraryLive.Show do
     Enum.uniq((template.weighted_tags || []) ++ (template.training_style_tags || []))
   end
 
-  defp relationship_meta(relationship) do
-    [
-      relationship_kind(relationship),
-      metadata_score("Match", relationship.similarity_score),
-      metadata_score("Reason", Map.get(relationship, :reason_quality)),
-      difficulty_delta_label(relationship.difficulty_delta),
-      equipment_requirement_label(relationship.equipment_requirements)
-    ]
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.join(" · ")
-  end
-
   defp relationship_template(relationship, template_key),
     do: Map.fetch!(relationship, template_key)
-
-  defp relationship_kind(%{relationship: relationship}), do: format_label(relationship)
-  defp relationship_kind(%{reason: reason}), do: format_label(reason)
-  defp relationship_kind(_relationship), do: nil
-
-  defp metadata_score(_label, nil), do: nil
-  defp metadata_score(label, score), do: "#{label} #{score}/100"
-
-  defp difficulty_delta_label(nil), do: nil
-  defp difficulty_delta_label(0), do: "Same difficulty"
-  defp difficulty_delta_label(delta) when delta > 0, do: "+#{delta} difficulty"
-  defp difficulty_delta_label(delta), do: "#{delta} difficulty"
-
-  defp equipment_requirement_label([]), do: nil
-  defp equipment_requirement_label(nil), do: nil
-  defp equipment_requirement_label(equipment), do: "Needs #{Enum.join(equipment, ", ")}"
 
   defp assign_workout_picker(%{assigns: %{current_scope: %{user: user}}} = socket)
        when not is_nil(user) do

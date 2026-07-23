@@ -3,6 +3,7 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
 
   alias Fittrack.Training
   alias Fittrack.Training.ExerciseTemplate
+  import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
   @impl true
   def render(assigns) do
@@ -978,34 +979,6 @@ defmodule FittrackWeb.Admin.ExerciseLibraryLive do
     </section>
     """
   end
-
-  defp relationship_meta(relationship) do
-    [
-      relationship_kind(relationship),
-      metadata_score("Match", relationship.similarity_score),
-      metadata_score("Reason", Map.get(relationship, :reason_quality)),
-      difficulty_delta_label(relationship.difficulty_delta),
-      equipment_requirement_label(relationship.equipment_requirements)
-    ]
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.join(" · ")
-  end
-
-  defp relationship_kind(%{relationship: relationship}), do: status_label(relationship)
-  defp relationship_kind(%{reason: reason}), do: status_label(reason)
-  defp relationship_kind(_relationship), do: nil
-
-  defp metadata_score(_label, nil), do: nil
-  defp metadata_score(label, score), do: "#{label} #{score}/100"
-
-  defp difficulty_delta_label(nil), do: nil
-  defp difficulty_delta_label(0), do: "Same difficulty"
-  defp difficulty_delta_label(delta) when delta > 0, do: "+#{delta} difficulty"
-  defp difficulty_delta_label(delta), do: "#{delta} difficulty"
-
-  defp equipment_requirement_label([]), do: nil
-  defp equipment_requirement_label(nil), do: nil
-  defp equipment_requirement_label(equipment), do: "Needs #{Enum.join(equipment, ", ")}"
 
   defp clean_params(params) do
     params

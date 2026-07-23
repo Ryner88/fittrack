@@ -161,12 +161,7 @@ defmodule Fittrack.Training do
            Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
       ExerciseSubstitution
       |> where([substitution], substitution.exercise_template_id == ^template_id)
-      |> order_by([substitution],
-        desc: fragment("coalesce(?, 0)", substitution.similarity_score),
-        desc: fragment("coalesce(?, 0)", substitution.reason_quality),
-        asc: substitution.priority,
-        asc: substitution.reason
-      )
+      |> rank_substitutions()
       |> limit(^limit)
       |> preload(:substitute_exercise_template)
       |> Repo.all()
@@ -188,12 +183,7 @@ defmodule Fittrack.Training do
            Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
       ExerciseSubstitution
       |> where([substitution], substitution.exercise_template_id == ^template_id)
-      |> order_by([substitution],
-        desc: fragment("coalesce(?, 0)", substitution.similarity_score),
-        desc: fragment("coalesce(?, 0)", substitution.reason_quality),
-        asc: substitution.priority,
-        asc: substitution.reason
-      )
+      |> rank_substitutions()
       |> limit(^limit)
       |> preload(:substitute_exercise_template)
       |> Repo.all()
@@ -1153,6 +1143,15 @@ defmodule Fittrack.Training do
   defp maybe_preload_source_template(query, true), do: preload(query, source_template: :media)
   defp maybe_preload_source_template(query, _), do: query
 
+  defp rank_substitutions(query) do
+    order_by(query, [substitution],
+      desc: fragment("coalesce(?, 0)", substitution.similarity_score),
+      desc: fragment("coalesce(?, 0)", substitution.reason_quality),
+      asc: substitution.priority,
+      asc: substitution.reason
+    )
+  end
+
   defp media_lookup(%{source: source, source_id: source_id})
        when is_binary(source) and is_binary(source_id) do
     Repo.get_by(ExerciseMedia, source: source, source_id: source_id)
@@ -1790,11 +1789,7 @@ defmodule Fittrack.Training do
     substitutions =
       ExerciseSubstitution
       |> where([substitution], substitution.exercise_template_id in ^template_ids)
-      |> order_by([substitution],
-        desc: fragment("coalesce(?, 0)", substitution.similarity_score),
-        desc: fragment("coalesce(?, 0)", substitution.reason_quality),
-        asc: substitution.priority
-      )
+      |> rank_substitutions()
       |> preload(:substitute_exercise_template)
       |> Repo.all()
       |> Enum.map(& &1.substitute_exercise_template)

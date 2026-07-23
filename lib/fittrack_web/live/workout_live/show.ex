@@ -3,6 +3,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   alias Fittrack.Training
   alias Fittrack.Training.WorkoutSet
+  import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
   @impl true
   def render(assigns) do
@@ -211,7 +212,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
                         {suggestion.substitute_exercise_template.name}
                       </span>
                       <span class="mt-1 block text-xs text-base-content/60">
-                        {substitution_meta(suggestion)}
+                        {relationship_meta(suggestion)}
                       </span>
                     </span>
                     <.icon name="hero-arrow-right" class="h-4 w-4" />
@@ -649,33 +650,6 @@ defmodule FittrackWeb.WorkoutLive.Show do
 
   defp substitution_suggestions(current_scope, exercise) do
     Training.list_substitution_suggestions_for_exercise(current_scope, exercise.id, limit: 4)
-  end
-
-  defp substitution_meta(suggestion) do
-    [
-      metadata_score("Match", suggestion.similarity_score),
-      metadata_score("Reason", suggestion.reason_quality),
-      difficulty_delta_label(suggestion.difficulty_delta),
-      equipment_requirement_label(suggestion.equipment_requirements)
-    ]
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.join(" · ")
-  end
-
-  defp metadata_score(_label, nil), do: nil
-  defp metadata_score(label, score), do: "#{label} #{score}/100"
-
-  defp difficulty_delta_label(nil), do: nil
-  defp difficulty_delta_label(0), do: "Same difficulty"
-
-  defp difficulty_delta_label(delta) when delta > 0, do: "+#{delta} difficulty"
-  defp difficulty_delta_label(delta), do: "#{delta} difficulty"
-
-  defp equipment_requirement_label([]), do: nil
-  defp equipment_requirement_label(nil), do: nil
-
-  defp equipment_requirement_label(equipment) do
-    "Needs #{Enum.join(equipment, ", ")}"
   end
 
   attr :title, :string, required: true

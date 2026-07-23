@@ -3,6 +3,7 @@ defmodule Fittrack.Training.ExerciseVariation do
   import Ecto.Changeset
 
   alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.RelationshipNormalizer
 
   schema "exercise_variations" do
     field :relationship, :string
@@ -48,7 +49,7 @@ defmodule Fittrack.Training.ExerciseVariation do
       greater_than_or_equal_to: -5,
       less_than_or_equal_to: 5
     )
-    |> update_change(:equipment_requirements, &normalize_list/1)
+    |> update_change(:equipment_requirements, &RelationshipNormalizer.normalize_list/1)
     |> validate_not_self_referential()
     |> unique_constraint([
       :base_exercise_template_id,
@@ -74,16 +75,4 @@ defmodule Fittrack.Training.ExerciseVariation do
       changeset
     end
   end
-
-  defp normalize_list(values) when is_list(values) do
-    values
-    |> Enum.map(&normalize_text/1)
-    |> Enum.reject(&(&1 in [nil, ""]))
-    |> Enum.uniq()
-  end
-
-  defp normalize_list(_values), do: []
-
-  defp normalize_text(value) when is_binary(value), do: String.trim(value)
-  defp normalize_text(_value), do: nil
 end
