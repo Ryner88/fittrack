@@ -37,10 +37,9 @@ Roadmap items are organized below. Promote only the active next item into
   required `exercise_media` cache fields exist: `cache_status`, `checked_at`,
   `content_hash`, `display_order`, `duration_seconds`, `file_size`, `local_path`,
   `source_exercise_id`, and `storage_key`.
-- Non-blocking local migration history drift remains:
-  `20260502000000` is recorded as applied locally but has no migration file in
-  the repo. Do not reset or delete migration rows unless it starts blocking local
-  migration or rollback workflows.
+- Historical local migration drift is resolved in the local dev database. The
+  decision is recorded in `docs/adr/2026-07-23-local-migration-drift.md`.
+  Production migration history was not changed.
 - Production media data was updated during final media population: existing WGER
   source/media references were refreshed, stale images were retried, and
   oversized WGER `.MOV` rows were classified as unsupported.
