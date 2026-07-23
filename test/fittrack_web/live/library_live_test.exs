@@ -40,6 +40,76 @@ defmodule FittrackWeb.LibraryLiveTest do
     refute render(view) =~ "Goblet Squat"
   end
 
+  test "public category route reuses library filters and canonical path behavior", %{conn: conn} do
+    bench =
+      template_fixture(
+        name: "Category Bench Press",
+        primary_muscle: "Chest",
+        exercise_category: "compound"
+      )
+
+    curl =
+      template_fixture(
+        name: "Category Cable Curl",
+        primary_muscle: "Biceps",
+        exercise_category: "isolation"
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/exercises/category/compound")
+
+    assert has_element?(view, "#exercise-library-filters-form")
+    assert has_element?(view, "#exercise-library-results")
+    assert has_element?(view, "[data-template-id='#{bench.id}']")
+    refute has_element?(view, "[data-template-id='#{curl.id}']")
+
+    view
+    |> form("#exercise-library-filters-form",
+      filters: %{category: "compound", search: "bench"}
+    )
+    |> render_change()
+
+    assert_patch(view, ~p"/exercises/category/compound?search=bench")
+
+    assert {:error, {:live_redirect, %{to: "/exercises/category/compound"}}} =
+             live(conn, ~p"/exercises/category/Compound")
+
+    assert {:error, {:live_redirect, %{to: "/exercises"}}} =
+             live(conn, ~p"/exercises/category/not-a-category")
+  end
+
+  test "public muscle route works for signed-in users and preserves current scope behavior", %{
+    conn: conn
+  } do
+    user = Fittrack.AccountsFixtures.user_fixture()
+
+    bench = template_fixture(name: "Muscle Bench Press", primary_muscle: "Chest")
+    muscle_fixture(bench, "Pectorals")
+
+    _squat = template_fixture(name: "Muscle Goblet Squat", primary_muscle: "Quads")
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/exercises/muscle/pectorals")
+
+    assert has_element?(view, "#exercise-library-filters-form")
+    assert has_element?(view, "a", "My Exercises")
+    assert has_element?(view, "#add-template-#{bench.id}")
+    assert has_element?(view, "[data-template-id='#{bench.id}']")
+
+    view
+    |> form("#exercise-library-filters-form",
+      filters: %{muscle_group: "Pectorals", difficulty: "intermediate"}
+    )
+    |> render_change()
+
+    assert_patch(view, ~p"/exercises/muscle/pectorals?difficulty=intermediate")
+
+    assert {:error, {:live_redirect, %{to: "/exercises/muscle/pectorals"}}} =
+             live(conn, ~p"/exercises/muscle/Pectorals")
+
+    assert {:error, {:live_redirect, %{to: "/exercises"}}} =
+             live(conn, ~p"/exercises/muscle/not-a-muscle")
+  end
+
   test "exercise detail page shows aliases, muscles, equipment, tags, variations, and substitutions",
        %{
          conn: conn

@@ -2,6 +2,7 @@ defmodule FittrackWeb.LibraryLive.Index do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  alias Fittrack.Training.Slug
 
   @filter_keys ~w(search muscle_group equipment category difficulty page)
 
@@ -14,10 +15,10 @@ defmodule FittrackWeb.LibraryLive.Index do
           <div class="max-w-3xl">
             <p class="text-sm font-semibold uppercase tracking-wide text-primary">Exercise Library</p>
             <h1 class="mt-2 text-3xl font-semibold text-base-content sm:text-4xl">
-              Find the right movement fast.
+              {@heading}
             </h1>
             <p class="mt-3 text-base text-base-content/70">
-              Search by name or alias, then narrow by muscle, equipment, category, and difficulty.
+              {@intro}
             </p>
           </div>
           <%= if @current_scope && @current_scope.user do %>
@@ -149,29 +150,40 @@ defmodule FittrackWeb.LibraryLive.Index do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    filters = normalize_filters(params)
+    route_context =
+      route_context(socket.assigns.live_action, params, socket.assigns.filter_options)
+
+    filters = params |> normalize_filters() |> apply_route_context(route_context)
     page = parse_page(Map.get(filters, "page"))
 
-    results =
-      Training.paginate_exercise_templates(%{
-        search: filters["search"],
-        muscle_group: filters["muscle_group"],
-        equipment: filters["equipment"],
-        category: filters["category"],
-        difficulty: filters["difficulty"],
-        page: page,
-        per_page: 24
-      })
+    if canonical_path?(route_context, filters) do
+      results =
+        Training.paginate_exercise_templates(%{
+          search: filters["search"],
+          muscle_group: filters["muscle_group"],
+          equipment: filters["equipment"],
+          category: filters["category"],
+          difficulty: filters["difficulty"],
+          page: page,
+          per_page: 24
+        })
 
-    filters = Map.put(filters, "page", Integer.to_string(results.page))
+      filters = Map.put(filters, "page", Integer.to_string(results.page))
+      page_title = page_title(route_context)
 
-    {:noreply,
-     socket
-     |> assign(:filters, filters)
-     |> assign(:form, to_form(filters, as: :filters))
-     |> assign(:pagination, Map.drop(results, [:entries]))
-     |> assign(:pagination_count_label, pagination_count_label(results))
-     |> stream(:templates, results.entries, reset: true)}
+      {:noreply,
+       socket
+       |> assign(:page_title, page_title)
+       |> assign(:heading, heading(route_context))
+       |> assign(:intro, intro(route_context))
+       |> assign(:filters, filters)
+       |> assign(:form, to_form(filters, as: :filters))
+       |> assign(:pagination, Map.drop(results, [:entries]))
+       |> assign(:pagination_count_label, pagination_count_label(results))
+       |> stream(:templates, results.entries, reset: true)}
+    else
+      {:noreply, push_patch(socket, to: filters_path(filters))}
+    end
   end
 
   @impl true
@@ -216,6 +228,7 @@ defmodule FittrackWeb.LibraryLive.Index do
     <% media_url = exercise_media_url(@template) %>
     <article
       id={@id}
+      data-template-id={@template.id}
       class="group flex h-full flex-col overflow-hidden rounded-2xl border border-base-200 bg-base-100 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
     >
       <.link :if={media_url} navigate={~p"/exercises/#{@template.slug}"} class="block">
@@ -310,7 +323,9 @@ defmodule FittrackWeb.LibraryLive.Index do
       |> Enum.reject(fn {_key, value} -> value in [nil, "", "1"] end)
       |> Map.new()
 
-    if query_params == %{}, do: ~p"/exercises", else: ~p"/exercises?#{query_params}"
+    {base_path, query_params} = filtered_base_path(query_params)
+
+    if query_params == %{}, do: base_path, else: "#{base_path}?#{URI.encode_query(query_params)}"
   end
 
   defp pagination_path(filters, page) when page < 1, do: pagination_path(filters, 1)
@@ -336,6 +351,95 @@ defmodule FittrackWeb.LibraryLive.Index do
     value
     |> String.replace("_", " ")
     |> String.capitalize()
+  end
+
+  defp route_context(:category, %{"slug" => slug}, filter_options) do
+    value = value_for_slug(filter_options.categories, slug)
+    %{type: :category, slug: slug, value: value}
+  end
+
+  defp route_context(:muscle, %{"slug" => slug}, filter_options) do
+    value = value_for_slug(filter_options.muscles, slug)
+    %{type: :muscle, slug: slug, value: value}
+  end
+
+  defp route_context(_action, _params, _filter_options), do: %{type: :index}
+
+  defp apply_route_context(filters, %{type: :category, value: value}) when is_binary(value) do
+    Map.put(filters, "category", value)
+  end
+
+  defp apply_route_context(filters, %{type: :muscle, value: value}) when is_binary(value) do
+    Map.put(filters, "muscle_group", value)
+  end
+
+  defp apply_route_context(filters, _route_context), do: filters
+
+  defp canonical_path?(%{type: :index}, _filters), do: true
+
+  defp canonical_path?(%{type: type, value: nil}, _filters) when type in [:category, :muscle] do
+    false
+  end
+
+  defp canonical_path?(%{type: :category, slug: slug, value: value}, _filters)
+       when is_binary(value) do
+    slug == Slug.slugify(value)
+  end
+
+  defp canonical_path?(%{type: :muscle, slug: slug, value: value}, _filters)
+       when is_binary(value) do
+    slug == Slug.slugify(value)
+  end
+
+  defp canonical_path?(_route_context, _filters), do: true
+
+  defp filtered_base_path(%{"category" => category} = query_params)
+       when category not in [nil, ""] do
+    {~p"/exercises/category/#{Slug.slugify(category)}", Map.delete(query_params, "category")}
+  end
+
+  defp filtered_base_path(%{"muscle_group" => muscle} = query_params)
+       when muscle not in [nil, ""] do
+    {~p"/exercises/muscle/#{Slug.slugify(muscle)}", Map.delete(query_params, "muscle_group")}
+  end
+
+  defp filtered_base_path(query_params), do: {~p"/exercises", query_params}
+
+  defp value_for_slug(values, slug) do
+    canonical_slug = Slug.slugify(slug)
+    Enum.find(values, &(Slug.slugify(&1) == canonical_slug))
+  end
+
+  defp page_title(%{type: :category, value: value}) when is_binary(value) do
+    "#{option_label(value)} Exercises"
+  end
+
+  defp page_title(%{type: :muscle, value: value}) when is_binary(value) do
+    "#{option_label(value)} Exercises"
+  end
+
+  defp page_title(_route_context), do: "Exercise Library"
+
+  defp heading(%{type: :category, value: value}) when is_binary(value) do
+    "#{option_label(value)} exercises"
+  end
+
+  defp heading(%{type: :muscle, value: value}) when is_binary(value) do
+    "#{option_label(value)} exercises"
+  end
+
+  defp heading(_route_context), do: "Find the right movement fast."
+
+  defp intro(%{type: :category, value: value}) when is_binary(value) do
+    "Browse #{String.downcase(option_label(value))} movements, then narrow by muscle, equipment, difficulty, or search."
+  end
+
+  defp intro(%{type: :muscle, value: value}) when is_binary(value) do
+    "Browse movements for #{option_label(value)}, then narrow by equipment, category, difficulty, or search."
+  end
+
+  defp intro(_route_context) do
+    "Search by name or alias, then narrow by muscle, equipment, category, and difficulty."
   end
 
   defp pagination_count_label(%{total_count: 0}), do: "0 exercises"
