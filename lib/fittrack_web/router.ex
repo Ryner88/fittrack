@@ -124,6 +124,8 @@ defmodule FittrackWeb.Router do
       on_mount: [{FittrackWeb.UserAuth, :mount_current_scope}] do
       # Public exercise library; this live_session mounts current_scope for both guests and signed-in users.
       live "/exercises", LibraryLive.Index, :index
+      live "/exercises/category/:slug", LibraryLive.Index, :category
+      live "/exercises/muscle/:slug", LibraryLive.Index, :muscle
       live "/exercises/:slug", LibraryLive.Show, :show
 
       live "/users/register", UserLive.Registration, :new
