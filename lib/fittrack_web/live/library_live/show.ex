@@ -140,7 +140,7 @@ defmodule FittrackWeb.LibraryLive.Show do
               <.relationship_panel
                 title="Substitutions"
                 empty_label="No substitutions linked yet."
-                relationships={@template.substitutions}
+                relationships={ranked_substitutions(@template)}
                 template_key={:substitute_exercise_template}
               />
             </section>
@@ -372,6 +372,17 @@ defmodule FittrackWeb.LibraryLive.Show do
 
   defp relationship_template(relationship, template_key),
     do: Map.fetch!(relationship, template_key)
+
+  defp ranked_substitutions(template) do
+    Enum.sort_by(template.substitutions, fn substitution ->
+      {
+        -(substitution.similarity_score || 0),
+        -(substitution.reason_quality || 0),
+        substitution.priority || 0,
+        substitution.reason || ""
+      }
+    end)
+  end
 
   defp assign_workout_picker(%{assigns: %{current_scope: %{user: user}}} = socket)
        when not is_nil(user) do

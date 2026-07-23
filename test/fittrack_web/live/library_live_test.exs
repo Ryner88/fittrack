@@ -126,6 +126,7 @@ defmodule FittrackWeb.LibraryLiveTest do
 
     incline = template_fixture(name: "Incline Bench Press", primary_muscle: "Chest")
     push_up = template_fixture(name: "Push-Up", primary_muscle: "Chest", equipment: "Bodyweight")
+    band_press = template_fixture(name: "Band Press", primary_muscle: "Chest", equipment: "Band")
     alias_fixture(bench, "Bench")
     muscle_fixture(bench, "Chest")
     equipment_fixture(bench, "Barbell")
@@ -148,6 +149,14 @@ defmodule FittrackWeb.LibraryLiveTest do
                reason_quality: 85
              })
 
+    assert {:ok, _lower_ranked_substitution} =
+             Training.create_exercise_substitution(bench, band_press, %{
+               reason: "equipment",
+               priority: 0,
+               similarity_score: 20,
+               reason_quality: 20
+             })
+
     {:ok, _view, html} = live(conn, ~p"/exercises/#{bench.slug}")
 
     assert html =~ "Barbell Bench Press"
@@ -157,6 +166,8 @@ defmodule FittrackWeb.LibraryLiveTest do
     assert html =~ "Lower the bar with control."
     assert html =~ "Incline Bench Press"
     assert html =~ "Push-Up"
+    assert html =~ "Band Press"
+    assert html =~ ~r/Push-Up.*Band Press/s
     assert html =~ "Match 88/100"
     assert html =~ "Match 92/100"
     assert html =~ "Reason 85/100"
