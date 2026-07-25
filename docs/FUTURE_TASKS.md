@@ -55,6 +55,37 @@ The first five exercise-library follow-ups have been promoted into
 `PRIORITY_FIXES.md` with Git branch names for delivery. Remaining roadmap items
 stay below until a promoted task is completed.
 
+### Mobile Follow-ups
+
+- [TODO] Improve FitTrack mobile reliability
+
+  Scope:
+  - add resilient retry handling for failed API requests
+  - improve offline access for recently viewed exercises
+  - add optimistic set-entry updates with rollback on failure
+  - expand local recovery for interrupted active workouts
+  - add mobile media caching and cache invalidation
+  - add pagination, loading, empty, and error states across mobile screens
+  - add automated Expo client tests
+
+- [TODO] Add advanced FitTrack mobile training features
+
+  Scope:
+  - add workout timers and rest notifications
+  - add progress charts and personal-record tracking
+  - add configurable workout reminders and push notifications
+  - improve mobile profile and account-management screens
+  - add richer workout-plan browsing and scheduling
+
+- [TODO] Add FitTrack mobile health and activity integrations
+
+  Scope:
+  - evaluate Apple HealthKit integration
+  - evaluate Android Health Connect integration
+  - add permission and privacy controls for health data
+  - define synchronization rules and duplicate-data handling
+  - evaluate GPS-based running, walking, and cycling sessions
+
 ### Exercise Library / Media Follow-ups
 
 - Add explicit workout lifecycle states.
