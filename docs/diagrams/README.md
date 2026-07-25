@@ -1,9 +1,7 @@
 # FitTrack Diagrams
 
 `ARCHITECTURE.puml` is the source of truth for FitTrack architecture diagrams.
-It contains named PlantUML blocks so one command can export every diagram,
-including the Expo mobile client, `/api/v1` mobile API, and active workout draft
-recovery flow.
+It contains named PlantUML blocks so one command can export every diagram.
 
 ## PlantUML Export
 

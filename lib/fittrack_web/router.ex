@@ -30,10 +30,6 @@ defmodule FittrackWeb.Router do
     plug :accepts, ["json"]
   end
 
-  pipeline :require_mobile_api_user do
-    plug FittrackWeb.Api.Auth, :require_mobile_api_user
-  end
-
   scope "/", FittrackWeb do
     pipe_through :browser
 
@@ -139,36 +135,5 @@ defmodule FittrackWeb.Router do
 
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
-  end
-
-  scope "/api/v1", FittrackWeb.Api.V1 do
-    pipe_through :api
-
-    post "/auth/login", AuthController, :login
-
-    pipe_through :require_mobile_api_user
-
-    get "/auth/me", AuthController, :me
-    delete "/auth/logout", AuthController, :logout
-
-    get "/exercise-templates", ExerciseTemplateController, :index
-    get "/exercise-templates/:id", ExerciseTemplateController, :show
-    post "/exercise-templates/:template_id/add", ExerciseController, :add_template
-
-    resources "/exercises", ExerciseController, except: [:new, :edit]
-
-    get "/workouts/active", WorkoutController, :active
-
-    resources "/workouts", WorkoutController, except: [:new, :edit] do
-      resources "/sets", WorkoutSetController, only: [:index, :create]
-    end
-
-    resources "/workout-sessions", WorkoutController, except: [:new, :edit]
-    patch "/sets/:id", WorkoutSetController, :update
-    put "/sets/:id", WorkoutSetController, :update
-    delete "/sets/:id", WorkoutSetController, :delete
-
-    get "/history", HistoryController, :index
-    get "/history/dates", HistoryController, :dates
   end
 end
