@@ -41,6 +41,20 @@ defmodule Fittrack.TrainingTest do
       assert exercise.notes == "some notes"
     end
 
+    test "create_exercise/2 keeps personal exercises private even when params request sharing", %{
+      scope: scope
+    } do
+      attrs = %{
+        name: "Shared Attempt",
+        primary_muscle: "Chest",
+        equipment: "Bodyweight",
+        is_private: false
+      }
+
+      assert {:ok, %Exercise{} = exercise} = Training.create_exercise(scope, attrs)
+      assert exercise.is_private
+    end
+
     test "create_exercise/2 with invalid data returns error changeset", %{scope: scope} do
       assert {:error, %Ecto.Changeset{}} = Training.create_exercise(scope, @invalid_attrs)
     end
@@ -62,6 +76,25 @@ defmodule Fittrack.TrainingTest do
       assert exercise.primary_muscle == "some updated primary_muscle"
       assert exercise.equipment == "some updated equipment"
       assert exercise.notes == "some updated notes"
+    end
+
+    test "update_exercise/3 does not publish personal exercises from params", %{scope: scope} do
+      exercise = exercise_fixture(scope)
+
+      assert {:ok, %Exercise{} = exercise} =
+               Training.update_exercise(scope, exercise, %{is_private: false})
+
+      assert exercise.is_private
+    end
+
+    test "personal exercise queries stay scoped to the owner" do
+      owner_scope = user_scope_fixture()
+      other_scope = user_scope_fixture()
+      exercise = exercise_fixture(owner_scope, %{name: "Private Trainer Draft"})
+
+      assert Training.list_exercises(owner_scope) == [exercise]
+      assert Training.list_exercises(other_scope) == []
+      assert Training.get_exercise(other_scope, exercise.id) == nil
     end
 
     test "update_exercise/3 with invalid data returns error changeset", %{scope: scope} do
