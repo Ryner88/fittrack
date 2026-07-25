@@ -19,6 +19,7 @@ application entry points.
 
 - `AI_WORKOUT_GENERATOR.md`: AI workout generator behavior and setup.
 - `IMPLEMENTATION_SUMMARY.md`: implementation summary for shipped workflows.
+- `MOBILE.md`: versioned mobile API, Expo app setup, and release workflow.
 
 ## Diagrams
 

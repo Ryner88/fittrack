@@ -74,6 +74,36 @@ defmodule Fittrack.Training do
 
   def list_exercises(_, _opts), do: []
 
+  def paginate_exercises(scope, opts \\ %{})
+
+  def paginate_exercises(%Scope{} = scope, opts) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    page = opts |> get_option(:page, 1) |> parse_positive_integer(1)
+    per_page = opts |> get_option(:per_page, 24) |> parse_positive_integer(24) |> min(100)
+
+    exercises = list_exercises(scope, opts)
+    total_count = length(exercises)
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = min(page, total_pages)
+
+    entries =
+      exercises
+      |> Enum.drop((page - 1) * per_page)
+      |> Enum.take(per_page)
+
+    %{
+      entries: entries,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  def paginate_exercises(_, _opts) do
+    %{entries: [], page: 1, per_page: 24, total_count: 0, total_pages: 1}
+  end
+
   def list_recent_exercises(scope, opts \\ %{})
 
   def list_recent_exercises(%Scope{user: user}, opts) do
@@ -1009,6 +1039,44 @@ defmodule Fittrack.Training do
 
   def list_workouts(_), do: []
 
+  def paginate_workouts(scope, opts \\ %{})
+
+  def paginate_workouts(%Scope{user: user}, opts) do
+    opts = if is_list(opts), do: Map.new(opts), else: opts
+    page = opts |> get_option(:page, 1) |> parse_positive_integer(1)
+    per_page = opts |> get_option(:per_page, 20) |> parse_positive_integer(20) |> min(100)
+
+    query =
+      Workout
+      |> where([workout], workout.user_id == ^user.id)
+      |> order_by([workout], desc: workout.started_at)
+
+    total_count = Repo.aggregate(query, :count, :id)
+    total_pages = max(ceil(total_count / per_page), 1)
+    page = min(page, total_pages)
+
+    workout_sets_query = workout_sets_query("oldest")
+
+    entries =
+      query
+      |> preload(workout_sets: ^workout_sets_query)
+      |> limit(^per_page)
+      |> offset(^((page - 1) * per_page))
+      |> Repo.all()
+
+    %{
+      entries: entries,
+      page: page,
+      per_page: per_page,
+      total_count: total_count,
+      total_pages: total_pages
+    }
+  end
+
+  def paginate_workouts(_, _opts) do
+    %{entries: [], page: 1, per_page: 20, total_count: 0, total_pages: 1}
+  end
+
   @doc """
   Returns the most recent active workout for the current user.
 
@@ -1052,6 +1120,18 @@ defmodule Fittrack.Training do
     |> Repo.preload(workout_sets: workout_sets_query("oldest"))
   end
 
+  def get_workout(%Scope{user: user}, id) do
+    Workout
+    |> where([workout], workout.id == ^id and workout.user_id == ^user.id)
+    |> Repo.one()
+    |> case do
+      %Workout{} = workout -> Repo.preload(workout, workout_sets: workout_sets_query("oldest"))
+      nil -> nil
+    end
+  end
+
+  def get_workout(_, _id), do: nil
+
   @doc """
   Lists workout sets for a workout for the current user with multiple sort options.
   """
@@ -1079,6 +1159,22 @@ defmodule Fittrack.Training do
     |> Repo.insert()
   end
 
+  def update_workout(%Scope{user: user}, %Workout{user_id: user_id} = workout, attrs)
+      when user_id == user.id do
+    workout
+    |> Workout.changeset(attrs)
+    |> Repo.update()
+  end
+
+  def update_workout(%Scope{}, %Workout{}, _attrs), do: {:error, :unauthorized}
+
+  def delete_workout(%Scope{user: user}, %Workout{user_id: user_id} = workout)
+      when user_id == user.id do
+    Repo.delete(workout)
+  end
+
+  def delete_workout(%Scope{}, %Workout{}), do: {:error, :unauthorized}
+
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking workout changes.
   """
@@ -1102,6 +1198,45 @@ defmodule Fittrack.Training do
     else
       false -> {:error, :unauthorized}
       nil -> {:error, :invalid_exercise}
+    end
+  end
+
+  def get_workout_set(%Scope{user: user}, id) do
+    WorkoutSet
+    |> join(:inner, [workout_set], workout in assoc(workout_set, :workout))
+    |> where([workout_set, workout], workout_set.id == ^id and workout.user_id == ^user.id)
+    |> preload([_workout_set, _workout], [:exercise])
+    |> Repo.one()
+  end
+
+  def get_workout_set(_, _id), do: nil
+
+  def update_workout_set(%Scope{user: user}, %WorkoutSet{} = workout_set, attrs) do
+    workout_set = Repo.preload(workout_set, :workout)
+    user_id = user.id
+
+    exercise_id =
+      Map.get(attrs, "exercise_id") || Map.get(attrs, :exercise_id) || workout_set.exercise_id
+
+    with %Workout{user_id: ^user_id} <- workout_set.workout,
+         %Exercise{} <- Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
+      workout_set
+      |> WorkoutSet.changeset(attrs)
+      |> Repo.update()
+      |> preload_workout_set()
+    else
+      %Workout{} -> {:error, :unauthorized}
+      nil -> {:error, :invalid_exercise}
+    end
+  end
+
+  def delete_workout_set(%Scope{user: user}, %WorkoutSet{} = workout_set) do
+    workout_set = Repo.preload(workout_set, :workout)
+    user_id = user.id
+
+    case workout_set.workout do
+      %Workout{user_id: ^user_id} -> Repo.delete(workout_set)
+      _ -> {:error, :unauthorized}
     end
   end
 

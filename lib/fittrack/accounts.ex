@@ -188,6 +188,15 @@ defmodule Fittrack.Accounts do
   end
 
   @doc """
+  Generates a mobile API bearer token.
+  """
+  def generate_user_mobile_api_token(user) do
+    {token, user_token} = UserToken.build_mobile_api_token(user)
+    Repo.insert!(user_token)
+    token
+  end
+
+  @doc """
   Gets the user with the given signed token.
 
   If the token is valid `{user, token_inserted_at}` is returned, otherwise `nil` is returned.
@@ -195,6 +204,29 @@ defmodule Fittrack.Accounts do
   def get_user_by_session_token(token) do
     {:ok, query} = UserToken.verify_session_token_query(token)
     Repo.one(query)
+  end
+
+  @doc """
+  Gets the user and persisted token record for a mobile API bearer token.
+  """
+  def get_user_by_mobile_api_token(token) do
+    with {:ok, query} <- UserToken.verify_mobile_api_token_query(token) do
+      Repo.one(query)
+    else
+      :error -> nil
+    end
+  end
+
+  @doc """
+  Revokes a mobile API bearer token.
+  """
+  def revoke_mobile_api_token(token) do
+    with {_user, %UserToken{} = user_token} <- get_user_by_mobile_api_token(token),
+         {:ok, _token} <- Repo.delete(user_token) do
+      :ok
+    else
+      _ -> :ok
+    end
   end
 
   @doc """
