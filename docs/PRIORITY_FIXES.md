@@ -21,6 +21,21 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
+- [TODO] Resolve Expo dependency security audit blockers.
+  Branch: `task/mobile-expo-security-audit`
+  Scope:
+  - review Sourcery blocking findings in `mobile/package-lock.json` for
+    transitive Expo/React Native dependencies including `@xmldom/xmldom`,
+    `brace-expansion`, `postcss`, and `tar`.
+  - remediate through supported Expo dependency upgrades or package overrides
+    that remain compatible with the selected Expo SDK.
+  - avoid unsafe forced `npm audit fix --force` upgrades unless the resulting
+    Expo/React Native stack is explicitly validated.
+  - verify with `npm audit`, `npx tsc --noEmit`, mobile smoke testing, and
+    `mix precommit`.
+  - document any vulnerabilities that cannot be upgraded immediately with a
+    concrete upstream dependency owner and follow-up path.
+
 - [TODO] Resolve historical local migration drift.
   Branch: `task/resolve-migration-drift`
   Scope:
