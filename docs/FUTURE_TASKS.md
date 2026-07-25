@@ -60,12 +60,11 @@ stay below until a promoted task is completed.
 - [TODO] Improve FitTrack mobile reliability
 
   Scope:
-  - add resilient retry handling for failed API requests
+  - add resilient retry and sync-queue handling for failed API requests and pending sets
   - improve offline access for recently viewed exercises
-  - add optimistic set-entry updates with rollback on failure
-  - expand local recovery for interrupted active workouts
+  - expand active-workout recovery beyond the current draft and pending-set persistence
   - add mobile media caching and cache invalidation
-  - add pagination, loading, empty, and error states across mobile screens
+  - add pagination controls, empty states, and richer loading/error states across mobile screens
   - add automated Expo client tests
 
 - [TODO] Add advanced FitTrack mobile training features
