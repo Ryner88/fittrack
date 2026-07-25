@@ -100,7 +100,7 @@ The Expo client persists:
 - active workout draft
 - pending sets that could not be synced
 
-Drafts are stored with `@react-native-async-storage/async-storage`. If the app is interrupted, the next launch reloads the active draft and resumes logging. When a set sync fails, it remains in `pendingSets` until the user retries by continuing the workout.
+Drafts are stored with `@react-native-async-storage/async-storage`. If the app is interrupted, the next launch reloads the active draft and resumes logging. When a set sync fails, it remains in `pendingSets` and is replayed during the next mobile refresh/sync.
 
 ## Release Workflow
 

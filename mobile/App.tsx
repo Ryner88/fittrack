@@ -17,6 +17,7 @@ import { daysAgo, isoDate } from "./src/date";
 import { ActiveWorkoutDraft, clearSession, loadDraft, loadSession, saveDraft, saveSession } from "./src/storage";
 
 type Tab = "library" | "workout" | "history";
+type PendingSet = ActiveWorkoutDraft["pendingSets"][number];
 
 export default function App() {
   const [booting, setBooting] = useState(true);
@@ -74,19 +75,66 @@ export default function App() {
       setExercises(exerciseData);
       setHistory(historyData);
 
+      let nextDraft = draft;
+
       if (!draft && activeData.length > 0) {
         const active = activeData[0];
-        setDraft({
+        nextDraft = {
           workoutId: active.id,
           startedAt: active.started_at,
           notes: active.notes || "",
           pendingSets: [],
           syncedSets: active.sets
-        });
+        };
+      }
+
+      const replay = await retryPendingSets(nextDraft);
+      setDraft(replay.draft);
+
+      if (replay.syncedCount > 0) {
+        setHistory(await api.history(daysAgo(30), isoDate(new Date())));
+      }
+
+      if (replay.failedCount > 0) {
+        Alert.alert("Pending sets still saved locally", `${replay.failedCount} set(s) will retry on the next sync.`);
       }
     } finally {
       setLoading(false);
     }
+  }
+
+  async function retryPendingSets(currentDraft: ActiveWorkoutDraft | null) {
+    if (!currentDraft?.workoutId || currentDraft.pendingSets.length === 0) {
+      return { draft: currentDraft, syncedCount: 0, failedCount: 0 };
+    }
+
+    const syncedSets: WorkoutSet[] = [];
+    const remainingSets: PendingSet[] = [];
+
+    for (const pendingSet of currentDraft.pendingSets) {
+      try {
+        const syncedSet = await api.createSet(currentDraft.workoutId, {
+          exercise_id: pendingSet.exerciseId,
+          weight: pendingSet.weight,
+          reps: pendingSet.reps,
+          kind: pendingSet.kind
+        });
+
+        syncedSets.push(syncedSet);
+      } catch (_error) {
+        remainingSets.push(pendingSet);
+      }
+    }
+
+    return {
+      draft: {
+        ...currentDraft,
+        pendingSets: remainingSets,
+        syncedSets: [...currentDraft.syncedSets, ...syncedSets]
+      },
+      syncedCount: syncedSets.length,
+      failedCount: remainingSets.length
+    };
   }
 
   async function handleLogin() {

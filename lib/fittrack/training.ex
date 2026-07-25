@@ -265,15 +265,15 @@ defmodule Fittrack.Training do
   end
 
   def paginate_exercise_templates(opts \\ %{}) do
-    search = Map.get(opts, :search)
+    search = get_option(opts, :search)
     search = if is_binary(search), do: String.trim(search), else: search
 
-    muscle_group = Map.get(opts, :muscle_group)
-    equipment = Map.get(opts, :equipment)
-    category = Map.get(opts, :category)
-    difficulty = Map.get(opts, :difficulty)
-    page = opts |> Map.get(:page, 1) |> parse_positive_integer(1)
-    per_page = opts |> Map.get(:per_page, 24) |> parse_positive_integer(24) |> min(60)
+    muscle_group = get_option(opts, :muscle_group)
+    equipment = get_option(opts, :equipment)
+    category = get_option(opts, :category)
+    difficulty = get_option(opts, :difficulty)
+    page = opts |> get_option(:page, 1) |> parse_positive_integer(1)
+    per_page = opts |> get_option(:per_page, 24) |> parse_positive_integer(24) |> min(60)
 
     query =
       ExerciseTemplate
@@ -413,13 +413,13 @@ defmodule Fittrack.Training do
   end
 
   def list_all_exercise_templates(opts \\ %{}) do
-    search = Map.get(opts, :search)
+    search = get_option(opts, :search)
     search = if is_binary(search), do: String.trim(search), else: search
 
-    muscle_group = Map.get(opts, :muscle_group)
-    equipment = Map.get(opts, :equipment)
-    category = Map.get(opts, :category)
-    difficulty = Map.get(opts, :difficulty)
+    muscle_group = get_option(opts, :muscle_group)
+    equipment = get_option(opts, :equipment)
+    category = get_option(opts, :category)
+    difficulty = get_option(opts, :difficulty)
 
     ExerciseTemplate
     |> maybe_filter_templates(search)

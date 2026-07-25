@@ -602,6 +602,17 @@ end
 User -> App : Relaunch after interruption
 App -> Storage : loadSession() + loadDraft()
 Storage --> App : token, user, active draft,\npending/synced sets
+App -> ApiClient : refreshAppData()
+ApiClient -> Router : Replay pending sets
+Router -> Controllers : POST /api/v1/workouts/:id/sets
+Controllers -> Training : create_workout_set(current_scope, workout, attrs)
+
+alt replay succeeds
+  Controllers --> App : persisted WorkoutSet
+  App -> Storage : remove replayed pending set
+else replay fails
+  App -> Storage : keep pending set for next sync
+end
 @enduml
 
 @startuml Fittrack_Nutrition_Domain

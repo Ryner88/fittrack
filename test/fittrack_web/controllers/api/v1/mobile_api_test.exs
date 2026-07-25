@@ -66,6 +66,14 @@ defmodule FittrackWeb.Api.V1.MobileAPITest do
           "difficulty" => "intermediate"
         })
 
+      {:ok, _other_template} =
+        Training.create_exercise_template(%{
+          "name" => "Lat Pulldown",
+          "primary_muscle" => "Back",
+          "equipment" => "Cable",
+          "difficulty" => "beginner"
+        })
+
       {:ok, media} =
         Training.upsert_exercise_media(template, %{
           kind: "image",
