@@ -11,6 +11,7 @@ defmodule Fittrack.Accounts.UserToken do
   @magic_link_validity_in_minutes 15
   @change_email_validity_in_days 7
   @session_validity_in_days 14
+  @mobile_api_validity_in_days 90
 
   schema "users_tokens" do
     field :token, :binary
@@ -64,6 +65,50 @@ defmodule Fittrack.Accounts.UserToken do
 
     {:ok, query}
   end
+
+  @doc """
+  Builds a mobile API bearer token.
+
+  Unlike browser session tokens, the persisted token is hashed so database
+  access alone is not enough to authenticate API requests.
+  """
+  def build_mobile_api_token(user) do
+    token = :crypto.strong_rand_bytes(@rand_size)
+    hashed_token = :crypto.hash(@hash_algorithm, token)
+    encoded_token = Base.url_encode64(token, padding: false)
+    dt = user.authenticated_at || DateTime.utc_now(:second)
+
+    {encoded_token,
+     %UserToken{
+       token: hashed_token,
+       context: "mobile_api",
+       user_id: user.id,
+       authenticated_at: dt
+     }}
+  end
+
+  @doc """
+  Checks whether a mobile API bearer token is valid.
+  """
+  def verify_mobile_api_token_query(token) when is_binary(token) do
+    case Base.url_decode64(token, padding: false) do
+      {:ok, decoded_token} ->
+        hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+
+        query =
+          from token in by_token_and_context_query(hashed_token, "mobile_api"),
+            join: user in assoc(token, :user),
+            where: token.inserted_at > ago(@mobile_api_validity_in_days, "day"),
+            select: {%{user | authenticated_at: token.authenticated_at}, token}
+
+        {:ok, query}
+
+      :error ->
+        :error
+    end
+  end
+
+  def verify_mobile_api_token_query(_token), do: :error
 
   @doc """
   Builds a token and its hash to be delivered to the user's email.
