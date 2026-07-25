@@ -20,7 +20,6 @@ actor "Public visitor" as Visitor
 actor "Administrator" as Admin
 actor "Operator" as Operator
 node "Web browser" as Browser
-node "Expo mobile app\niOS + Android" as MobileApp
 component "Fittrack Phoenix app\nLiveView + controllers + Mix tasks" as App
 database "PostgreSQL database\nmetadata + source of truth" as DB
 folder "EXERCISE_MEDIA_STORAGE_ROOT\napp-owned exercise media files" as MediaStorage
@@ -31,16 +30,13 @@ cloud "Supported dining/menu pages" as Dining
 cloud "OpenAI image parser" as OpenAI
 
 User --> Browser
-User --> MobileApp
 Visitor --> Browser
 Admin --> Browser
 Browser --> App : HTTP / LiveView websocket
 Browser --> App : GET /exercise-media/:id
-MobileApp --> App : HTTPS JSON API\n/api/v1
-MobileApp --> App : GET /exercise-media/:id
 Operator --> App : source refresh + bounded media backfill
 
-App --> DB : Ecto metadata queries\nusers_tokens mobile_api hashes
+App --> DB : Ecto metadata queries
 App --> MediaStorage : read/write cached media files
 App --> WGER : Fetch exercise/media catalog via Req
 App --> WGERMedia : Validate/download media via Req
@@ -67,8 +63,7 @@ end note
 
 note bottom of App
 Current FitTrack capabilities include the public exercise catalog,
-admin shared-template CRUD, workout logging, nutrition, media caching,
-and a mobile API/Expo client foundation.
+admin shared-template CRUD, workout logging, nutrition, and media caching.
 
 There is no Sparky runtime dependency or service in this architecture.
 end note
@@ -81,7 +76,6 @@ skinparam componentStyle rectangle
 skinparam shadowing false
 
 actor "Browser" as Browser
-actor "Expo mobile app" as MobileApp
 actor "Operator" as Operator
 cloud "WGER API / media URLs" as WGER
 folder "EXERCISE_MEDIA_STORAGE_ROOT" as MediaStorage
@@ -89,7 +83,6 @@ folder "EXERCISE_MEDIA_STORAGE_ROOT" as MediaStorage
 package "fittrack_web" {
   component "Router" as Router
   component "UserAuth\nuser/admin plugs + LiveView on_mount" as Auth
-  component "Api.Auth\nBearer mobile API plug" as ApiAuth
   component "Layouts + CoreComponents" as Layouts
   component "DashboardLive" as DashboardLive
   component "WorkoutLive\nWorkoutHistoryLive" as WorkoutLive
@@ -99,22 +92,9 @@ package "fittrack_web" {
   component "AdminExerciseLibraryLive\nlist/create/edit/archive + media health" as AdminExerciseLibraryLive
   component "ExerciseLive\n/my-exercises CRUD" as ExerciseLive
   component "ExerciseTemplateImageController\n/exercise-media/:id\nfallback media" as MediaController
-  component "Api.V1 AuthController" as ApiAuthController
-  component "Api.V1 ExerciseTemplateController" as ApiTemplateController
-  component "Api.V1 ExerciseController" as ApiExerciseController
-  component "Api.V1 WorkoutController" as ApiWorkoutController
-  component "Api.V1 WorkoutSetController" as ApiWorkoutSetController
-  component "Api.V1 HistoryController" as ApiHistoryController
-  component "Api.V1 JSONHelpers\ncached media serializers" as ApiJSON
   component "NutritionLive" as NutritionLive
   component "MealLive\nFoodLive\nMealPlanLive" as MealLive
   component "assets/js app.js hooks" as AppJS
-}
-
-package "mobile" {
-  component "Expo App.tsx\nlogin/library/workout/history" as ExpoApp
-  component "src/api.ts\nfetch JSON API client" as MobileApiClient
-  component "src/storage.ts\nAsyncStorage session + draft" as MobileStorage
 }
 
 package "fittrack contexts" {
@@ -136,12 +116,7 @@ package "Persistence" {
 }
 
 Browser --> Router : HTTP routes + LiveView websocket
-MobileApp --> ExpoApp
-ExpoApp --> MobileApiClient
-ExpoApp --> MobileStorage
-MobileApiClient --> Router : /api/v1 JSON\nAuthorization: Bearer token
 Router --> Auth
-Router --> ApiAuth
 Router --> MediaController
 Auth --> DashboardLive
 Auth --> WorkoutLive
@@ -152,12 +127,6 @@ Auth --> NutritionLive
 Auth --> MealLive
 Router --> ExerciseLibraryLive
 Router --> ExerciseLibraryDetailLive
-ApiAuth --> ApiAuthController
-ApiAuth --> ApiTemplateController
-ApiAuth --> ApiExerciseController
-ApiAuth --> ApiWorkoutController
-ApiAuth --> ApiWorkoutSetController
-ApiAuth --> ApiHistoryController
 
 DashboardLive --> Layouts
 WorkoutLive --> Layouts
@@ -178,18 +147,6 @@ WorkoutLive --> Training : log user exercise linked to shared template
 WorkoutPlanLive --> Training
 MediaController --> Training : load ExerciseMedia metadata
 MediaController --> MediaStorage : send_file cached media
-ApiAuthController --> Accounts : login, me, logout/revoke
-ApiTemplateController --> Training : paginated shared templates
-ApiExerciseController --> Training : user exercises + add template
-ApiWorkoutController --> Training : workouts/sessions + active workouts
-ApiWorkoutSetController --> Training : scoped set create/update/delete
-ApiHistoryController --> Training : completed workout history
-ApiTemplateController --> ApiJSON
-ApiExerciseController --> ApiJSON
-ApiWorkoutController --> ApiJSON
-ApiWorkoutSetController --> ApiJSON
-ApiHistoryController --> ApiJSON
-ApiJSON --> MediaController : emits local /exercise-media/:id URLs only
 NutritionLive --> Nutrition
 MealLive --> Nutrition
 Router --> Accounts
@@ -210,7 +167,6 @@ Nutrition --> Repo
 Repo --> Tables
 
 note bottom of Tables
-Mobile bearer tokens are stored in users_tokens with context mobile_api.
 Sparky is absent from the runtime and persistence architecture.
 end note
 @enduml
@@ -221,43 +177,29 @@ title Fittrack - Route Scope Flow
 skinparam shadowing false
 
 start
-:Incoming request;
+:Browser request;
+:browser pipeline;
+:fetch_current_scope_for_user;
 
-if (/api/v1 route?) then (yes)
-  :api pipeline accepts JSON;
-  if (POST /api/v1/auth/login?) then (yes)
-    :Unauthenticated credential exchange;
-    :Issue hashed mobile_api bearer token;
-  else (protected API)
-    :require_mobile_api_user;
-    :Validate Authorization Bearer token;
-    :Assign conn.assigns.current_scope;
-    :Call context with current_scope;
-  endif
+if (admin route?) then (yes)
+  :require_authenticated_user + require_admin_user;
+  :live_session :require_admin_user;
+  :Mount LiveView with @current_scope;
+  :Run admin-scoped operation;
 else (no)
-  :browser pipeline;
-  :fetch_current_scope_for_user;
-
-  if (admin route?) then (yes)
-    :require_authenticated_user + require_admin_user;
-    :live_session :require_admin_user;
+  if (route requires login?) then (yes)
+    :require_authenticated_user;
+    :live_session :require_authenticated_user;
     :Mount LiveView with @current_scope;
-    :Run admin-scoped operation;
+    :Call context with current_scope;
+    :Run user-scoped query;
   else (no)
-    if (route requires login?) then (yes)
-      :require_authenticated_user;
-      :live_session :require_authenticated_user;
-      :Mount LiveView with @current_scope;
-      :Call context with current_scope;
-      :Run user-scoped query;
-    else (no)
-      if (current-user-aware public LiveView?) then (yes)
-        :live_session :current_user;
-        :mount_current_scope;
-        :Render public content with optional @current_scope;
-      else (controller route)
-        :Run controller action from :browser pipeline;
-      endif
+    if (current-user-aware public LiveView?) then (yes)
+      :live_session :current_user;
+      :mount_current_scope;
+      :Render public content with optional @current_scope;
+    else (controller route)
+      :Run controller action from :browser pipeline;
     endif
   endif
 endif
@@ -282,14 +224,6 @@ Controller media routes:
 - /exercise-media/:id safely serves cached media or SVG fallback
 - /exercise-template-images/:id serves primary cached/fallback media
 
-Mobile API routes use :api and :require_mobile_api_user:
-- /api/v1/auth/me
-- /api/v1/exercise-templates
-- /api/v1/exercises
-- /api/v1/workouts and /api/v1/workout-sessions
-- /api/v1/workouts/:id/sets
-- /api/v1/history
-
 Use @current_scope.user in templates.
 Do not use @current_user.
 end note
@@ -304,15 +238,6 @@ skinparam shadowing false
 class User {
   id
   email
-}
-
-class UserToken {
-  id
-  user_id
-  token
-  context
-  authenticated_at
-  inserted_at
 }
 
 class Exercise {
@@ -468,6 +393,7 @@ class Workout {
   id
   user_id
   started_at
+  completed_at
   notes
 }
 
@@ -484,7 +410,6 @@ class WorkoutSet {
 }
 
 User "1" --> "*" Exercise
-User "1" --> "*" UserToken
 User "1" --> "*" WorkoutPlan
 User "1" --> "*" Workout
 ExerciseTemplate "1" --> "*" ExerciseAlias
@@ -523,96 +448,6 @@ note left of Exercise
 User-owned/loggable exercise.
 source_template_id preserves its shared-template origin.
 end note
-
-note right of UserToken
-Mobile API tokens use context mobile_api.
-The bearer token is hashed before persistence.
-Browser sessions continue using context session.
-end note
-@enduml
-
-@startuml Fittrack_Mobile_API_Flow
-title Fittrack - Mobile API And Draft Recovery Flow
-
-skinparam shadowing false
-
-actor User
-participant "Expo App.tsx" as App
-participant "src/api.ts\nApiClient" as ApiClient
-participant "src/storage.ts\nAsyncStorage" as Storage
-participant "Router /api/v1" as Router
-participant "Api.Auth" as ApiAuth
-participant "Api.V1 Controllers" as Controllers
-participant "Accounts" as Accounts
-participant "Training context" as Training
-database "PostgreSQL" as DB
-collections "EXERCISE_MEDIA_STORAGE_ROOT" as MediaStorage
-
-User -> App : Sign in
-App -> ApiClient : login(email, password)
-ApiClient -> Router : POST /api/v1/auth/login
-Router -> Controllers : AuthController.login
-Controllers -> Accounts : validate password + generate mobile_api token
-Accounts -> DB : Insert hashed users_tokens row
-Controllers --> ApiClient : bearer token + user
-App -> Storage : saveSession(token, user)
-
-App -> ApiClient : Load library, exercises,\nactive workouts, history
-ApiClient -> Router : GET /api/v1/*\nAuthorization: Bearer
-Router -> ApiAuth : require_mobile_api_user
-ApiAuth -> Accounts : get_user_by_mobile_api_token(token)
-Accounts -> DB : Verify hashed token context mobile_api
-ApiAuth -> Controllers : current_scope assigned
-Controllers -> Training : scoped exercise/workout/history queries
-Training -> DB : Ecto queries filtered by current_scope.user
-Controllers --> ApiClient : JSON data
-
-opt cached exercise media available
-  Controllers --> ApiClient : media.url = /exercise-media/:id
-  App -> Router : GET /exercise-media/:id
-  Router -> Controllers : ExerciseTemplateImageController
-  Controllers -> Training : exercise_media_path(media)
-  Training -> MediaStorage : Read cached file
-end
-
-User -> App : Start workout
-App -> ApiClient : createWorkout()
-ApiClient -> Router : POST /api/v1/workouts
-Router -> Controllers : WorkoutController.create
-Controllers -> Training : create_workout(current_scope, attrs)
-Training -> DB : Insert workout_session
-Controllers --> App : workout id
-App -> Storage : saveDraft(workoutId, startedAt)
-
-User -> App : Log set
-App -> Storage : add pending local set
-App -> ApiClient : createSet(workoutId, attrs)
-ApiClient -> Router : POST /api/v1/workouts/:id/sets
-Controllers -> Training : create_workout_set(current_scope, workout, attrs)
-Training -> DB : Insert workout_set if exercise belongs to user
-
-alt set sync succeeds
-  Controllers --> App : persisted WorkoutSet
-  App -> Storage : remove pending set\nappend synced set
-else request fails/interrupted app
-  App -> Storage : keep pending set in draft
-  App --> User : show local-save alert
-end
-
-User -> App : Relaunch after interruption
-App -> Storage : loadSession() + loadDraft()
-Storage --> App : token, user, active draft,\npending/synced sets
-App -> ApiClient : refreshAppData()
-ApiClient -> Router : Replay pending sets
-Router -> Controllers : POST /api/v1/workouts/:id/sets
-Controllers -> Training : create_workout_set(current_scope, workout, attrs)
-
-alt replay succeeds
-  Controllers --> App : persisted WorkoutSet
-  App -> Storage : remove replayed pending set
-else replay fails
-  App -> Storage : keep pending set for next sync
-end
 @enduml
 
 @startuml Fittrack_Nutrition_Domain
@@ -891,20 +726,15 @@ skinparam componentStyle rectangle
 skinparam shadowing false
 
 component "assets/js/app.js" as AppJS
-component "mobile/App.tsx" as MobileApp
 component "CommandBar" as CommandBar
 component "PersonalBestsChart\nVolumeChart\nExerciseProgressChart" as Charts
 component "BarcodeImport\nScreenshotImport" as ImportHooks
 component "RestTimer" as RestTimer
 component "WorkoutPlanDragDrop\nDropZone" as DragDrop
-component "mobile/src/api.ts\nAPI client" as MobileAPI
-component "mobile/src/storage.ts\nAsyncStorage draft/session" as MobileStorage
 
 AppJS --> CommandBar
 AppJS --> Charts
 AppJS --> ImportHooks
 AppJS --> RestTimer
 AppJS --> DragDrop
-MobileApp --> MobileAPI
-MobileApp --> MobileStorage
 @enduml

@@ -12,19 +12,6 @@ or materially addressed on the recent branches.
 
 ## Now
 
-### Build FitTrack Mobile Application Integration
-
-- Added a versioned Phoenix JSON API under `/api/v1`.
-- Added hashed bearer-token authentication with logout and revocation.
-- Added authorized exercise, workout, session, set, active-workout, and history endpoints.
-- Serialized only app-cached exercise media without runtime WGER dependencies.
-- Added context-level pagination and cross-user authorization enforcement.
-- Added an Expo mobile client with login, exercise import, set logging, history, and persistent active-workout recovery.
-- Added pending-set replay so locally saved failed set entries retry on the next mobile sync.
-- Added API integration tests and mobile development documentation.
-- Verified with 269 tests, 0 failures, and a successful TypeScript check.
-- Recorded Expo dependency-tree audit findings for follow-up without applying unsafe forced upgrades.
-
 ### GitHub Branch And Project Docs Organization
 
 - Organized the project tracking docs around a branch-per-priority workflow.
