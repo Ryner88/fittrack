@@ -122,16 +122,17 @@ WorkoutPlan
    exercise library before draft persistence.
 5. **Fallback Pool**: Manual generation uses matching templates and personal
    exercises when no source-specific structure is provided.
-6. **Daily Distribution**: Generated plans rotate through the pool across
-   scheduled days.
+6. **Daily Distribution**: Generated plans advance through the shuffled pool
+   with a per-day cap. The current implementation does not wrap when the offset
+   reaches the end of the pool, so later days can have fewer exercises.
    - 6+ exercises → 5 per day
    - 4-5 exercises → 4 per day
    - <4 exercises → 3 per day
 
-Example: For 3 days/week with 5 available exercises:
-- Monday: exercises 0-4
-- Wednesday: exercises 0-4 (rotated offset)
-- Friday: exercises 0-4 (rotated offset)
+Example: For a default 45-minute, 3-day plan with 5 available exercises:
+- Monday: exercises 0-3
+- Wednesday: exercise 4
+- Friday: exercises 3-4
 
 ## Configuration by Experience Level
 
@@ -154,7 +155,7 @@ Example: For 3 days/week with 5 available exercises:
 ## Testing
 
 **Unit Tests** ([test/fittrack/training_test.exs](test/fittrack/training_test.exs)):
-- ✅ `generate_ai_workout_plan/2 generates and saves workflow plan`
+- ✅ `generate_ai_workout_plan/2 generates and saves workout plan`
 - Covers plan creation, WGER-backed template selection, curated substitution
   expansion, duplicate-goal validation, and metadata
 

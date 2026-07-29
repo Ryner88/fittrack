@@ -308,7 +308,7 @@ defmodule Fittrack.TrainingTest do
                })
     end
 
-    test "generate_ai_workout_plan/2 generates and saves workflow plan", %{scope: scope} do
+    test "generate_ai_workout_plan/2 generates and saves workout plan", %{scope: scope} do
       exercise_fixture(scope)
 
       params = %{
