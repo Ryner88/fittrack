@@ -69,7 +69,7 @@ An AI-powered workout plan generator that creates personalized, 4-week structure
 
 ### Backend Tests (14/14)
 - **Training context**: Full coverage of exercise, workout, and plan operations
-- **New test**: `generate_ai_workout_plan/2 generates and saves workflow plan`
+- **New test**: `generate_ai_workout_plan/2 generates and saves workout plan`
   - Validates plan creation
   - Verifies exercise assignment
   - Confirms metadata accuracy
