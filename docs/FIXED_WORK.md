@@ -34,7 +34,7 @@ or materially addressed on the recent branches.
     `live_session :require_authenticated_user` because they create user-scoped
     workout plans through `current_scope`
 - Refreshed AI workout generator planning notes so they describe the current
-  draft-review flow, source-link parsing, strict structured parser output, and
+  draft-review flow, source-link parsing, structured parser normalization, and
   remaining roadmap gaps instead of the original save-immediately prototype.
 
 ### GitHub Branch And Project Docs Organization
