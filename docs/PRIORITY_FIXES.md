@@ -21,43 +21,15 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- [TODO] Resolve historical local migration drift.
-  Branch: `task/resolve-migration-drift`
-  Scope:
-  - decide whether to restore a no-op historical migration file, document it as
-    local-only drift, or perform a local-only reset.
-  - keep production migration history untouched unless a real production
-    migration workflow requires it.
-  - verify local migration and rollback workflows still behave predictably.
+No active priority item is queued.
 
-- [TODO] Decide category/tag normalization.
-  Branch: `task/category-tag-normalization`
-  Scope:
-  - decide whether dedicated `exercise_categories` and `exercise_tags` tables are
-    worth adding before further taxonomy expansion.
-  - document query/UI benefits and migration cost before adding schema.
-  - avoid introducing tables until the product benefit is clear.
+Recently reconciled items were moved to `FIXED_WORK.md`:
 
-- [TODO] Add public category and muscle routes.
-  Branch: `feature/public-exercise-taxonomy-routes`
-  Scope:
-  - add routes like `/exercises/category/:slug` and `/exercises/muscle/:slug`.
-  - reuse current exercise library search/filter behavior.
-  - ensure canonical slugs, SEO-friendly titles, and guest/current-user route
-    scope behavior remain correct.
+- historical local migration drift
+- category/tag normalization decision
+- public category and muscle routes
+- variation/substitution metadata
+- trainer-shared exercise behavior decision
 
-- [TODO] Expand variation/substitution metadata.
-  Branch: `feature/exercise-relationship-metadata`
-  Scope:
-  - add similarity score, equipment requirements, difficulty delta, and
-    substitution reason quality.
-  - use the metadata for better workout substitutions and AI workout generation.
-  - surface the metadata consistently in admin review and exercise detail flows.
-
-- [TODO] Define trainer-shared exercise behavior.
-  Branch: `feature/trainer-shared-exercises`
-  Scope:
-  - decide how trainers can publish/share exercises.
-  - define permissions, moderation, and visibility rules.
-  - keep private `/my-exercises` behavior intact while designing shared
-    trainer-created exercise flows.
+Promote the next concrete delivery item from `FUTURE_TASKS.md` when work starts
+and assign its branch here before implementation.
