@@ -7,6 +7,7 @@ application entry points.
 
 - `PRIORITY_FIXES.md`: active delivery queue with branch names.
 - `FUTURE_TASKS.md`: backlog and roadmap work.
+- `AI_GENERATOR_ROADMAP.md`: AI workout generator status and remaining roadmap.
 - `FIXED_WORK.md`: completed-work log and verification notes.
 
 ## Operations

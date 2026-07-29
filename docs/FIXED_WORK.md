@@ -12,6 +12,31 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Planning Tracker Reconciliation
+
+- Reconciled stale priority-planning entries against the current codebase.
+- Moved the completed priority queue items out of `PRIORITY_FIXES.md`:
+  - historical local migration drift is resolved locally and documented in
+    `docs/adr/2026-07-23-local-migration-drift.md`
+  - category/tag normalization is decided in
+    `docs/adr/2026-07-23-category-tag-normalization.md`
+  - trainer-shared exercise behavior is decided in
+    `docs/adr/2026-07-23-trainer-shared-exercises.md`
+  - public category and muscle routes are implemented at
+    `/exercises/category/:slug` and `/exercises/muscle/:slug`
+  - variation/substitution metadata is implemented with similarity score,
+    equipment requirements, difficulty delta, and substitution reason quality
+- Confirmed route placement:
+  - public taxonomy routes live in `scope "/", FittrackWeb`,
+    `pipe_through [:browser]`, and `live_session :current_user` because they
+    must support both guest browsing and signed-in `current_scope` affordances
+  - authenticated training tools such as `/workout-plans/generator` remain in
+    `live_session :require_authenticated_user` because they create user-scoped
+    workout plans through `current_scope`
+- Refreshed AI workout generator planning notes so they describe the current
+  draft-review flow, source-link parsing, strict structured parser output, and
+  remaining roadmap gaps instead of the original save-immediately prototype.
+
 ### GitHub Branch And Project Docs Organization
 
 - Organized the project tracking docs around a branch-per-priority workflow.

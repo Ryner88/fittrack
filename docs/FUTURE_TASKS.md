@@ -51,9 +51,8 @@ Roadmap items are organized below. Promote only the active next item into
 
 ## Next
 
-The first five exercise-library follow-ups have been promoted into
-`PRIORITY_FIXES.md` with Git branch names for delivery. Remaining roadmap items
-stay below until a promoted task is completed.
+No item is currently promoted into `PRIORITY_FIXES.md`. Promote only the next
+active delivery item and add its branch name there before implementation.
 
 ### Exercise Library / Media Follow-ups
 
@@ -79,9 +78,9 @@ stay below until a promoted task is completed.
 
 - Expand normalized exercise library relationships.
   Scope:
-  - add user-facing substitutions and exercise variations
-  - show equipment and muscle metadata consistently across library browse, detail, and workout logging
-  - support aliases/synonyms in exercise search and AI workout matching
+  - add relationship authoring and data-quality review beyond the current
+    admin/detail visibility
+  - broaden relationship usage for workout substitutions and AI workout matching
   - extend the existing admin CRUD with focused imported-data quality review
 
 - Improve exercise library search ranking.
