@@ -393,7 +393,6 @@ class Workout {
   id
   user_id
   started_at
-  completed_at
   notes
 }
 
@@ -447,6 +446,91 @@ end note
 note left of Exercise
 User-owned/loggable exercise.
 source_template_id preserves its shared-template origin.
+end note
+@enduml
+
+@startuml Fittrack_Workout_History_Planned_Domain
+title Fittrack - Planned Workout History Domain
+
+skinparam classAttributeIconSize 0
+skinparam shadowing false
+
+class Workout <<planned>> {
+  id
+  user_id
+  workout_plan_id
+  lifecycle_state
+  started_at
+  completed_at
+  discarded_at
+  notes
+}
+
+class WorkoutOriginSnapshot <<planned>> {
+  id
+  workout_id
+  workout_plan_id
+  exercise_id
+  exercise_template_id
+  position
+  scheduled_day
+  target_sets
+  target_reps_min
+  target_reps_max
+  rest_seconds
+  target_kind
+  notes
+}
+
+class WorkoutMuscleSummary <<planned>> {
+  id
+  workout_id
+  muscle_token
+  muscle_label
+  role
+  set_count
+  rep_count
+  volume
+}
+
+class WorkoutPlan {
+  id
+  user_id
+  name
+}
+
+class WorkoutSet {
+  id
+  workout_session_id
+  exercise_id
+}
+
+WorkoutPlan "1" --> "*" Workout : origin
+Workout "1" --> "*" WorkoutOriginSnapshot
+Workout "1" --> "*" WorkoutMuscleSummary
+Workout "1" --> "*" WorkoutSet
+
+note right of Workout
+Allowed lifecycle transitions:
+- draft -> active
+- active -> completed
+- draft/active -> discarded
+
+completed and discarded are terminal
+for the first lifecycle delivery.
+end note
+
+note bottom of WorkoutOriginSnapshot
+Snapshots preserve plan exercise order,
+targets, rest, kind, and notes so
+History remains stable after plan or
+template edits.
+end note
+
+note bottom of WorkoutMuscleSummary
+Persist at completion from normalized
+template muscles, plan snapshots, and
+fallback user exercise strings.
 end note
 @enduml
 
@@ -571,6 +655,65 @@ User -> WorkoutLive : Log performed set
 WorkoutLive -> Training : create_workout_set(current_scope, workout, attrs)
 Training -> Repo : Insert performed set
 Repo --> WorkoutLive : WorkoutSet
+@enduml
+
+@startuml Fittrack_Workout_History_Planning_Flow
+title Fittrack - Planned Workout Lifecycle, Origin, And History Filters
+
+skinparam shadowing false
+
+actor User
+participant "Shared Layout /\nDashboardLive" as Dashboard
+participant "WorkoutPlanLive" as PlanLive
+participant "WorkoutLive" as WorkoutLive
+participant "WorkoutHistoryLive" as HistoryLive
+participant "Training context" as Training
+database "PostgreSQL" as DB
+
+alt Start empty workout
+  User -> Dashboard : Start workout
+  Dashboard -> Training : create_workout(current_scope, lifecycle: active)
+  Training -> DB : Insert active workout
+else Start from saved plan
+  User -> PlanLive : Start from plan
+  PlanLive -> Training : create_workout_from_plan(current_scope, plan_id)
+  Training -> DB : Insert active workout\nwith workout_plan_id
+  Training -> DB : Snapshot planned exercises\nand template context
+end
+
+Training --> WorkoutLive : Active workout
+User -> WorkoutLive : Log sets
+WorkoutLive -> Training : create_workout_set(current_scope, workout, attrs)
+Training -> DB : Insert set for active workout
+
+alt Finish workout
+  User -> WorkoutLive : Finish workout
+  WorkoutLive -> Training : complete_workout(current_scope, workout)
+  Training -> DB : Aggregate trained muscles\nfrom templates, snapshots,\nand user exercises
+  Training -> DB : Set lifecycle_state = completed\nand completed_at
+else Discard workout
+  User -> WorkoutLive : Discard workout
+  WorkoutLive -> Training : discard_workout(current_scope, workout)
+  Training -> DB : Set lifecycle_state = discarded
+end
+
+User -> HistoryLive : Filter History
+HistoryLive -> Training : list_completed_workouts(current_scope,\ndate_range, plan_id, muscle_token)
+Training -> DB : Query completed workouts only\nby user, date, plan, muscle summary
+DB --> Training : Completed workout summaries
+Training --> HistoryLive : Calendar + selected-day records
+
+note right of HistoryLive
+Date/calendar selection remains primary.
+Plan and muscle filters refine the
+completed-workout result set.
+end note
+
+note right of Training
+Every query receives current_scope.
+Use current_scope.user for ownership
+and never rely on @current_user.
+end note
 @enduml
 
 @startuml Fittrack_Exercise_Media_Backfill_Flow

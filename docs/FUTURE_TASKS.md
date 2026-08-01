@@ -54,30 +54,41 @@ Roadmap items are organized below. Promote only the active next item into
 
 ## Next
 
-No item is currently promoted into `PRIORITY_FIXES.md`. Promote only the next
-active delivery item and add its branch name there before implementation.
+`Add explicit workout lifecycle states` is promoted into `PRIORITY_FIXES.md` on
+branch `feature/workout-lifecycle-states`.
+
+Keep the dependent workout-history work here until lifecycle states merge:
+
+1. `feature/workout-origin-snapshots`
+2. `feature/workout-completion-muscle-aggregation`
+3. `feature/workout-history-advanced-filters`
 
 ### Exercise Library / Media Follow-ups
 
-- Add explicit workout lifecycle states.
-  Scope:
-  - distinguish draft, active, completed, and discarded workouts without relying on the current no-sets heuristic
-  - add explicit `Finish workout` and `Discard workout` actions
-  - keep Dashboard, History, and header CTAs driven by lifecycle state
-  - migrate existing completed workouts and active shells safely
-
-- Persist plan origin and workout muscle aggregation.
+- Persist workout origin snapshots after lifecycle states exist.
   Scope:
   - store the originating workout plan when a workout starts from a plan
-  - snapshot planned exercise/template context so history remains stable if templates change
-  - aggregate completed-session muscles from linked exercise templates and logged exercises
+  - snapshot planned exercise/template context so history remains stable if
+    templates change
+  - preserve target sets, rep ranges, rest periods, set kind, ordering, and notes
+    from `WorkoutPlanExercise`
+  - keep snapshots immutable after the workout starts
+
+- Add completion-time workout muscle aggregation after origin snapshots exist.
+  Scope:
+  - aggregate completed-session muscles from linked exercise templates
+  - reconcile normalized template muscles with fallback string fields on user
+    exercises
+  - persist the aggregate when a workout is completed
   - expose reliable data for filters, summaries, badges, and charts
 
-- Add advanced Workout History filters after lifecycle, plan origin, and muscle aggregation are available.
+- Add advanced Workout History filters after lifecycle, origin snapshots, and
+  muscle aggregation are available.
   Scope:
-  - filter by linked plan
-  - filter by muscle split or trained muscle group
-  - preserve the current date/calendar selection behavior as the primary date filter
+  - filter completed workouts by linked plan
+  - filter completed workouts by muscle split or trained muscle group
+  - preserve the current date/calendar selection behavior as the primary date
+    filter
 
 - Expand normalized exercise library relationships.
   Scope:
