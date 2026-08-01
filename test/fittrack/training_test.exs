@@ -193,15 +193,10 @@ defmodule Fittrack.TrainingTest do
       assert is_list(data)
     end
 
-    test "get_active_workout/1 returns the latest workout without sets", %{scope: scope} do
+    test "get_active_workout/1 returns active workouts by lifecycle state", %{scope: scope} do
       {:ok, completed_workout} =
         Training.create_workout(scope, %{
           started_at: DateTime.utc_now() |> DateTime.add(-3600, :second)
-        })
-
-      {:ok, active_workout} =
-        Training.create_workout(scope, %{
-          started_at: DateTime.utc_now()
         })
 
       {:ok, _set} =
@@ -212,7 +207,46 @@ defmodule Fittrack.TrainingTest do
           kind: "normal"
         })
 
+      assert {:ok, completed_workout} = Training.complete_workout(scope, completed_workout)
+      assert completed_workout.lifecycle_state == "completed"
+
+      {:ok, active_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.utc_now()
+        })
+
       assert Training.get_active_workout(scope).id == active_workout.id
+    end
+
+    test "create_workout/2 prevents a second active workout", %{scope: scope} do
+      {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+
+      assert workout.lifecycle_state == "active"
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+
+      assert "cannot start another workout while one is already active" in errors_on(changeset).started_at
+    end
+
+    test "complete_workout/2 and discard_workout/2 are scoped lifecycle operations", %{
+      scope: scope
+    } do
+      {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+
+      assert {:ok, completed} = Training.complete_workout(scope, workout)
+      assert completed.lifecycle_state == "completed"
+      assert completed.completed_at
+      assert {:ok, completed_again} = Training.complete_workout(scope, completed)
+      assert completed_again.id == completed.id
+      assert {:error, :invalid_transition} = Training.discard_workout(scope, completed)
+
+      {:ok, active} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+      assert {:ok, discarded} = Training.discard_workout(scope, active)
+      assert discarded.lifecycle_state == "discarded"
+      assert discarded.discarded_at
+      assert {:ok, discarded_again} = Training.discard_workout(scope, discarded)
+      assert discarded_again.id == discarded.id
     end
 
     test "create_workout_set/3 supports advanced set types", %{scope: scope} do
@@ -232,14 +266,9 @@ defmodule Fittrack.TrainingTest do
       assert "amrap" in Fittrack.Training.WorkoutSet.kinds()
     end
 
-    test "completed workout queries ignore active workouts without sets", %{scope: scope} do
+    test "completed workout queries use lifecycle state", %{scope: scope} do
       today = Date.utc_today()
       started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
-
-      {:ok, _active_workout} =
-        Training.create_workout(scope, %{
-          started_at: DateTime.add(started_at, 3600, :second)
-        })
 
       {:ok, completed_workout} =
         Training.create_workout(scope, %{
@@ -254,6 +283,13 @@ defmodule Fittrack.TrainingTest do
           kind: "normal"
         })
 
+      assert {:ok, completed_workout} = Training.complete_workout(scope, completed_workout)
+
+      {:ok, _active_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.add(started_at, 3600, :second)
+        })
+
       assert [%{date: ^today, count: 1}] =
                Training.completed_workout_dates_with_counts(scope, today, today)
 
@@ -261,16 +297,11 @@ defmodule Fittrack.TrainingTest do
       assert workout.id == completed_workout.id
     end
 
-    test "workout counts and calendar dates ignore active workouts without performed sets", %{
+    test "workout counts and calendar dates use completed lifecycle state", %{
       scope: scope
     } do
       today = Date.utc_today()
       started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
-
-      {:ok, _active_workout} =
-        Training.create_workout(scope, %{
-          started_at: DateTime.add(started_at, 3600, :second)
-        })
 
       {:ok, completed_workout} = Training.create_workout(scope, %{started_at: started_at})
 
@@ -280,6 +311,13 @@ defmodule Fittrack.TrainingTest do
           weight: "100",
           reps: "5",
           kind: "normal"
+        })
+
+      assert {:ok, _completed_workout} = Training.complete_workout(scope, completed_workout)
+
+      {:ok, _active_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.add(started_at, 3600, :second)
         })
 
       assert Training.count_workouts(scope) == 1
