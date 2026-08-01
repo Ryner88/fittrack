@@ -386,7 +386,7 @@ defmodule FittrackWeb.LibraryLive.Show do
 
   defp assign_workout_picker(%{assigns: %{current_scope: %{user: user}}} = socket)
        when not is_nil(user) do
-    workouts = Training.list_active_workouts(socket.assigns.current_scope)
+    workouts = Training.list_workouts(socket.assigns.current_scope)
 
     socket
     |> assign(:workout_options, [{"New workout", "new"} | Enum.map(workouts, &workout_option/1)])
@@ -410,7 +410,7 @@ defmodule FittrackWeb.LibraryLive.Show do
 
   defp workout_for_add(current_scope, workout_id, _exercise, _params) do
     current_scope
-    |> Training.list_active_workouts()
+    |> Training.list_workouts()
     |> Enum.find(&(&1.id == parse_id(workout_id)))
     |> case do
       nil -> {:error, :not_found}

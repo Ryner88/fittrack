@@ -124,6 +124,9 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     today = Date.utc_today()
     started_at = today |> DateTime.new!(~T[12:00:00], "Etc/UTC")
 
+    {:ok, active_workout} =
+      Training.create_workout(scope, %{started_at: DateTime.add(started_at, 3600, :second)})
+
     {:ok, completed_workout} = Training.create_workout(scope, %{started_at: started_at})
 
     {:ok, _set} =
@@ -133,11 +136,6 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
         reps: "5",
         kind: "normal"
       })
-
-    {:ok, completed_workout} = Training.complete_workout(scope, completed_workout)
-
-    {:ok, active_workout} =
-      Training.create_workout(scope, %{started_at: DateTime.add(started_at, 3600, :second)})
 
     conn = log_in_user(conn, user)
     {:ok, view, _html} = live(conn, ~p"/workout-history")

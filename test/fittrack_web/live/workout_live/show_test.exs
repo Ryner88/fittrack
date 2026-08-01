@@ -23,7 +23,6 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     {:ok, _set} = workout_set_fixture(scope, historical_workout, squat)
     {:ok, _set} = workout_set_fixture(scope, historical_workout, bench)
     {:ok, _set} = workout_set_fixture(scope, historical_workout, bench)
-    {:ok, _historical_workout} = Training.complete_workout(scope, historical_workout)
 
     {:ok, workout} =
       Training.create_workout(scope, %{
@@ -35,8 +34,6 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     assert html =~ "Recently used"
     assert html =~ "Most logged"
-    assert has_element?(view, "#finish-workout-button")
-    assert has_element?(view, "#discard-workout-button")
     assert has_element?(view, "#recent-shortcut-exercise-#{bench.id}")
 
     view
@@ -268,44 +265,6 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     assert has_element?(view, "#workout-set-form")
     assert html =~ "No form reference available"
-  end
-
-  test "finishes an active workout from the show page", %{conn: conn} do
-    user = Fittrack.AccountsFixtures.user_fixture()
-    scope = %Scope{user: user}
-    workout = active_workout_fixture(scope)
-
-    conn = log_in_user(conn, user)
-    {:ok, view, _html} = live(conn, ~p"/workouts/#{workout}")
-
-    view
-    |> element("#finish-workout-button")
-    |> render_click()
-
-    assert_redirect(view, ~p"/workout-history")
-    reloaded = Training.get_workout!(scope, workout.id)
-    assert reloaded.lifecycle_state == "completed"
-    assert reloaded.completed_at
-    assert Training.get_active_workout(scope) == nil
-  end
-
-  test "discards an active workout from the show page", %{conn: conn} do
-    user = Fittrack.AccountsFixtures.user_fixture()
-    scope = %Scope{user: user}
-    workout = active_workout_fixture(scope)
-
-    conn = log_in_user(conn, user)
-    {:ok, view, _html} = live(conn, ~p"/workouts/#{workout}")
-
-    view
-    |> element("#discard-workout-button")
-    |> render_click()
-
-    assert_redirect(view, ~p"/workout-history")
-    reloaded = Training.get_workout!(scope, workout.id)
-    assert reloaded.lifecycle_state == "discarded"
-    assert reloaded.discarded_at
-    assert Training.get_active_workout(scope) == nil
   end
 
   defp exercise_fixture(scope, attrs) do
