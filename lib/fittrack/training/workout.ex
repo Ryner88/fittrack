@@ -5,11 +5,18 @@ defmodule Fittrack.Training.Workout do
   alias Fittrack.Accounts.User
   alias Fittrack.Training.WorkoutSet
 
+  @draft_state "draft"
+  @active_state "active"
+  @completed_state "completed"
+  @discarded_state "discarded"
+  @lifecycle_states [@draft_state, @active_state, @completed_state, @discarded_state]
+  @open_lifecycle_states [@draft_state, @active_state]
+
   schema "workout_sessions" do
     field :started_at, :utc_datetime
     field :completed_at, :utc_datetime
     field :discarded_at, :utc_datetime
-    field :lifecycle_state, :string, default: "active"
+    field :lifecycle_state, :string, default: @active_state
     field :notes, :string
 
     belongs_to :user, User
@@ -17,9 +24,6 @@ defmodule Fittrack.Training.Workout do
 
     timestamps(type: :utc_datetime)
   end
-
-  @lifecycle_states ~w(draft active completed discarded)
-  @open_lifecycle_states ~w(draft active)
 
   @doc false
   def changeset(workout, attrs) do
@@ -40,4 +44,12 @@ defmodule Fittrack.Training.Workout do
   def lifecycle_states, do: @lifecycle_states
 
   def open_lifecycle_states, do: @open_lifecycle_states
+
+  def draft_state, do: @draft_state
+
+  def active_state, do: @active_state
+
+  def completed_state, do: @completed_state
+
+  def discarded_state, do: @discarded_state
 end

@@ -2,6 +2,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  alias Fittrack.Training.Workout
   alias Fittrack.Training.WorkoutSet
   import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
@@ -26,7 +27,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
           </div>
           <div class="flex flex-wrap gap-3">
             <button
-              :if={@workout.lifecycle_state == "active"}
+              :if={@workout.lifecycle_state == active_state()}
               id="finish-workout-button"
               type="button"
               phx-click="finish_workout"
@@ -35,7 +36,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
               Finish workout
             </button>
             <button
-              :if={@workout.lifecycle_state in ["draft", "active"]}
+              :if={@workout.lifecycle_state in open_lifecycle_states()}
               id="discard-workout-button"
               type="button"
               phx-click="discard_workout"
@@ -110,7 +111,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
             </div>
 
             <%= cond do %>
-              <% @workout.lifecycle_state != "active" -> %>
+              <% @workout.lifecycle_state != active_state() -> %>
                 <div
                   id="workout-closed-message"
                   class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70"
@@ -686,6 +687,10 @@ defmodule FittrackWeb.WorkoutLive.Show do
     |> Training.list_exercises()
     |> Enum.map(fn exercise -> {exercise.name, exercise.id} end)
   end
+
+  defp active_state, do: Workout.active_state()
+
+  defp open_lifecycle_states, do: Workout.open_lifecycle_states()
 
   defp workout_set_form(current_scope, %{"exercise_id" => exercise_id}) do
     attrs =
