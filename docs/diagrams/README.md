@@ -3,14 +3,6 @@
 `ARCHITECTURE.puml` is the source of truth for FitTrack architecture diagrams.
 It contains named PlantUML blocks so one command can export every diagram.
 
-Workout-history planning is represented separately from deployed architecture in:
-
-- `Fittrack_Workout_History_Planned_Domain`: proposed lifecycle, origin snapshot,
-  and muscle summary model
-- `Fittrack_Workout_History_Planning_Flow`: planned lifecycle transitions,
-  plan snapshots, completion-time muscle aggregation, and advanced History
-  filters
-
 ## PlantUML Export
 
 From the repository root:

@@ -3,7 +3,6 @@ defmodule FittrackWeb.WorkoutLive.Index do
 
   alias Decimal
   alias Fittrack.Training
-  alias Fittrack.Training.Workout
 
   @impl true
   def render(assigns) do
@@ -137,7 +136,7 @@ defmodule FittrackWeb.WorkoutLive.Index do
 
     {in_progress, completed} =
       Enum.split_with(workouts, fn workout ->
-        workout.lifecycle_state == Workout.active_state()
+        session_status(workout) == "Planned"
       end)
 
     {:ok,
@@ -177,5 +176,13 @@ defmodule FittrackWeb.WorkoutLive.Index do
       |> Decimal.add(Decimal.mult(weight, Decimal.new(reps)))
     end)
     |> Decimal.to_string(:normal)
+  end
+
+  defp session_status(session) do
+    if Enum.any?(session_sets(session)) do
+      "Completed"
+    else
+      "Planned"
+    end
   end
 end
