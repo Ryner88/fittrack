@@ -2,6 +2,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
   use FittrackWeb, :live_view
 
   alias Fittrack.Training
+  alias Fittrack.Training.Workout
   alias Fittrack.Training.WorkoutSet
   import FittrackWeb.RelationshipMetaHelpers, only: [relationship_meta: 1]
 
@@ -25,6 +26,25 @@ defmodule FittrackWeb.WorkoutLive.Show do
             </p>
           </div>
           <div class="flex flex-wrap gap-3">
+            <button
+              :if={@workout.lifecycle_state == active_state()}
+              id="finish-workout-button"
+              type="button"
+              phx-click="finish_workout"
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              Finish workout
+            </button>
+            <button
+              :if={@workout.lifecycle_state in open_lifecycle_states()}
+              id="discard-workout-button"
+              type="button"
+              phx-click="discard_workout"
+              data-confirm="Discard this workout? Logged data will be hidden from History but not deleted."
+              class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-error hover:text-error"
+            >
+              Discard workout
+            </button>
             <.link
               navigate={~p"/workouts"}
               class="inline-flex items-center justify-center rounded-full border border-base-300 px-4 py-2 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary"
@@ -90,177 +110,187 @@ defmodule FittrackWeb.WorkoutLive.Show do
               <% end %>
             </div>
 
-            <%= if @exercise_options == [] do %>
-              <div class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70">
-                You need at least one exercise before you can log sets. Create one to keep going.
-              </div>
-            <% else %>
-              <.form for={@form} id="workout-set-form" phx-change="validate" phx-submit="save">
-                <div class="mt-6 grid gap-4 md:grid-cols-2">
-                  <.input
-                    field={@form[:exercise_id]}
-                    type="select"
-                    label="Exercise"
-                    options={@exercise_options}
-                    prompt="Select exercise"
-                    required
-                  />
-                  <div
-                    id="workout-form-reference"
-                    class="rounded-xl border border-base-200 bg-base-50 px-4 py-3 text-sm md:col-span-2"
-                  >
-                    <%= if reference = exercise_media_reference(@selected_exercise) do %>
-                      <div class="flex flex-wrap items-center justify-between gap-2">
-                        <span class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
-                          Form reference
+            <%= cond do %>
+              <% @workout.lifecycle_state != active_state() -> %>
+                <div
+                  id="workout-closed-message"
+                  class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70"
+                >
+                  This workout is {String.replace(@workout.lifecycle_state, "_", " ")} and can no longer accept new sets.
+                </div>
+              <% @exercise_options == [] -> %>
+                <div class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70">
+                  You need at least one exercise before you can log sets. Create one to keep going.
+                </div>
+              <% true -> %>
+                <.form for={@form} id="workout-set-form" phx-change="validate" phx-submit="save">
+                  <div class="mt-6 grid gap-4 md:grid-cols-2">
+                    <.input
+                      field={@form[:exercise_id]}
+                      type="select"
+                      label="Exercise"
+                      options={@exercise_options}
+                      prompt="Select exercise"
+                      required
+                    />
+                    <div
+                      id="workout-form-reference"
+                      class="rounded-xl border border-base-200 bg-base-50 px-4 py-3 text-sm md:col-span-2"
+                    >
+                      <%= if reference = exercise_media_reference(@selected_exercise) do %>
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                          <span class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/50">
+                            Form reference
+                          </span>
+                          <.form_reference_link reference={reference} />
+                        </div>
+                      <% else %>
+                        <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
+                          No form reference available
+                        </p>
+                      <% end %>
+                    </div>
+                    <.input
+                      field={@form[:kind]}
+                      type="select"
+                      label="Set type"
+                      options={@kind_options}
+                    />
+                    <.input
+                      field={@form[:weight]}
+                      type="number"
+                      step="0.5"
+                      label="Performed weight"
+                      required
+                      placeholder="e.g. 135"
+                    />
+                    <.input
+                      field={@form[:reps]}
+                      type="number"
+                      label="Performed reps"
+                      required
+                      placeholder="e.g. 8"
+                    />
+                    <.input
+                      field={@form[:rpe]}
+                      type="number"
+                      step="0.5"
+                      label="RPE (optional)"
+                      placeholder="e.g. 7.5"
+                    />
+                    <div class="grid gap-4 sm:grid-cols-2 md:col-span-2">
+                      <.input
+                        field={@form[:rest_minutes]}
+                        type="number"
+                        label="Rest minutes (optional)"
+                        placeholder="e.g. 1"
+                      />
+                      <.input
+                        field={@form[:rest_seconds_input]}
+                        type="number"
+                        label="Rest seconds (optional)"
+                        placeholder="e.g. 30"
+                      />
+                    </div>
+                    <div class="md:col-span-2">
+                      <.input
+                        field={@form[:notes]}
+                        type="textarea"
+                        label="Set notes (optional)"
+                        placeholder="Add any notes about tempo, cues, or setup"
+                      />
+                    </div>
+                  </div>
+
+                  <div class="mt-6">
+                    <button
+                      type="submit"
+                      phx-disable-with="Adding..."
+                      class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
+                    >
+                      Add set
+                    </button>
+                  </div>
+                </.form>
+
+                <section
+                  :if={@selected_exercise && @substitution_suggestions != []}
+                  id="substitution-suggestions"
+                  class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4"
+                >
+                  <div>
+                    <p class="text-sm font-semibold text-amber-900">
+                      Can't do {@selected_exercise.name}?
+                    </p>
+                    <p class="mt-1 text-xs text-amber-800/80">
+                      Try a nearby substitute and keep the workout moving.
+                    </p>
+                  </div>
+                  <div class="mt-3 grid gap-2">
+                    <button
+                      :for={suggestion <- @substitution_suggestions}
+                      id={"substitute-template-#{suggestion.substitute_exercise_template.id}"}
+                      type="button"
+                      phx-click="prefill_from_library"
+                      phx-value-template_id={suggestion.substitute_exercise_template.id}
+                      class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-sm text-base-content transition hover:border-primary hover:text-primary"
+                    >
+                      <span class="min-w-0">
+                        <span class="block font-semibold">
+                          {suggestion.substitute_exercise_template.name}
                         </span>
-                        <.form_reference_link reference={reference} />
-                      </div>
-                    <% else %>
-                      <p class="text-xs font-semibold uppercase tracking-[0.16em] text-base-content/45">
-                        No form reference available
-                      </p>
-                    <% end %>
-                  </div>
-                  <.input
-                    field={@form[:kind]}
-                    type="select"
-                    label="Set type"
-                    options={@kind_options}
-                  />
-                  <.input
-                    field={@form[:weight]}
-                    type="number"
-                    step="0.5"
-                    label="Performed weight"
-                    required
-                    placeholder="e.g. 135"
-                  />
-                  <.input
-                    field={@form[:reps]}
-                    type="number"
-                    label="Performed reps"
-                    required
-                    placeholder="e.g. 8"
-                  />
-                  <.input
-                    field={@form[:rpe]}
-                    type="number"
-                    step="0.5"
-                    label="RPE (optional)"
-                    placeholder="e.g. 7.5"
-                  />
-                  <div class="grid gap-4 sm:grid-cols-2 md:col-span-2">
-                    <.input
-                      field={@form[:rest_minutes]}
-                      type="number"
-                      label="Rest minutes (optional)"
-                      placeholder="e.g. 1"
-                    />
-                    <.input
-                      field={@form[:rest_seconds_input]}
-                      type="number"
-                      label="Rest seconds (optional)"
-                      placeholder="e.g. 30"
-                    />
-                  </div>
-                  <div class="md:col-span-2">
-                    <.input
-                      field={@form[:notes]}
-                      type="textarea"
-                      label="Set notes (optional)"
-                      placeholder="Add any notes about tempo, cues, or setup"
-                    />
-                  </div>
-                </div>
-
-                <div class="mt-6">
-                  <button
-                    type="submit"
-                    phx-disable-with="Adding..."
-                    class="inline-flex items-center justify-center rounded-full bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 disabled:opacity-70"
-                  >
-                    Add set
-                  </button>
-                </div>
-              </.form>
-
-              <section
-                :if={@selected_exercise && @substitution_suggestions != []}
-                id="substitution-suggestions"
-                class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4"
-              >
-                <div>
-                  <p class="text-sm font-semibold text-amber-900">
-                    Can't do {@selected_exercise.name}?
-                  </p>
-                  <p class="mt-1 text-xs text-amber-800/80">
-                    Try a nearby substitute and keep the workout moving.
-                  </p>
-                </div>
-                <div class="mt-3 grid gap-2">
-                  <button
-                    :for={suggestion <- @substitution_suggestions}
-                    id={"substitute-template-#{suggestion.substitute_exercise_template.id}"}
-                    type="button"
-                    phx-click="prefill_from_library"
-                    phx-value-template_id={suggestion.substitute_exercise_template.id}
-                    class="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white px-3 py-2 text-left text-sm text-base-content transition hover:border-primary hover:text-primary"
-                  >
-                    <span class="min-w-0">
-                      <span class="block font-semibold">
-                        {suggestion.substitute_exercise_template.name}
+                        <span class="mt-1 block text-xs text-base-content/60">
+                          {relationship_meta(suggestion)}
+                        </span>
                       </span>
-                      <span class="mt-1 block text-xs text-base-content/60">
-                        {relationship_meta(suggestion)}
-                      </span>
-                    </span>
-                    <.icon name="hero-arrow-right" class="h-4 w-4" />
-                  </button>
-                </div>
-              </section>
+                      <.icon name="hero-arrow-right" class="h-4 w-4" />
+                    </button>
+                  </div>
+                </section>
 
-              <div
-                id="rest-timer"
-                phx-hook="RestTimer"
-                class="mt-6 rounded-2xl border border-base-200 bg-base-50 p-4"
-              >
-                <h3 class="text-sm font-semibold text-base-content">Rest Timer & Stopwatch</h3>
-                <div class="mt-2 flex items-center justify-between gap-2">
-                  <div class="text-2xl font-mono text-base-content" data-timer-display>01:00</div>
-                  <div class="flex gap-2">
-                    <button type="button" data-start-rest class="btn btn-sm btn-primary">
-                      Start Rest
-                    </button>
-                    <button type="button" data-stop-rest class="btn btn-sm btn-outline">Stop</button>
+                <div
+                  id="rest-timer"
+                  phx-hook="RestTimer"
+                  class="mt-6 rounded-2xl border border-base-200 bg-base-50 p-4"
+                >
+                  <h3 class="text-sm font-semibold text-base-content">Rest Timer & Stopwatch</h3>
+                  <div class="mt-2 flex items-center justify-between gap-2">
+                    <div class="text-2xl font-mono text-base-content" data-timer-display>01:00</div>
+                    <div class="flex gap-2">
+                      <button type="button" data-start-rest class="btn btn-sm btn-primary">
+                        Start Rest
+                      </button>
+                      <button type="button" data-stop-rest class="btn btn-sm btn-outline">
+                        Stop
+                      </button>
+                    </div>
                   </div>
-                </div>
-                <div class="mt-3 grid grid-cols-2 gap-2">
-                  <input
-                    data-rest-input
-                    type="number"
-                    min="1"
-                    value="60"
-                    class="w-full rounded-lg border border-base-300 px-3 py-2"
-                  />
-                  <span class="text-xs text-base-content/70">Rest seconds</span>
-                </div>
+                  <div class="mt-3 grid grid-cols-2 gap-2">
+                    <input
+                      data-rest-input
+                      type="number"
+                      min="1"
+                      value="60"
+                      class="w-full rounded-lg border border-base-300 px-3 py-2"
+                    />
+                    <span class="text-xs text-base-content/70">Rest seconds</span>
+                  </div>
 
-                <div class="mt-4 border-t border-base-200 pt-3">
-                  <div class="flex items-center justify-between">
-                    <span class="text-sm font-semibold">Stopwatch</span>
-                    <span data-stopwatch-display class="font-mono">00:00</span>
-                  </div>
-                  <div class="mt-2 flex gap-2">
-                    <button type="button" data-toggle-stopwatch class="btn btn-sm btn-primary">
-                      Start Stopwatch
-                    </button>
-                    <button type="button" data-reset-stopwatch class="btn btn-sm btn-outline">
-                      Reset
-                    </button>
+                  <div class="mt-4 border-t border-base-200 pt-3">
+                    <div class="flex items-center justify-between">
+                      <span class="text-sm font-semibold">Stopwatch</span>
+                      <span data-stopwatch-display class="font-mono">00:00</span>
+                    </div>
+                    <div class="mt-2 flex gap-2">
+                      <button type="button" data-toggle-stopwatch class="btn btn-sm btn-primary">
+                        Start Stopwatch
+                      </button>
+                      <button type="button" data-reset-stopwatch class="btn btn-sm btn-outline">
+                        Reset
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
             <% end %>
           </div>
 
@@ -611,8 +641,44 @@ defmodule FittrackWeb.WorkoutLive.Show do
       {:error, :unauthorized} ->
         {:noreply, put_flash(socket, :error, "You are not authorized to add sets here.")}
 
+      {:error, :workout_closed} ->
+        {:noreply,
+         put_flash(socket, :error, "This workout is closed and cannot accept new sets.")}
+
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset, action: :insert))}
+    end
+  end
+
+  def handle_event("finish_workout", _params, socket) do
+    case Training.complete_workout(socket.assigns.current_scope, socket.assigns.workout) do
+      {:ok, _workout} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Workout finished")
+         |> push_navigate(to: ~p"/workout-history")}
+
+      {:error, :invalid_transition} ->
+        {:noreply, put_flash(socket, :error, "This workout cannot be finished.")}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "You are not authorized to finish this workout.")}
+    end
+  end
+
+  def handle_event("discard_workout", _params, socket) do
+    case Training.discard_workout(socket.assigns.current_scope, socket.assigns.workout) do
+      {:ok, _workout} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Workout discarded")
+         |> push_navigate(to: ~p"/workout-history")}
+
+      {:error, :invalid_transition} ->
+        {:noreply, put_flash(socket, :error, "This workout cannot be discarded.")}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "You are not authorized to discard this workout.")}
     end
   end
 
@@ -621,6 +687,10 @@ defmodule FittrackWeb.WorkoutLive.Show do
     |> Training.list_exercises()
     |> Enum.map(fn exercise -> {exercise.name, exercise.id} end)
   end
+
+  defp active_state, do: Workout.active_state()
+
+  defp open_lifecycle_states, do: Workout.open_lifecycle_states()
 
   defp workout_set_form(current_scope, %{"exercise_id" => exercise_id}) do
     attrs =
