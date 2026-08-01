@@ -228,7 +228,7 @@ defmodule Fittrack.TrainingTest do
       assert {:error, %Ecto.Changeset{} = changeset} =
                Training.create_workout(scope, %{started_at: DateTime.utc_now()})
 
-      assert "cannot start another workout while one is already active" in errors_on(changeset).started_at
+      assert "cannot start another workout while one is already open" in errors_on(changeset).started_at
     end
 
     test "create_workout/2 prevents a second open workout when a draft exists", %{scope: scope} do
@@ -245,13 +245,65 @@ defmodule Fittrack.TrainingTest do
       assert {:error, %Ecto.Changeset{} = changeset} =
                Training.create_workout(scope, %{started_at: DateTime.utc_now()})
 
-      assert "cannot start another workout while one is already active" in errors_on(changeset).started_at
+      assert "cannot start another workout while one is already open" in errors_on(changeset).started_at
     end
 
-    test "complete_workout/2 and discard_workout/2 are scoped lifecycle operations", %{
+    test "start_workout/3 activates a draft and replaces the shell timestamp", %{
       scope: scope
     } do
+      old_started_at =
+        DateTime.utc_now()
+        |> DateTime.add(-7 * 24 * 60 * 60, :second)
+        |> DateTime.truncate(:second)
+
+      activation_started_at = DateTime.utc_now() |> DateTime.truncate(:second)
+      draft = draft_workout_fixture(scope, old_started_at)
+
+      assert {:ok, started} = Training.start_workout(scope, draft, activation_started_at)
+      assert started.lifecycle_state == Workout.active_state()
+      assert started.started_at == activation_started_at
+      assert started.completed_at == nil
+      assert started.discarded_at == nil
+
+      assert {:ok, active_again} = Training.start_workout(scope, started)
+      assert active_again.id == started.id
+      assert active_again.started_at == activation_started_at
+    end
+
+    test "create_workout_set/3 starts a draft with a fresh activation timestamp", %{
+      scope: scope
+    } do
+      old_started_at =
+        DateTime.utc_now()
+        |> DateTime.add(-7 * 24 * 60 * 60, :second)
+        |> DateTime.truncate(:second)
+
+      draft = draft_workout_fixture(scope, old_started_at)
+      exercise = exercise_fixture(scope)
+
+      assert {:ok, _set} =
+               Training.create_workout_set(scope, draft, %{
+                 exercise_id: exercise.id,
+                 weight: "100",
+                 reps: "5",
+                 kind: "normal"
+               })
+
+      reloaded = Training.get_workout!(scope, draft.id)
+      assert reloaded.lifecycle_state == Workout.active_state()
+      assert DateTime.compare(reloaded.started_at, old_started_at) == :gt
+    end
+
+    test "complete_workout/2, discard_workout/2, and start_workout/3 are scoped lifecycle operations",
+         %{
+           scope: scope
+         } do
       {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+      other_scope = user_scope_fixture()
+
+      assert {:error, :unauthorized} = Training.complete_workout(other_scope, workout)
+      assert {:error, :unauthorized} = Training.discard_workout(other_scope, workout)
+      assert {:error, :unauthorized} = Training.start_workout(other_scope, workout)
 
       assert {:ok, completed} = Training.complete_workout(scope, workout)
       assert completed.lifecycle_state == Workout.completed_state()
@@ -259,6 +311,7 @@ defmodule Fittrack.TrainingTest do
       assert {:ok, completed_again} = Training.complete_workout(scope, completed)
       assert completed_again.id == completed.id
       assert {:error, :invalid_transition} = Training.discard_workout(scope, completed)
+      assert {:error, :invalid_transition} = Training.start_workout(scope, completed)
 
       {:ok, active} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
       assert {:ok, discarded} = Training.discard_workout(scope, active)
@@ -266,6 +319,8 @@ defmodule Fittrack.TrainingTest do
       assert discarded.discarded_at
       assert {:ok, discarded_again} = Training.discard_workout(scope, discarded)
       assert discarded_again.id == discarded.id
+      assert {:error, :invalid_transition} = Training.complete_workout(scope, discarded)
+      assert {:error, :invalid_transition} = Training.start_workout(scope, discarded)
     end
 
     test "create_workout_set/3 supports advanced set types", %{scope: scope} do
@@ -491,5 +546,15 @@ defmodule Fittrack.TrainingTest do
       assert {:error, "Each goal must be unique."} =
                Training.generate_ai_workout_plan(scope, params)
     end
+  end
+
+  defp draft_workout_fixture(scope, started_at) do
+    %Workout{}
+    |> Workout.lifecycle_changeset(%{
+      started_at: started_at,
+      lifecycle_state: Workout.draft_state()
+    })
+    |> Ecto.Changeset.put_change(:user_id, scope.user.id)
+    |> Repo.insert!()
   end
 end

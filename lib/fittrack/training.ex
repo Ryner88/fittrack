@@ -1122,6 +1122,20 @@ defmodule Fittrack.Training do
   def complete_workout(_, _), do: {:error, :unauthorized}
 
   @doc """
+  Starts a draft workout for the current user.
+  """
+  def start_workout(scope, workout, started_at \\ DateTime.utc_now())
+
+  def start_workout(%Scope{user: user}, %Workout{} = workout, started_at) do
+    case get_user_workout(user.id, workout.id) do
+      %Workout{} = workout -> start_authorized_workout(workout, started_at)
+      nil -> {:error, :unauthorized}
+    end
+  end
+
+  def start_workout(_, _, _), do: {:error, :unauthorized}
+
+  @doc """
   Discards a draft or active workout for the current user without deleting it.
   """
   def discard_workout(%Scope{user: user}, %Workout{} = workout) do
@@ -1158,7 +1172,7 @@ defmodule Fittrack.Training do
     exercise_id = Map.get(attrs, "exercise_id") || Map.get(attrs, :exercise_id)
 
     with {:ok, workout} <- authorize_workout_for_logging(user.id, workout),
-         {:ok, workout} <- activate_draft_for_logging(workout),
+         {:ok, workout} <- start_authorized_workout(workout, DateTime.utc_now()),
          %Exercise{} <- Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
       %WorkoutSet{}
       |> WorkoutSet.changeset(attrs)
@@ -1191,7 +1205,7 @@ defmodule Fittrack.Training do
     |> Workout.changeset(attrs)
     |> Ecto.Changeset.add_error(
       :started_at,
-      "cannot start another workout while one is already active"
+      "cannot start another workout while one is already open"
     )
   end
 
@@ -1217,7 +1231,7 @@ defmodule Fittrack.Training do
     end
   end
 
-  defp activate_draft_for_logging(%Workout{} = workout) do
+  defp start_authorized_workout(%Workout{} = workout, started_at) do
     active_state = Workout.active_state()
     draft_state = Workout.draft_state()
 
@@ -1229,14 +1243,14 @@ defmodule Fittrack.Training do
         workout
         |> Workout.lifecycle_changeset(%{
           lifecycle_state: active_state,
-          started_at: workout.started_at || DateTime.utc_now() |> DateTime.truncate(:second),
+          started_at: started_at |> DateTime.truncate(:second),
           discarded_at: nil,
           completed_at: nil
         })
         |> Repo.update()
 
       true ->
-        {:error, :workout_closed}
+        {:error, :invalid_transition}
     end
   end
 
