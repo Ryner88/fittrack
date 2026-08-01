@@ -17,6 +17,17 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(view, ~s(a[href="/workout-history"]), "History")
     refute has_element?(view, ~s(a[href="/workouts"]), "Workouts")
     assert has_element?(view, "#header-start-workout-link")
+    assert has_element?(view, "#mobile-menu-button")
+    assert has_element?(view, "#mobile-primary-navigation")
+    assert has_element?(view, "#mobile-start-workout-link")
+    assert has_element?(view, "#mobile-command-bar-open")
+    assert has_element?(view, "#mobile-dashboard-link")
+    assert has_element?(view, "#mobile-nutrition-link")
+    assert has_element?(view, "#mobile-library-link")
+    assert has_element?(view, "#mobile-my-exercises-link")
+    assert has_element?(view, "#mobile-plans-link")
+    assert has_element?(view, "#mobile-history-link")
+    assert has_element?(view, "#mobile-one-rep-max-link")
     assert has_element?(view, "#profile-menu-button")
     assert has_element?(view, "#profile-settings-link")
     assert has_element?(view, "#profile-log-out-link")
@@ -59,6 +70,7 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
 
     assert has_element?(view, "#dashboard-resume-workout-link")
     assert has_element?(view, "#header-resume-workout-link")
+    assert has_element?(view, "#mobile-resume-workout-link")
 
     assert has_element?(
              view,

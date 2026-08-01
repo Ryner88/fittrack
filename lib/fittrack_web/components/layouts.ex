@@ -113,8 +113,91 @@ defmodule FittrackWeb.Layouts do
               <% end %>
             </nav>
 
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2 sm:gap-3">
               <%= if @current_scope && @current_scope.user do %>
+                <details class="group relative md:hidden">
+                  <summary
+                    id="mobile-menu-button"
+                    class="flex cursor-pointer list-none items-center justify-center rounded-full border border-base-300 p-2.5 text-base-content transition hover:border-primary hover:text-primary"
+                    aria-label="Open navigation menu"
+                  >
+                    <.icon name="hero-bars-3" class="h-5 w-5 group-open:hidden" />
+                    <.icon name="hero-x-mark" class="hidden h-5 w-5 group-open:block" />
+                  </summary>
+                  <div class="absolute right-0 z-30 mt-3 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-base-200 bg-base-100 shadow-xl">
+                    <div class="border-b border-base-200 p-3">
+                      <.workout_cta
+                        active_workout={@active_workout}
+                        id_prefix="mobile"
+                        class="flex w-full items-center justify-center rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90"
+                      />
+                    </div>
+                    <nav
+                      id="mobile-primary-navigation"
+                      class="space-y-1 p-2 text-sm font-semibold text-base-content"
+                      aria-label="Primary navigation"
+                    >
+                      <.mobile_nav_link
+                        id="mobile-dashboard-link"
+                        href={~p"/dashboard"}
+                        icon="hero-chart-bar"
+                      >
+                        Dashboard
+                      </.mobile_nav_link>
+                      <.mobile_nav_link
+                        id="mobile-nutrition-link"
+                        href={~p"/nutrition"}
+                        icon="hero-fire"
+                      >
+                        Nutrition
+                      </.mobile_nav_link>
+                      <.mobile_nav_link
+                        id="mobile-library-link"
+                        href={~p"/exercises"}
+                        icon="hero-bolt"
+                      >
+                        Library
+                      </.mobile_nav_link>
+                      <.mobile_nav_link
+                        id="mobile-my-exercises-link"
+                        href={~p"/my-exercises"}
+                        icon="hero-user-circle"
+                      >
+                        My Exercises
+                      </.mobile_nav_link>
+                      <.mobile_nav_link
+                        id="mobile-plans-link"
+                        href={~p"/workout-plans"}
+                        icon="hero-clipboard-document-list"
+                      >
+                        Plans
+                      </.mobile_nav_link>
+                      <.mobile_nav_link
+                        id="mobile-history-link"
+                        href={~p"/workout-history"}
+                        icon="hero-calendar-days"
+                      >
+                        History
+                      </.mobile_nav_link>
+                      <.mobile_nav_link
+                        id="mobile-one-rep-max-link"
+                        href={~p"/one-rep-max"}
+                        icon="hero-calculator"
+                      >
+                        1RM
+                      </.mobile_nav_link>
+                      <button
+                        id="mobile-command-bar-open"
+                        type="button"
+                        data-command-open
+                        class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition hover:bg-base-200 hover:text-primary"
+                      >
+                        <.icon name="hero-magnifying-glass" class="h-4 w-4 text-base-content/60" />
+                        <span>Search</span>
+                      </button>
+                    </nav>
+                  </div>
+                </details>
                 <button
                   id="command-bar-open"
                   type="button"
@@ -204,13 +287,17 @@ defmodule FittrackWeb.Layouts do
   attr :active_workout, :map, default: nil
   attr :id_prefix, :string, required: true
 
+  attr :class, :string,
+    default:
+      "hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 sm:inline-flex"
+
   defp workout_cta(assigns) do
     ~H"""
     <%= if @active_workout do %>
       <.link
         id={"#{@id_prefix}-resume-workout-link"}
         navigate={~p"/workouts/#{@active_workout}"}
-        class="hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 sm:inline-flex"
+        class={@class}
       >
         <.icon name="hero-play" class="mr-2 h-4 w-4" /> Resume workout
       </.link>
@@ -218,11 +305,29 @@ defmodule FittrackWeb.Layouts do
       <.link
         id={"#{@id_prefix}-start-workout-link"}
         navigate={~p"/workouts/new"}
-        class="hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 sm:inline-flex"
+        class={@class}
       >
         <.icon name="hero-plus" class="mr-2 h-4 w-4" /> Start workout
       </.link>
     <% end %>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :href, :string, required: true
+  attr :icon, :string, required: true
+  slot :inner_block, required: true
+
+  defp mobile_nav_link(assigns) do
+    ~H"""
+    <.link
+      id={@id}
+      navigate={@href}
+      class="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-base-200 hover:text-primary"
+    >
+      <.icon name={@icon} class="h-4 w-4 text-base-content/60" />
+      <span>{render_slot(@inner_block)}</span>
+    </.link>
     """
   end
 

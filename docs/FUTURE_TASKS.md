@@ -48,6 +48,9 @@ Roadmap items are organized below. Promote only the active next item into
   Sparky is not a FitTrack runtime dependency. Regression coverage now keeps
   active routes, assets, config, and deploy scripts free of Sparky references;
   remaining mentions are historical documentation only.
+- Authenticated mobile navigation is no longer a current blocker: the shared app
+  layout exposes mobile primary links, Search, and Start/Resume workout CTAs
+  with regression coverage.
 
 ## Next
 

@@ -12,6 +12,27 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Mobile Navigation Blockers
+
+- Resolved the authenticated mobile header blocker where the primary navigation
+  collapsed below `md` without a mobile replacement.
+- Added a mobile-only navigation menu with stable DOM IDs for Dashboard,
+  Nutrition, Library, My Exercises, Plans, History, 1RM, and Search.
+- Added mobile Start workout / Resume workout CTAs that mirror the desktop
+  header active-workout state.
+- Kept route placement unchanged:
+  - authenticated workspace routes remain in `scope "/", FittrackWeb`,
+    `pipe_through [:browser, :require_authenticated_user]`, and
+    `live_session :require_authenticated_user` because they read user-owned
+    workout data through `current_scope`
+  - public Library links continue to point at the existing
+    `live_session :current_user` routes so guests and signed-in users share the
+    same browsing surface
+- Added LiveView regression coverage for the mobile menu, mobile primary links,
+  mobile Search trigger, and mobile Start/Resume CTA state.
+- Verified `mix test test/fittrack_web/live/workout_history_live_test.exs`
+  passes.
+
 ### Planning Tracker Reconciliation
 
 - Reconciled stale priority-planning entries against the current codebase.

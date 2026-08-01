@@ -25,6 +25,7 @@ No active priority item is queued.
 
 Recently reconciled items were moved to `FIXED_WORK.md`:
 
+- mobile authenticated navigation blockers
 - historical local migration drift
 - category/tag normalization decision
 - public category and muscle routes
