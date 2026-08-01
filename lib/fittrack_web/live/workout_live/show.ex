@@ -27,6 +27,15 @@ defmodule FittrackWeb.WorkoutLive.Show do
           </div>
           <div class="flex flex-wrap gap-3">
             <button
+              :if={@workout.lifecycle_state == draft_state()}
+              id="start-workout-button"
+              type="button"
+              phx-click="start_workout"
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              Start workout
+            </button>
+            <button
               :if={@workout.lifecycle_state == active_state()}
               id="finish-workout-button"
               type="button"
@@ -111,7 +120,7 @@ defmodule FittrackWeb.WorkoutLive.Show do
             </div>
 
             <%= cond do %>
-              <% @workout.lifecycle_state != active_state() -> %>
+              <% @workout.lifecycle_state in terminal_lifecycle_states() -> %>
                 <div
                   id="workout-closed-message"
                   class="mt-6 rounded-2xl border border-dashed border-base-300 bg-base-100/60 p-6 text-sm text-base-content/70"
@@ -641,12 +650,32 @@ defmodule FittrackWeb.WorkoutLive.Show do
       {:error, :unauthorized} ->
         {:noreply, put_flash(socket, :error, "You are not authorized to add sets here.")}
 
+      {:error, :invalid_transition} ->
+        {:noreply,
+         put_flash(socket, :error, "This workout is closed and cannot accept new sets.")}
+
       {:error, :workout_closed} ->
         {:noreply,
          put_flash(socket, :error, "This workout is closed and cannot accept new sets.")}
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:noreply, assign(socket, form: to_form(changeset, action: :insert))}
+    end
+  end
+
+  def handle_event("start_workout", _params, socket) do
+    case Training.start_workout(socket.assigns.current_scope, socket.assigns.workout) do
+      {:ok, workout} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Workout started")
+         |> assign(:workout, workout)}
+
+      {:error, :invalid_transition} ->
+        {:noreply, put_flash(socket, :error, "This workout cannot be started.")}
+
+      {:error, :unauthorized} ->
+        {:noreply, put_flash(socket, :error, "You are not authorized to start this workout.")}
     end
   end
 
@@ -688,9 +717,13 @@ defmodule FittrackWeb.WorkoutLive.Show do
     |> Enum.map(fn exercise -> {exercise.name, exercise.id} end)
   end
 
+  defp draft_state, do: Workout.draft_state()
+
   defp active_state, do: Workout.active_state()
 
   defp open_lifecycle_states, do: Workout.open_lifecycle_states()
+
+  defp terminal_lifecycle_states, do: [Workout.completed_state(), Workout.discarded_state()]
 
   defp workout_set_form(current_scope, %{"exercise_id" => exercise_id}) do
     attrs =
