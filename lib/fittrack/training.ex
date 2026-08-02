@@ -1030,6 +1030,18 @@ defmodule Fittrack.Training do
 
   def get_active_workout(_), do: nil
 
+  @doc """
+  Returns the most recent draft or active workout for the current user.
+  """
+  def get_open_workout(%Scope{user: user}) do
+    user.id
+    |> open_workout_query()
+    |> preload(workout_sets: [exercise: [source_template: :media]])
+    |> Repo.one()
+  end
+
+  def get_open_workout(_), do: nil
+
   def list_active_workouts(%Scope{user: user}) do
     active_state = Workout.active_state()
 
@@ -1041,6 +1053,15 @@ defmodule Fittrack.Training do
   end
 
   def list_active_workouts(_), do: []
+
+  def list_open_workouts(%Scope{user: user}) do
+    user.id
+    |> open_workout_query()
+    |> preload(workout_sets: [:exercise])
+    |> Repo.all()
+  end
+
+  def list_open_workouts(_), do: []
 
   @doc """
   Gets a workout with sets for the current user.
@@ -1073,7 +1094,7 @@ defmodule Fittrack.Training do
   Creates a workout scoped to the current user.
   """
   def create_workout(%Scope{user: user}, attrs) do
-    case get_open_workout(user.id) do
+    case get_open_workout_for_user(user.id) do
       %Workout{} ->
         {:error, open_workout_changeset(attrs)}
 
@@ -1098,24 +1119,36 @@ defmodule Fittrack.Training do
   def complete_workout(%Scope{user: user}, %Workout{} = workout) do
     active_state = Workout.active_state()
     completed_state = Workout.completed_state()
+    completed_at = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case get_user_workout(user.id, workout.id) do
-      %Workout{lifecycle_state: ^completed_state} = workout ->
-        {:ok, workout}
+    Repo.transaction(fn ->
+      case lock_user_workout(user.id, workout.id) do
+        %Workout{lifecycle_state: ^completed_state} = workout ->
+          workout
 
-      %Workout{lifecycle_state: ^active_state} = workout ->
-        workout
-        |> Workout.lifecycle_changeset(%{
-          lifecycle_state: completed_state,
-          completed_at: DateTime.utc_now() |> DateTime.truncate(:second)
-        })
-        |> Repo.update()
+        %Workout{lifecycle_state: ^active_state} = workout ->
+          workout
+          |> Ecto.Changeset.change(
+            lifecycle_state: completed_state,
+            completed_at: completed_at,
+            discarded_at: nil
+          )
+          |> Repo.update()
+          |> case do
+            {:ok, workout} -> workout
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
 
-      %Workout{} ->
-        {:error, :invalid_transition}
+        %Workout{} ->
+          Repo.rollback(:invalid_transition)
 
-      nil ->
-        {:error, :unauthorized}
+        nil ->
+          Repo.rollback(:unauthorized)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1127,9 +1160,21 @@ defmodule Fittrack.Training do
   def start_workout(scope, workout, started_at \\ DateTime.utc_now())
 
   def start_workout(%Scope{user: user}, %Workout{} = workout, started_at) do
-    case get_user_workout(user.id, workout.id) do
-      %Workout{} = workout -> start_authorized_workout(workout, started_at)
-      nil -> {:error, :unauthorized}
+    Repo.transaction(fn ->
+      case lock_user_workout(user.id, workout.id) do
+        %Workout{} = workout ->
+          case start_authorized_workout(workout, started_at) do
+            {:ok, workout} -> workout
+            {:error, reason} -> Repo.rollback(reason)
+          end
+
+        nil ->
+          Repo.rollback(:unauthorized)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1142,24 +1187,36 @@ defmodule Fittrack.Training do
     active_state = Workout.active_state()
     discarded_state = Workout.discarded_state()
     draft_state = Workout.draft_state()
+    discarded_at = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    case get_user_workout(user.id, workout.id) do
-      %Workout{lifecycle_state: ^discarded_state} = workout ->
-        {:ok, workout}
+    Repo.transaction(fn ->
+      case lock_user_workout(user.id, workout.id) do
+        %Workout{lifecycle_state: ^discarded_state} = workout ->
+          workout
 
-      %Workout{lifecycle_state: state} = workout when state in [draft_state, active_state] ->
-        workout
-        |> Workout.lifecycle_changeset(%{
-          lifecycle_state: discarded_state,
-          discarded_at: DateTime.utc_now() |> DateTime.truncate(:second)
-        })
-        |> Repo.update()
+        %Workout{lifecycle_state: state} = workout when state in [draft_state, active_state] ->
+          workout
+          |> Ecto.Changeset.change(
+            lifecycle_state: discarded_state,
+            discarded_at: discarded_at,
+            completed_at: nil
+          )
+          |> Repo.update()
+          |> case do
+            {:ok, workout} -> workout
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
 
-      %Workout{} ->
-        {:error, :invalid_transition}
+        %Workout{} ->
+          Repo.rollback(:invalid_transition)
 
-      nil ->
-        {:error, :unauthorized}
+        nil ->
+          Repo.rollback(:unauthorized)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1171,17 +1228,24 @@ defmodule Fittrack.Training do
   def create_workout_set(%Scope{user: user}, %Workout{} = workout, attrs) do
     exercise_id = Map.get(attrs, "exercise_id") || Map.get(attrs, :exercise_id)
 
-    with {:ok, workout} <- authorize_workout_for_logging(user.id, workout),
-         {:ok, workout} <- start_authorized_workout(workout, DateTime.utc_now()),
-         %Exercise{} <- Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
-      %WorkoutSet{}
-      |> WorkoutSet.changeset(attrs)
-      |> Ecto.Changeset.put_change(:workout_session_id, workout.id)
-      |> Repo.insert()
-      |> preload_workout_set()
-    else
+    Repo.transaction(fn ->
+      with {:ok, workout} <- lock_workout_for_logging(user.id, workout.id),
+           {:ok, _exercise} <- get_exercise_for_set(user.id, exercise_id),
+           %Ecto.Changeset{valid?: true} = changeset <- workout_set_changeset(workout, attrs),
+           {:ok, _workout} <- start_authorized_workout(workout, DateTime.utc_now()),
+           {:ok, workout_set} <- Repo.insert(changeset) do
+        workout_set
+      else
+        %Ecto.Changeset{} = changeset ->
+          Repo.rollback(changeset)
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, workout_set} -> preload_workout_set({:ok, workout_set})
       {:error, reason} -> {:error, reason}
-      nil -> {:error, :invalid_exercise}
     end
   end
 
@@ -1209,7 +1273,13 @@ defmodule Fittrack.Training do
     )
   end
 
-  defp get_open_workout(user_id) do
+  defp get_open_workout_for_user(user_id) do
+    user_id
+    |> open_workout_query()
+    |> Repo.one()
+  end
+
+  defp open_workout_query(user_id) do
     Workout
     |> where(
       [workout],
@@ -1217,18 +1287,33 @@ defmodule Fittrack.Training do
     )
     |> order_by([workout], desc: workout.started_at, desc: workout.id)
     |> limit(1)
+  end
+
+  defp lock_user_workout(user_id, workout_id) do
+    Workout
+    |> where([workout], workout.id == ^workout_id and workout.user_id == ^user_id)
+    |> lock("FOR UPDATE")
     |> Repo.one()
   end
 
-  defp get_user_workout(user_id, workout_id) do
-    Repo.get_by(Workout, id: workout_id, user_id: user_id)
-  end
-
-  defp authorize_workout_for_logging(user_id, %Workout{} = workout) do
-    case get_user_workout(user_id, workout.id) do
+  defp lock_workout_for_logging(user_id, workout_id) do
+    case lock_user_workout(user_id, workout_id) do
       %Workout{} = workout -> {:ok, workout}
       nil -> {:error, :unauthorized}
     end
+  end
+
+  defp get_exercise_for_set(user_id, exercise_id) do
+    case Repo.get_by(Exercise, id: exercise_id, user_id: user_id) do
+      %Exercise{} = exercise -> {:ok, exercise}
+      nil -> {:error, :invalid_exercise}
+    end
+  end
+
+  defp workout_set_changeset(%Workout{} = workout, attrs) do
+    %WorkoutSet{}
+    |> WorkoutSet.changeset(attrs)
+    |> Ecto.Changeset.put_change(:workout_session_id, workout.id)
   end
 
   defp start_authorized_workout(%Workout{} = workout, started_at) do
@@ -2815,14 +2900,10 @@ defmodule Fittrack.Training do
   def create_workout_from_plan(%Scope{user: user}, workout_plan_id) do
     workout_plan = get_workout_plan!(%Scope{user: user}, workout_plan_id)
 
-    # Create a new workout
-    {:ok, workout} =
-      create_workout(%Scope{user: user}, %{
-        started_at: DateTime.utc_now() |> DateTime.truncate(:second),
-        notes: "Started from plan: #{workout_plan.name}"
-      })
-
-    {:ok, workout}
+    create_workout(%Scope{user: user}, %{
+      started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      notes: "Started from plan: #{workout_plan.name}"
+    })
   end
 
   @doc """

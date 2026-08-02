@@ -13,6 +13,7 @@ defmodule FittrackWeb.LibraryLiveTest do
   alias Fittrack.Training.ExerciseTemplate
   alias Fittrack.Training.ExerciseTemplateEquipment
   alias Fittrack.Training.ExerciseTemplateMuscle
+  alias Fittrack.Training.Workout
 
   test "public exercise library renders without authentication and filters by alias search", %{
     conn: conn
@@ -252,6 +253,30 @@ defmodule FittrackWeb.LibraryLiveTest do
     assert_redirect(view, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
   end
 
+  test "signed-in user can add an exercise detail page to a draft workout", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    bench =
+      template_fixture(name: "Barbell Bench Press", primary_muscle: "Chest", equipment: "Barbell")
+
+    workout =
+      draft_workout_fixture(scope, DateTime.utc_now() |> DateTime.truncate(:second))
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/exercises/#{bench.slug}")
+
+    assert has_element?(view, ~s(option[value="#{workout.id}"]))
+
+    view
+    |> form("#add-to-workout-form", workout: %{workout_id: Integer.to_string(workout.id)})
+    |> render_submit()
+
+    exercise = scope |> Training.list_exercises() |> List.first()
+
+    assert_redirect(view, ~p"/workouts/#{workout}?exercise_id=#{exercise.id}")
+  end
+
   test "signed-in user can start a new workout from an exercise detail page", %{conn: conn} do
     user = Fittrack.AccountsFixtures.user_fixture()
     scope = %Scope{user: user}
@@ -292,6 +317,16 @@ defmodule FittrackWeb.LibraryLiveTest do
 
     %ExerciseTemplate{}
     |> ExerciseTemplate.changeset(attrs)
+    |> Repo.insert!()
+  end
+
+  defp draft_workout_fixture(scope, started_at) do
+    %Workout{}
+    |> Workout.lifecycle_changeset(%{
+      started_at: started_at,
+      lifecycle_state: Workout.draft_state()
+    })
+    |> Ecto.Changeset.put_change(:user_id, scope.user.id)
     |> Repo.insert!()
   end
 

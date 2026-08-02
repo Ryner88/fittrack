@@ -82,12 +82,25 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
 
   @impl true
   def handle_event("start_session", %{"id" => id}, socket) do
-    {:ok, workout} = Training.create_workout_from_plan(socket.assigns.current_scope, id)
+    case Training.create_workout_from_plan(socket.assigns.current_scope, id) do
+      {:ok, workout} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Workout started from plan")
+         |> push_navigate(to: ~p"/workouts/#{workout}")}
 
-    {:noreply,
-     socket
-     |> put_flash(:info, "Workout started from plan")
-     |> push_navigate(to: ~p"/workouts/#{workout}")}
+      {:error, %Ecto.Changeset{}} ->
+        case Training.get_open_workout(socket.assigns.current_scope) do
+          nil ->
+            {:noreply, put_flash(socket, :error, "Unable to start this workout plan.")}
+
+          workout ->
+            {:noreply,
+             socket
+             |> put_flash(:error, "You already have an open workout.")
+             |> push_navigate(to: ~p"/workouts/#{workout}")}
+        end
+    end
   end
 
   @impl true

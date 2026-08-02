@@ -6,7 +6,9 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
   import Phoenix.LiveViewTest
 
   alias Fittrack.Accounts.Scope
+  alias Fittrack.Repo
   alias Fittrack.Training
+  alias Fittrack.Training.Workout
 
   test "top navigation labels completed workouts as History", %{conn: conn} do
     user = user_fixture()
@@ -89,6 +91,29 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     refute has_element?(view, "#command-bar", "Start empty workout")
   end
 
+  test "dashboard and header show resume CTA when a draft workout exists", %{conn: conn} do
+    user = user_fixture()
+    scope = %Scope{user: user}
+    draft = draft_workout_fixture(scope, DateTime.utc_now() |> DateTime.truncate(:second))
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/dashboard")
+
+    assert has_element?(view, "#dashboard-resume-workout-link")
+    assert has_element?(view, "#header-resume-workout-link")
+    assert has_element?(view, "#mobile-resume-workout-link")
+
+    assert has_element?(
+             view,
+             ~s(a[data-command-item][href="/workouts/#{draft.id}"]),
+             "Resume workout"
+           )
+
+    refute has_element?(view, "#dashboard-start-workout-link")
+    refute has_element?(view, "#dashboard-browse-plans-link")
+    refute has_element?(view, "#command-bar", "Start empty workout")
+  end
+
   test "shows start and browse plan CTAs when no active workout exists", %{conn: conn} do
     user = user_fixture()
     conn = log_in_user(conn, user)
@@ -113,6 +138,20 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     {:ok, view, _html} = live(conn, ~p"/workout-history")
 
     assert has_element?(view, "#resume-workout-link")
+    refute has_element?(view, "#start-workout-link")
+    refute has_element?(view, "#browse-plans-link")
+  end
+
+  test "shows resume CTA when a draft workout exists", %{conn: conn} do
+    user = user_fixture()
+    scope = %Scope{user: user}
+    draft = draft_workout_fixture(scope, DateTime.utc_now() |> DateTime.truncate(:second))
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workout-history")
+
+    assert has_element?(view, "#resume-workout-link")
+    assert has_element?(view, ~s(a[href="/workouts/#{draft.id}"]), "Resume workout")
     refute has_element?(view, "#start-workout-link")
     refute has_element?(view, "#browse-plans-link")
   end
@@ -151,5 +190,15 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(view, "#history-selected-day", "1 completed")
     assert has_element?(view, "#history-selected-day", "5 reps")
     assert has_element?(view, "#history-selected-day", "500 lbs")
+  end
+
+  defp draft_workout_fixture(scope, started_at) do
+    %Workout{}
+    |> Workout.lifecycle_changeset(%{
+      started_at: started_at,
+      lifecycle_state: Workout.draft_state()
+    })
+    |> Ecto.Changeset.put_change(:user_id, scope.user.id)
+    |> Repo.insert!()
   end
 end

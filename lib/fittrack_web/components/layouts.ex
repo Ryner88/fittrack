@@ -332,7 +332,7 @@ defmodule FittrackWeb.Layouts do
   end
 
   defp active_workout(%{user: %{}} = current_scope),
-    do: Training.get_active_workout(current_scope)
+    do: Training.get_open_workout(current_scope)
 
   defp active_workout(_current_scope), do: nil
 

@@ -220,6 +220,17 @@ defmodule Fittrack.TrainingTest do
       assert Training.get_active_workout(scope).id == active_workout.id
     end
 
+    test "get_open_workout/1 returns draft and active workouts", %{scope: scope} do
+      draft = draft_workout_fixture(scope, DateTime.utc_now() |> DateTime.truncate(:second))
+
+      assert Training.get_active_workout(scope) == nil
+      assert Training.get_open_workout(scope).id == draft.id
+
+      assert {:ok, active} = Training.start_workout(scope, draft)
+      assert Training.get_active_workout(scope).id == active.id
+      assert Training.get_open_workout(scope).id == active.id
+    end
+
     test "create_workout/2 prevents a second active workout", %{scope: scope} do
       {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
 
@@ -294,6 +305,47 @@ defmodule Fittrack.TrainingTest do
       assert DateTime.compare(reloaded.started_at, old_started_at) == :gt
     end
 
+    test "create_workout_set/3 leaves drafts unchanged when validation fails", %{
+      scope: scope
+    } do
+      old_started_at = DateTime.utc_now() |> DateTime.truncate(:second)
+      draft = draft_workout_fixture(scope, old_started_at)
+      exercise = exercise_fixture(scope)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Training.create_workout_set(scope, draft, %{
+                 exercise_id: exercise.id,
+                 weight: "100",
+                 reps: "0",
+                 kind: "normal"
+               })
+
+      reloaded = Training.get_workout!(scope, draft.id)
+      assert reloaded.lifecycle_state == Workout.draft_state()
+      assert reloaded.started_at == old_started_at
+      assert reloaded.workout_sets == []
+    end
+
+    test "create_workout_set/3 leaves drafts unchanged when exercise is invalid", %{
+      scope: scope
+    } do
+      old_started_at = DateTime.utc_now() |> DateTime.truncate(:second)
+      draft = draft_workout_fixture(scope, old_started_at)
+
+      assert {:error, :invalid_exercise} =
+               Training.create_workout_set(scope, draft, %{
+                 exercise_id: 999_999,
+                 weight: "100",
+                 reps: "5",
+                 kind: "normal"
+               })
+
+      reloaded = Training.get_workout!(scope, draft.id)
+      assert reloaded.lifecycle_state == Workout.draft_state()
+      assert reloaded.started_at == old_started_at
+      assert reloaded.workout_sets == []
+    end
+
     test "complete_workout/2, discard_workout/2, and start_workout/3 are scoped lifecycle operations",
          %{
            scope: scope
@@ -321,6 +373,33 @@ defmodule Fittrack.TrainingTest do
       assert discarded_again.id == discarded.id
       assert {:error, :invalid_transition} = Training.complete_workout(scope, discarded)
       assert {:error, :invalid_transition} = Training.start_workout(scope, discarded)
+    end
+
+    test "terminal transitions do not overwrite each other from stale structs", %{scope: scope} do
+      {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+      stale_workout = workout
+
+      assert {:ok, completed} = Training.complete_workout(scope, workout)
+      assert completed.lifecycle_state == Workout.completed_state()
+      assert completed.completed_at
+      assert completed.discarded_at == nil
+
+      assert {:error, :invalid_transition} = Training.discard_workout(scope, stale_workout)
+
+      reloaded = Training.get_workout!(scope, workout.id)
+      assert reloaded.lifecycle_state == Workout.completed_state()
+      assert reloaded.completed_at
+      assert reloaded.discarded_at == nil
+    end
+
+    test "create_workout_from_plan/2 propagates open workout changeset errors", %{scope: scope} do
+      plan = workout_plan_fixture(scope)
+      draft_workout_fixture(scope, DateTime.utc_now() |> DateTime.truncate(:second))
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Training.create_workout_from_plan(scope, plan.id)
+
+      assert "cannot start another workout while one is already open" in errors_on(changeset).started_at
     end
 
     test "create_workout_set/3 supports advanced set types", %{scope: scope} do
