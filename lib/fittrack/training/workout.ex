@@ -38,7 +38,10 @@ defmodule Fittrack.Training.Workout do
     |> validate_required([:lifecycle_state, :started_at])
     |> validate_inclusion(:lifecycle_state, @lifecycle_states)
     |> check_constraint(:lifecycle_state, name: :workout_sessions_lifecycle_state_check)
-    |> unique_constraint(:user_id, name: :workout_sessions_one_open_per_user_idx)
+    |> unique_constraint(:started_at,
+      name: :workout_sessions_one_open_per_user_idx,
+      message: "cannot start another workout while one is already open"
+    )
   end
 
   def lifecycle_states, do: @lifecycle_states

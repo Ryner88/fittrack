@@ -650,10 +650,6 @@ defmodule FittrackWeb.WorkoutLive.Show do
       {:error, :unauthorized} ->
         {:noreply, put_flash(socket, :error, "You are not authorized to add sets here.")}
 
-      {:error, :invalid_transition} ->
-        {:noreply,
-         put_flash(socket, :error, "This workout is closed and cannot accept new sets.")}
-
       {:error, :workout_closed} ->
         {:noreply,
          put_flash(socket, :error, "This workout is closed and cannot accept new sets.")}

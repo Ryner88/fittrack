@@ -259,6 +259,32 @@ defmodule Fittrack.TrainingTest do
       assert "cannot start another workout while one is already open" in errors_on(changeset).started_at
     end
 
+    test "workout lifecycle changeset maps open-workout constraint errors to started_at", %{
+      scope: scope
+    } do
+      now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+      %Workout{}
+      |> Workout.lifecycle_changeset(%{
+        started_at: now,
+        lifecycle_state: Workout.active_state()
+      })
+      |> Ecto.Changeset.put_change(:user_id, scope.user.id)
+      |> Repo.insert!()
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               %Workout{}
+               |> Workout.lifecycle_changeset(%{
+                 started_at: DateTime.add(now, 60, :second),
+                 lifecycle_state: Workout.active_state()
+               })
+               |> Ecto.Changeset.put_change(:user_id, scope.user.id)
+               |> Repo.insert()
+
+      assert "cannot start another workout while one is already open" in errors_on(changeset).started_at
+      refute Map.has_key?(errors_on(changeset), :user_id)
+    end
+
     test "start_workout/3 activates a draft and replaces the shell timestamp", %{
       scope: scope
     } do
@@ -344,6 +370,19 @@ defmodule Fittrack.TrainingTest do
       assert reloaded.lifecycle_state == Workout.draft_state()
       assert reloaded.started_at == old_started_at
       assert reloaded.workout_sets == []
+    end
+
+    test "create_workout_set/3 returns workout_closed for terminal workouts", %{scope: scope} do
+      {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+      assert {:ok, completed} = Training.complete_workout(scope, workout)
+
+      assert {:error, :workout_closed} =
+               Training.create_workout_set(scope, completed, %{
+                 exercise_id: exercise_fixture(scope).id,
+                 weight: "100",
+                 reps: "5",
+                 kind: "normal"
+               })
     end
 
     test "complete_workout/2, discard_workout/2, and start_workout/3 are scoped lifecycle operations",

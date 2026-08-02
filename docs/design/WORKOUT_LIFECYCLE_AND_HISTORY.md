@@ -11,7 +11,7 @@ lifecycle branch merges.
 3. `feature/workout-completion-muscle-aggregation`
 4. `feature/workout-history-advanced-filters`
 
-Only the lifecycle item should be active in `PRIORITY_FIXES.md` at one time.
+Only the lifecycle item should be active in `PRIORITY_FIXES.md` at a time.
 
 ## Lifecycle States
 

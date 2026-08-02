@@ -1245,6 +1245,7 @@ defmodule Fittrack.Training do
     end)
     |> case do
       {:ok, workout_set} -> preload_workout_set({:ok, workout_set})
+      {:error, :invalid_transition} -> {:error, :workout_closed}
       {:error, reason} -> {:error, reason}
     end
   end
