@@ -21,19 +21,11 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-- [IN-PROGRESS] Add explicit workout lifecycle states.
-  Branch: `feature/workout-lifecycle-states`
-  Scope:
-  - distinguish draft, active, completed, and discarded workouts without relying
-    on the current no-sets heuristic
-  - add explicit `Finish workout` and `Discard workout` actions
-  - keep Dashboard, History, and header CTAs driven by lifecycle state
-  - migrate existing completed workouts and active shells safely
-  - document and test lifecycle transitions, timestamp semantics, active-workout
-    invariants, and deterministic migration/backfill rules before shipping
+No active priority item is queued.
 
 Recently reconciled items were moved to `FIXED_WORK.md`:
 
+- workout lifecycle states
 - mobile authenticated navigation blockers
 - historical local migration drift
 - category/tag normalization decision

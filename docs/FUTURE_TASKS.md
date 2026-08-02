@@ -54,10 +54,8 @@ Roadmap items are organized below. Promote only the active next item into
 
 ## Next
 
-`Add explicit workout lifecycle states` is promoted into `PRIORITY_FIXES.md` on
-branch `feature/workout-lifecycle-states`.
-
-Keep the dependent workout-history work here until lifecycle states merge:
+Keep the dependent workout-history work here until each item becomes active
+delivery work:
 
 1. `feature/workout-origin-snapshots`
 2. `feature/workout-completion-muscle-aggregation`

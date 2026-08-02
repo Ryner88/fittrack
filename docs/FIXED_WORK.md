@@ -12,6 +12,30 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Workout Lifecycle States
+
+- Reintroduced the workout lifecycle implementation in PR #24 after PR #23
+  reverted the original PR #22 merge.
+- Added explicit `draft`, `active`, `completed`, and `discarded` workout states
+  so Dashboard, History, workout detail, and header CTAs no longer infer status
+  from whether sets exist.
+- Added deterministic migration/backfill behavior for existing workout shells,
+  completed workouts, and discarded empty historical sessions.
+- Added user-facing `Finish workout`, `Discard workout`, and draft `Start
+  workout` flows while preserving guest/authenticated route scope behavior.
+- Corrected draft handling so drafts render outside completed History, explicit
+  start activates them, and first-set activation receives a fresh `started_at`
+  timestamp.
+- Kept dependent origin snapshots, completion-time muscle aggregation, and
+  advanced History filters unpromoted in `FUTURE_TASKS.md`.
+- Commit references:
+  - `8eedbd8` Reapply "Define and implement workout lifecycle states"
+  - `b31eed5` Fix draft workout lifecycle handling
+- Verified:
+  - `git diff --check`
+  - `JAVA_TOOL_OPTIONS=-Djava.awt.headless=true plantuml -checkonly docs/diagrams/ARCHITECTURE.puml`
+  - `mix precommit` passed with 275 tests, 0 failures
+
 ### Mobile Navigation Blockers
 
 - Resolved the authenticated mobile header blocker where the primary navigation
