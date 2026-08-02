@@ -285,7 +285,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     assert_redirect(view, ~p"/workout-history")
     reloaded = Training.get_workout!(scope, workout.id)
-    assert reloaded.lifecycle_state == "completed"
+    assert reloaded.lifecycle_state == Workout.completed_state()
     assert reloaded.completed_at
     assert Training.get_active_workout(scope) == nil
   end
@@ -304,7 +304,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     assert_redirect(view, ~p"/workout-history")
     reloaded = Training.get_workout!(scope, workout.id)
-    assert reloaded.lifecycle_state == "discarded"
+    assert reloaded.lifecycle_state == Workout.discarded_state()
     assert reloaded.discarded_at
     assert Training.get_active_workout(scope) == nil
   end

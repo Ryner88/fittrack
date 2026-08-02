@@ -143,21 +143,121 @@ defmodule Fittrack.TrainingTest do
       assert Training.get_exercise(scope, exercise.id) == exercise
     end
 
-    test "log_exercise_set/2 creates a workout set entry", %{scope: scope} do
+    test "create_workout/2 accepts atom-keyed attrs", %{scope: scope} do
+      assert {:ok, %Workout{} = workout} =
+               Training.create_workout(scope, %{
+                 started_at: DateTime.utc_now(),
+                 notes: "Atom keyed start"
+               })
+
+      assert workout.lifecycle_state == Workout.active_state()
+      assert workout.notes == "Atom keyed start"
+    end
+
+    test "log_exercise_set/2 creates a completed workout when no workout is open", %{
+      scope: scope
+    } do
       exercise = exercise_fixture(scope)
 
-      {:ok, _set} =
-        Training.log_exercise_set(scope, %{
-          "exercise_id" => exercise.id,
-          "weight" => "100",
-          "reps" => "5"
-        })
+      assert {:ok, set} =
+               Training.log_exercise_set(scope, %{
+                 "exercise_id" => exercise.id,
+                 "weight" => "100",
+                 "reps" => "5"
+               })
 
-      result =
-        Fittrack.Repo.get_by(Fittrack.Training.WorkoutSet, exercise_id: exercise.id, reps: 5)
+      workout = Training.get_workout!(scope, set.workout_session_id)
 
-      assert result
-      assert Decimal.equal?(result.weight, Decimal.new("100"))
+      assert workout.lifecycle_state == Workout.completed_state()
+      assert workout.completed_at
+      assert Training.get_open_workout(scope) == nil
+      assert Decimal.equal?(set.weight, Decimal.new("100"))
+    end
+
+    test "log_exercise_set/2 rolls back the workout shell when the quick set is invalid", %{
+      scope: scope
+    } do
+      exercise = exercise_fixture(scope)
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Training.log_exercise_set(scope, %{
+                 "exercise_id" => exercise.id,
+                 "weight" => "100",
+                 "reps" => "0"
+               })
+
+      assert "must be greater than 0" in errors_on(changeset).reps
+      assert Training.get_open_workout(scope) == nil
+
+      assert Repo.aggregate(
+               from(workout in Workout, where: workout.user_id == ^scope.user.id),
+               :count
+             ) ==
+               0
+    end
+
+    test "log_exercise_set/2 adds to an active workout and leaves it active", %{scope: scope} do
+      exercise = exercise_fixture(scope)
+      {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+
+      assert {:ok, set} =
+               Training.log_exercise_set(scope, %{
+                 "exercise_id" => exercise.id,
+                 "weight" => "100",
+                 "reps" => "5"
+               })
+
+      assert set.workout_session_id == workout.id
+
+      reloaded = Training.get_workout!(scope, workout.id)
+      assert reloaded.lifecycle_state == Workout.active_state()
+      assert reloaded.completed_at == nil
+    end
+
+    test "log_exercise_set/2 adds to a draft, activates it, and replaces the shell timestamp", %{
+      scope: scope
+    } do
+      old_started_at =
+        DateTime.utc_now()
+        |> DateTime.add(-7 * 24 * 60 * 60, :second)
+        |> DateTime.truncate(:second)
+
+      draft = draft_workout_fixture(scope, old_started_at)
+      exercise = exercise_fixture(scope)
+
+      assert {:ok, set} =
+               Training.log_exercise_set(scope, %{
+                 "exercise_id" => exercise.id,
+                 "weight" => "100",
+                 "reps" => "5"
+               })
+
+      assert set.workout_session_id == draft.id
+
+      reloaded = Training.get_workout!(scope, draft.id)
+      assert reloaded.lifecycle_state == Workout.active_state()
+      assert DateTime.compare(reloaded.started_at, old_started_at) == :gt
+      assert reloaded.completed_at == nil
+    end
+
+    test "log_exercise_set/2 leaves a draft unchanged when the quick set is invalid", %{
+      scope: scope
+    } do
+      old_started_at = DateTime.utc_now() |> DateTime.truncate(:second)
+      draft = draft_workout_fixture(scope, old_started_at)
+      exercise = exercise_fixture(scope)
+
+      assert {:error, %Ecto.Changeset{}} =
+               Training.log_exercise_set(scope, %{
+                 "exercise_id" => exercise.id,
+                 "weight" => "100",
+                 "reps" => "0"
+               })
+
+      reloaded = Training.get_workout!(scope, draft.id)
+      assert reloaded.lifecycle_state == Workout.draft_state()
+      assert reloaded.started_at == old_started_at
+      assert reloaded.workout_sets == []
     end
 
     test "exercise_progress_over_time/3 returns data points for logged sets", %{scope: scope} do
@@ -536,6 +636,55 @@ defmodule Fittrack.TrainingTest do
                  "weight" => "100",
                  "reps" => "5"
                })
+    end
+
+    test "recent and popular exercise shortcuts exclude discarded workouts", %{scope: scope} do
+      included = exercise_fixture(scope, %{name: "Included Press"})
+      discarded_only = exercise_fixture(scope, %{name: "Discarded Pull"})
+
+      {:ok, completed_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.utc_now() |> DateTime.add(-3600, :second)
+        })
+
+      assert {:ok, _set} =
+               Training.create_workout_set(scope, completed_workout, %{
+                 exercise_id: included.id,
+                 weight: "100",
+                 reps: "5",
+                 kind: "normal"
+               })
+
+      assert {:ok, _completed_workout} = Training.complete_workout(scope, completed_workout)
+
+      {:ok, discarded_workout} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.utc_now()
+        })
+
+      assert {:ok, _set} =
+               Training.create_workout_set(scope, discarded_workout, %{
+                 exercise_id: discarded_only.id,
+                 weight: "100",
+                 reps: "5",
+                 kind: "normal"
+               })
+
+      assert {:ok, _set} =
+               Training.create_workout_set(scope, discarded_workout, %{
+                 exercise_id: discarded_only.id,
+                 weight: "105",
+                 reps: "5",
+                 kind: "normal"
+               })
+
+      assert {:ok, _discarded_workout} = Training.discard_workout(scope, discarded_workout)
+
+      assert [recent] = Training.list_recent_exercises(scope, limit: 5)
+      assert recent.id == included.id
+
+      assert [popular] = Training.list_popular_exercises(scope, limit: 5)
+      assert popular.id == included.id
     end
 
     test "generate_ai_workout_plan/2 generates and saves workout plan", %{scope: scope} do

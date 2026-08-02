@@ -79,13 +79,19 @@ defmodule Fittrack.Training do
   def list_recent_exercises(%Scope{user: user}, opts) do
     opts = if is_list(opts), do: Map.new(opts), else: opts
     limit = opts |> Map.get(:limit, 5) |> parse_positive_integer(5)
+    discarded_state = Workout.discarded_state()
 
     recent_sets =
       WorkoutSet
-      |> join(:inner, [workout_set], exercise in assoc(workout_set, :exercise))
-      |> where([_workout_set, exercise], exercise.user_id == ^user.id)
-      |> group_by([workout_set, _exercise], workout_set.exercise_id)
-      |> select([workout_set, _exercise], %{
+      |> join(:inner, [workout_set], workout in assoc(workout_set, :workout))
+      |> join(:inner, [workout_set, _workout], exercise in assoc(workout_set, :exercise))
+      |> where(
+        [_workout_set, workout, exercise],
+        workout.user_id == ^user.id and exercise.user_id == ^user.id and
+          workout.lifecycle_state != ^discarded_state
+      )
+      |> group_by([workout_set, _workout, _exercise], workout_set.exercise_id)
+      |> select([workout_set, _workout, _exercise], %{
         exercise_id: workout_set.exercise_id,
         last_used_at: max(workout_set.inserted_at)
       })
@@ -107,13 +113,19 @@ defmodule Fittrack.Training do
   def list_popular_exercises(%Scope{user: user}, opts) do
     opts = if is_list(opts), do: Map.new(opts), else: opts
     limit = opts |> Map.get(:limit, 5) |> parse_positive_integer(5)
+    discarded_state = Workout.discarded_state()
 
     exercise_counts =
       WorkoutSet
-      |> join(:inner, [workout_set], exercise in assoc(workout_set, :exercise))
-      |> where([_workout_set, exercise], exercise.user_id == ^user.id)
-      |> group_by([workout_set, _exercise], workout_set.exercise_id)
-      |> select([workout_set, _exercise], %{
+      |> join(:inner, [workout_set], workout in assoc(workout_set, :workout))
+      |> join(:inner, [workout_set, _workout], exercise in assoc(workout_set, :exercise))
+      |> where(
+        [_workout_set, workout, exercise],
+        workout.user_id == ^user.id and exercise.user_id == ^user.id and
+          workout.lifecycle_state != ^discarded_state
+      )
+      |> group_by([workout_set, _workout, _exercise], workout_set.exercise_id)
+      |> select([workout_set, _workout, _exercise], %{
         exercise_id: workout_set.exercise_id,
         set_count: count(workout_set.id)
       })
@@ -1259,10 +1271,12 @@ defmodule Fittrack.Training do
 
   defp start_workout_attrs(attrs) do
     attrs
-    |> Map.new()
-    |> Map.put(:lifecycle_state, Workout.active_state())
-    |> Map.put(:completed_at, nil)
-    |> Map.put(:discarded_at, nil)
+    |> Map.new(fn {key, value} -> {to_string(key), value} end)
+    |> Map.merge(%{
+      "lifecycle_state" => Workout.active_state(),
+      "completed_at" => nil,
+      "discarded_at" => nil
+    })
   end
 
   defp open_workout_changeset(attrs) do
@@ -3109,23 +3123,53 @@ defmodule Fittrack.Training do
         {:error, :unauthorized}
 
       _exercise ->
-        with {:ok, workout} <-
-               create_workout(scope, %{
-                 started_at: DateTime.utc_now(),
-                 notes: "Quick Log: #{Date.utc_today()}"
-               }),
-             {:ok, workout_set} <-
-               create_workout_set(scope, workout, %{
-                 exercise_id: exercise_id,
-                 weight: weight,
-                 reps: reps,
-                 kind: "normal"
-               }) do
-          {:ok, _workout} = complete_workout(scope, workout)
-          {:ok, workout_set}
-        else
-          error -> error
+        set_attrs = %{
+          exercise_id: exercise_id,
+          weight: weight,
+          reps: reps,
+          kind: "normal"
+        }
+
+        case get_open_workout(scope) do
+          %Workout{} = workout ->
+            create_workout_set(scope, workout, set_attrs)
+
+          nil ->
+            create_completed_quick_log(scope, set_attrs, DateTime.utc_now())
         end
+    end
+  end
+
+  defp create_completed_quick_log(%Scope{user: user}, set_attrs, started_at) do
+    completed_state = Workout.completed_state()
+    completed_at = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    workout_changeset =
+      %Workout{}
+      |> Workout.lifecycle_changeset(
+        start_workout_attrs(%{
+          started_at: started_at,
+          notes: "Quick Log: #{Date.utc_today()}"
+        })
+      )
+      |> Ecto.Changeset.put_change(:user_id, user.id)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:workout, workout_changeset)
+    |> Ecto.Multi.insert(:workout_set, fn %{workout: workout} ->
+      workout_set_changeset(workout, set_attrs)
+    end)
+    |> Ecto.Multi.update(:completed_workout, fn %{workout: workout} ->
+      Ecto.Changeset.change(workout,
+        lifecycle_state: completed_state,
+        completed_at: completed_at,
+        discarded_at: nil
+      )
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{workout_set: workout_set}} -> preload_workout_set({:ok, workout_set})
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
