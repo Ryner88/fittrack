@@ -44,6 +44,64 @@ defmodule FittrackWeb.WorkoutLive.IndexTest do
     assert has_element?(view, "#in_progress_workouts-#{draft.id} a", "Start workout")
   end
 
+  test "header CTA links to draft workout when one is open", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    draft =
+      draft_workout_fixture(
+        scope,
+        DateTime.utc_now() |> DateTime.truncate(:second)
+      )
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workouts")
+
+    assert has_element?(
+             view,
+             ~s(#workout-index-open-workout-link[href="/workouts/#{draft.id}"]),
+             "Start workout"
+           )
+
+    refute has_element?(view, ~s(#workout-index-start-workout-link[href="/workouts/new"]))
+  end
+
+  test "header CTA links to active workout when one is open", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+
+    {:ok, active} =
+      Training.create_workout(scope, %{
+        started_at: DateTime.utc_now()
+      })
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workouts")
+
+    assert has_element?(
+             view,
+             ~s(#workout-index-open-workout-link[href="/workouts/#{active.id}"]),
+             "Continue workout"
+           )
+
+    refute has_element?(view, ~s(#workout-index-start-workout-link[href="/workouts/new"]))
+  end
+
+  test "header CTA links to new workout when no workout is open", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    conn = log_in_user(conn, user)
+
+    {:ok, view, _html} = live(conn, ~p"/workouts")
+
+    assert has_element?(
+             view,
+             ~s(#workout-index-start-workout-link[href="/workouts/new"]),
+             "Start workout"
+           )
+
+    refute has_element?(view, "#workout-index-open-workout-link")
+  end
+
   defp exercise_fixture(scope) do
     {:ok, exercise} =
       Training.create_exercise(scope, %{

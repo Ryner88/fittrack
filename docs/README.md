@@ -24,7 +24,7 @@ application entry points.
 ## Design Documents
 
 - `design/WORKOUT_LIFECYCLE_AND_HISTORY.md`: planned workout lifecycle,
-  plan-origin snapshots, muscle aggregation, and advanced History filter design.
+  plan-origin snapshots, muscle aggregation, and design for advanced History filters.
 
 ## Diagrams
 

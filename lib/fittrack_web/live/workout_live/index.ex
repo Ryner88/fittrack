@@ -17,12 +17,23 @@ defmodule FittrackWeb.WorkoutLive.Index do
               Review completed workouts, track performance, and continue workouts in progress.
             </p>
           </div>
-          <.link
-            navigate={~p"/workouts/new"}
-            class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
-          >
-            Start workout
-          </.link>
+          <%= if @open_workout do %>
+            <.link
+              id="workout-index-open-workout-link"
+              navigate={~p"/workouts/#{@open_workout}"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              {open_workout_action(@open_workout)}
+            </.link>
+          <% else %>
+            <.link
+              id="workout-index-start-workout-link"
+              navigate={~p"/workouts/new"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              Start workout
+            </.link>
+          <% end %>
         </div>
 
         <div id="workout-sessions" class="space-y-6">
@@ -158,6 +169,7 @@ defmodule FittrackWeb.WorkoutLive.Index do
     {:ok,
      socket
      |> assign(:page_title, "Workout History")
+     |> assign(:open_workout, List.first(in_progress))
      |> stream(:in_progress_workouts, in_progress)
      |> stream(:completed_workouts, completed)}
   end
