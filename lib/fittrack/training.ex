@@ -79,13 +79,19 @@ defmodule Fittrack.Training do
   def list_recent_exercises(%Scope{user: user}, opts) do
     opts = if is_list(opts), do: Map.new(opts), else: opts
     limit = opts |> Map.get(:limit, 5) |> parse_positive_integer(5)
+    discarded_state = Workout.discarded_state()
 
     recent_sets =
       WorkoutSet
-      |> join(:inner, [workout_set], exercise in assoc(workout_set, :exercise))
-      |> where([_workout_set, exercise], exercise.user_id == ^user.id)
-      |> group_by([workout_set, _exercise], workout_set.exercise_id)
-      |> select([workout_set, _exercise], %{
+      |> join(:inner, [workout_set], workout in assoc(workout_set, :workout))
+      |> join(:inner, [workout_set, _workout], exercise in assoc(workout_set, :exercise))
+      |> where(
+        [_workout_set, workout, exercise],
+        workout.user_id == ^user.id and exercise.user_id == ^user.id and
+          workout.lifecycle_state != ^discarded_state
+      )
+      |> group_by([workout_set, _workout, _exercise], workout_set.exercise_id)
+      |> select([workout_set, _workout, _exercise], %{
         exercise_id: workout_set.exercise_id,
         last_used_at: max(workout_set.inserted_at)
       })
@@ -107,13 +113,19 @@ defmodule Fittrack.Training do
   def list_popular_exercises(%Scope{user: user}, opts) do
     opts = if is_list(opts), do: Map.new(opts), else: opts
     limit = opts |> Map.get(:limit, 5) |> parse_positive_integer(5)
+    discarded_state = Workout.discarded_state()
 
     exercise_counts =
       WorkoutSet
-      |> join(:inner, [workout_set], exercise in assoc(workout_set, :exercise))
-      |> where([_workout_set, exercise], exercise.user_id == ^user.id)
-      |> group_by([workout_set, _exercise], workout_set.exercise_id)
-      |> select([workout_set, _exercise], %{
+      |> join(:inner, [workout_set], workout in assoc(workout_set, :workout))
+      |> join(:inner, [workout_set, _workout], exercise in assoc(workout_set, :exercise))
+      |> where(
+        [_workout_set, workout, exercise],
+        workout.user_id == ^user.id and exercise.user_id == ^user.id and
+          workout.lifecycle_state != ^discarded_state
+      )
+      |> group_by([workout_set, _workout, _exercise], workout_set.exercise_id)
+      |> select([workout_set, _workout, _exercise], %{
         exercise_id: workout_set.exercise_id,
         set_count: count(workout_set.id)
       })
@@ -1000,8 +1012,13 @@ defmodule Fittrack.Training do
   Returns the list of workouts for the current user.
   """
   def list_workouts(%Scope{user: user}) do
+    discarded_state = Workout.discarded_state()
+
     Workout
-    |> where([workout], workout.user_id == ^user.id)
+    |> where(
+      [workout],
+      workout.user_id == ^user.id and workout.lifecycle_state != ^discarded_state
+    )
     |> order_by([workout], desc: workout.started_at)
     |> preload(workout_sets: [exercise: [source_template: :media]])
     |> Repo.all()
@@ -1011,16 +1028,12 @@ defmodule Fittrack.Training do
 
   @doc """
   Returns the most recent active workout for the current user.
-
-  Until workouts have an explicit finished state, a workout with no logged sets is treated as
-  active/in-progress.
   """
   def get_active_workout(%Scope{user: user}) do
+    active_state = Workout.active_state()
+
     Workout
-    |> where([workout], workout.user_id == ^user.id)
-    |> join(:left, [workout], workout_set in assoc(workout, :workout_sets))
-    |> group_by([workout], workout.id)
-    |> having([_workout, workout_set], count(workout_set.id) == 0)
+    |> where([workout], workout.user_id == ^user.id and workout.lifecycle_state == ^active_state)
     |> order_by([workout], desc: workout.started_at)
     |> limit(1)
     |> preload(workout_sets: [exercise: [source_template: :media]])
@@ -1029,18 +1042,38 @@ defmodule Fittrack.Training do
 
   def get_active_workout(_), do: nil
 
+  @doc """
+  Returns the most recent draft or active workout for the current user.
+  """
+  def get_open_workout(%Scope{user: user}) do
+    user.id
+    |> open_workout_query()
+    |> preload(workout_sets: [exercise: [source_template: :media]])
+    |> Repo.one()
+  end
+
+  def get_open_workout(_), do: nil
+
   def list_active_workouts(%Scope{user: user}) do
+    active_state = Workout.active_state()
+
     Workout
-    |> where([workout], workout.user_id == ^user.id)
-    |> join(:left, [workout], workout_set in assoc(workout, :workout_sets))
-    |> group_by([workout], workout.id)
-    |> having([_workout, workout_set], count(workout_set.id) == 0)
+    |> where([workout], workout.user_id == ^user.id and workout.lifecycle_state == ^active_state)
     |> order_by([workout], desc: workout.started_at)
     |> preload(workout_sets: [:exercise])
     |> Repo.all()
   end
 
   def list_active_workouts(_), do: []
+
+  def list_open_workouts(%Scope{user: user}) do
+    user.id
+    |> open_workout_query()
+    |> preload(workout_sets: [:exercise])
+    |> Repo.all()
+  end
+
+  def list_open_workouts(_), do: []
 
   @doc """
   Gets a workout with sets for the current user.
@@ -1073,10 +1106,16 @@ defmodule Fittrack.Training do
   Creates a workout scoped to the current user.
   """
   def create_workout(%Scope{user: user}, attrs) do
-    %Workout{}
-    |> Workout.changeset(attrs)
-    |> Ecto.Changeset.put_change(:user_id, user.id)
-    |> Repo.insert()
+    case get_open_workout_for_user(user.id) do
+      %Workout{} ->
+        {:error, open_workout_changeset(attrs)}
+
+      nil ->
+        %Workout{}
+        |> Workout.lifecycle_changeset(start_workout_attrs(attrs))
+        |> Ecto.Changeset.put_change(:user_id, user.id)
+        |> Repo.insert()
+    end
   end
 
   @doc """
@@ -1087,21 +1126,139 @@ defmodule Fittrack.Training do
   end
 
   @doc """
+  Completes an active workout for the current user.
+  """
+  def complete_workout(%Scope{user: user}, %Workout{} = workout) do
+    active_state = Workout.active_state()
+    completed_state = Workout.completed_state()
+    completed_at = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Repo.transaction(fn ->
+      case lock_user_workout(user.id, workout.id) do
+        %Workout{lifecycle_state: ^completed_state} = workout ->
+          workout
+
+        %Workout{lifecycle_state: ^active_state} = workout ->
+          workout
+          |> Ecto.Changeset.change(
+            lifecycle_state: completed_state,
+            completed_at: completed_at,
+            discarded_at: nil
+          )
+          |> Repo.update()
+          |> case do
+            {:ok, workout} -> workout
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+
+        %Workout{} ->
+          Repo.rollback(:invalid_transition)
+
+        nil ->
+          Repo.rollback(:unauthorized)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def complete_workout(_, _), do: {:error, :unauthorized}
+
+  @doc """
+  Starts a draft workout for the current user.
+  """
+  def start_workout(scope, workout, started_at \\ DateTime.utc_now())
+
+  def start_workout(%Scope{user: user}, %Workout{} = workout, started_at) do
+    Repo.transaction(fn ->
+      case lock_user_workout(user.id, workout.id) do
+        %Workout{} = workout ->
+          case start_authorized_workout(workout, started_at) do
+            {:ok, workout} -> workout
+            {:error, reason} -> Repo.rollback(reason)
+          end
+
+        nil ->
+          Repo.rollback(:unauthorized)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def start_workout(_, _, _), do: {:error, :unauthorized}
+
+  @doc """
+  Discards a draft or active workout for the current user without deleting it.
+  """
+  def discard_workout(%Scope{user: user}, %Workout{} = workout) do
+    active_state = Workout.active_state()
+    discarded_state = Workout.discarded_state()
+    draft_state = Workout.draft_state()
+    discarded_at = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    Repo.transaction(fn ->
+      case lock_user_workout(user.id, workout.id) do
+        %Workout{lifecycle_state: ^discarded_state} = workout ->
+          workout
+
+        %Workout{lifecycle_state: state} = workout when state in [draft_state, active_state] ->
+          workout
+          |> Ecto.Changeset.change(
+            lifecycle_state: discarded_state,
+            discarded_at: discarded_at,
+            completed_at: nil
+          )
+          |> Repo.update()
+          |> case do
+            {:ok, workout} -> workout
+            {:error, changeset} -> Repo.rollback(changeset)
+          end
+
+        %Workout{} ->
+          Repo.rollback(:invalid_transition)
+
+        nil ->
+          Repo.rollback(:unauthorized)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def discard_workout(_, _), do: {:error, :unauthorized}
+
+  @doc """
   Creates a workout set within a workout for the current user.
   """
   def create_workout_set(%Scope{user: user}, %Workout{} = workout, attrs) do
     exercise_id = Map.get(attrs, "exercise_id") || Map.get(attrs, :exercise_id)
 
-    with true <- workout.user_id == user.id,
-         %Exercise{} <- Repo.get_by(Exercise, id: exercise_id, user_id: user.id) do
-      %WorkoutSet{}
-      |> WorkoutSet.changeset(attrs)
-      |> Ecto.Changeset.put_change(:workout_session_id, workout.id)
-      |> Repo.insert()
-      |> preload_workout_set()
-    else
-      false -> {:error, :unauthorized}
-      nil -> {:error, :invalid_exercise}
+    Repo.transaction(fn ->
+      with {:ok, workout} <- lock_workout_for_logging(user.id, workout.id),
+           {:ok, _exercise} <- get_exercise_for_set(user.id, exercise_id),
+           %Ecto.Changeset{valid?: true} = changeset <- workout_set_changeset(workout, attrs),
+           {:ok, _workout} <- start_authorized_workout(workout, DateTime.utc_now()),
+           {:ok, workout_set} <- Repo.insert(changeset) do
+        workout_set
+      else
+        %Ecto.Changeset{} = changeset ->
+          Repo.rollback(changeset)
+
+        {:error, reason} ->
+          Repo.rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, workout_set} -> preload_workout_set({:ok, workout_set})
+      {:error, :invalid_transition} -> {:error, :workout_closed}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -1110,6 +1267,91 @@ defmodule Fittrack.Training do
   """
   def change_workout_set(%WorkoutSet{} = workout_set, attrs \\ %{}) do
     WorkoutSet.changeset(workout_set, attrs)
+  end
+
+  defp start_workout_attrs(attrs) do
+    attrs
+    |> Map.new(fn {key, value} -> {to_string(key), value} end)
+    |> Map.merge(%{
+      "lifecycle_state" => Workout.active_state(),
+      "completed_at" => nil,
+      "discarded_at" => nil
+    })
+  end
+
+  defp open_workout_changeset(attrs) do
+    %Workout{}
+    |> Workout.changeset(attrs)
+    |> Ecto.Changeset.add_error(
+      :started_at,
+      "cannot start another workout while one is already open"
+    )
+  end
+
+  defp get_open_workout_for_user(user_id) do
+    user_id
+    |> open_workout_query()
+    |> Repo.one()
+  end
+
+  defp open_workout_query(user_id) do
+    Workout
+    |> where(
+      [workout],
+      workout.user_id == ^user_id and workout.lifecycle_state in ^Workout.open_lifecycle_states()
+    )
+    |> order_by([workout], desc: workout.started_at, desc: workout.id)
+    |> limit(1)
+  end
+
+  defp lock_user_workout(user_id, workout_id) do
+    Workout
+    |> where([workout], workout.id == ^workout_id and workout.user_id == ^user_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
+  defp lock_workout_for_logging(user_id, workout_id) do
+    case lock_user_workout(user_id, workout_id) do
+      %Workout{} = workout -> {:ok, workout}
+      nil -> {:error, :unauthorized}
+    end
+  end
+
+  defp get_exercise_for_set(user_id, exercise_id) do
+    case Repo.get_by(Exercise, id: exercise_id, user_id: user_id) do
+      %Exercise{} = exercise -> {:ok, exercise}
+      nil -> {:error, :invalid_exercise}
+    end
+  end
+
+  defp workout_set_changeset(%Workout{} = workout, attrs) do
+    %WorkoutSet{}
+    |> WorkoutSet.changeset(attrs)
+    |> Ecto.Changeset.put_change(:workout_session_id, workout.id)
+  end
+
+  defp start_authorized_workout(%Workout{} = workout, started_at) do
+    active_state = Workout.active_state()
+    draft_state = Workout.draft_state()
+
+    cond do
+      workout.lifecycle_state == active_state ->
+        {:ok, workout}
+
+      workout.lifecycle_state == draft_state ->
+        workout
+        |> Workout.lifecycle_changeset(%{
+          lifecycle_state: active_state,
+          started_at: started_at |> DateTime.truncate(:second),
+          discarded_at: nil,
+          completed_at: nil
+        })
+        |> Repo.update()
+
+      true ->
+        {:error, :invalid_transition}
+    end
   end
 
   defp maybe_filter_exercises(query, search) when search in [nil, ""], do: query
@@ -2673,24 +2915,24 @@ defmodule Fittrack.Training do
   def create_workout_from_plan(%Scope{user: user}, workout_plan_id) do
     workout_plan = get_workout_plan!(%Scope{user: user}, workout_plan_id)
 
-    # Create a new workout
-    {:ok, workout} =
-      create_workout(%Scope{user: user}, %{
-        started_at: DateTime.utc_now() |> DateTime.truncate(:second),
-        notes: "Started from plan: #{workout_plan.name}"
-      })
-
-    {:ok, workout}
+    create_workout(%Scope{user: user}, %{
+      started_at: DateTime.utc_now() |> DateTime.truncate(:second),
+      notes: "Started from plan: #{workout_plan.name}"
+    })
   end
 
   @doc """
   Counts the total number of personal bests for the current user.
   """
   def count_personal_bests(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
     from(ws in WorkoutSet,
       join: wsession in assoc(ws, :workout),
       join: e in assoc(ws, :exercise),
-      where: wsession.user_id == ^user.id and e.user_id == ^user.id,
+      where:
+        wsession.user_id == ^user.id and e.user_id == ^user.id and
+          wsession.lifecycle_state == ^completed_state,
       select: {e.id, max(ws.weight)},
       group_by: e.id
     )
@@ -2704,9 +2946,11 @@ defmodule Fittrack.Training do
   Calculates the total volume lifted by the current user.
   """
   def total_volume_lifted(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
     from(ws in WorkoutSet,
       join: wsession in assoc(ws, :workout),
-      where: wsession.user_id == ^user.id,
+      where: wsession.user_id == ^user.id and wsession.lifecycle_state == ^completed_state,
       select: sum(ws.weight * ws.reps)
     )
     |> Repo.one()
@@ -2722,9 +2966,10 @@ defmodule Fittrack.Training do
   Counts the total number of workouts for the current user.
   """
   def count_workouts(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
-      where: w.user_id == ^user.id,
+      where: w.user_id == ^user.id and w.lifecycle_state == ^completed_state,
       select: count(w.id, :distinct)
     )
     |> Repo.one()
@@ -2736,13 +2981,13 @@ defmodule Fittrack.Training do
   Counts the number of workouts for the current week.
   """
   def count_weekly_workouts(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
     start_of_week = Date.utc_today() |> Date.beginning_of_week()
     end_of_week = Date.utc_today() |> Date.end_of_week()
 
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
       where:
-        w.user_id == ^user.id and
+        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
           fragment("DATE(?)", w.started_at) >= ^start_of_week and
           fragment("DATE(?)", w.started_at) <= ^end_of_week,
       select: count(w.id, :distinct)
@@ -2756,10 +3001,14 @@ defmodule Fittrack.Training do
   Returns personal bests for each exercise for the current user.
   """
   def list_personal_bests(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
     from(ws in WorkoutSet,
       join: wsession in assoc(ws, :workout),
       join: e in assoc(ws, :exercise),
-      where: wsession.user_id == ^user.id and e.user_id == ^user.id,
+      where:
+        wsession.user_id == ^user.id and e.user_id == ^user.id and
+          wsession.lifecycle_state == ^completed_state,
       group_by: [e.id, e.name],
       select: %{
         exercise_id: e.id,
@@ -2781,12 +3030,13 @@ defmodule Fittrack.Training do
   def volume_over_time(scope, days \\ 30)
 
   def volume_over_time(%Scope{user: user}, days) do
+    completed_state = Workout.completed_state()
     start_date = Date.utc_today() |> Date.add(-days)
 
     from(ws in WorkoutSet,
       join: wsession in assoc(ws, :workout),
       where:
-        wsession.user_id == ^user.id and
+        wsession.user_id == ^user.id and wsession.lifecycle_state == ^completed_state and
           fragment("DATE(?)", ws.inserted_at) >= ^start_date,
       group_by: fragment("DATE(?)", ws.inserted_at),
       select: %{
@@ -2806,13 +3056,16 @@ defmodule Fittrack.Training do
   def recent_personal_bests(scope, opts \\ [])
 
   def recent_personal_bests(%Scope{user: user}, opts) do
+    completed_state = Workout.completed_state()
     limit = Keyword.get(opts, :limit, 10)
 
     # Get personal bests with their latest date
     from(ws in WorkoutSet,
       join: wsession in assoc(ws, :workout),
       join: e in assoc(ws, :exercise),
-      where: wsession.user_id == ^user.id and e.user_id == ^user.id,
+      where:
+        wsession.user_id == ^user.id and e.user_id == ^user.id and
+          wsession.lifecycle_state == ^completed_state,
       group_by: [e.id, e.name],
       select: %{
         exercise_name: e.name,
@@ -2834,12 +3087,14 @@ defmodule Fittrack.Training do
   def exercise_progress_over_time(scope, exercise_id, days \\ 30)
 
   def exercise_progress_over_time(%Scope{user: user}, exercise_id, days) do
+    completed_state = Workout.completed_state()
     start_date = Date.utc_today() |> Date.add(-days)
 
     from(ws in WorkoutSet,
       join: w in assoc(ws, :workout),
       where:
-        w.user_id == ^user.id and ws.exercise_id == ^exercise_id and
+        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
+          ws.exercise_id == ^exercise_id and
           fragment("DATE(?)", ws.inserted_at) >= ^start_date,
       group_by: fragment("DATE(?)", ws.inserted_at),
       select: %{
@@ -2868,22 +3123,53 @@ defmodule Fittrack.Training do
         {:error, :unauthorized}
 
       _exercise ->
-        with {:ok, workout} <-
-               create_workout(scope, %{
-                 started_at: DateTime.utc_now(),
-                 notes: "Quick Log: #{Date.utc_today()}"
-               }),
-             {:ok, workout_set} <-
-               create_workout_set(scope, workout, %{
-                 exercise_id: exercise_id,
-                 weight: weight,
-                 reps: reps,
-                 kind: "normal"
-               }) do
-          {:ok, workout_set}
-        else
-          error -> error
+        set_attrs = %{
+          exercise_id: exercise_id,
+          weight: weight,
+          reps: reps,
+          kind: "normal"
+        }
+
+        case get_open_workout(scope) do
+          %Workout{} = workout ->
+            create_workout_set(scope, workout, set_attrs)
+
+          nil ->
+            create_completed_quick_log(scope, set_attrs, DateTime.utc_now())
         end
+    end
+  end
+
+  defp create_completed_quick_log(%Scope{user: user}, set_attrs, started_at) do
+    completed_state = Workout.completed_state()
+    completed_at = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    workout_changeset =
+      %Workout{}
+      |> Workout.lifecycle_changeset(
+        start_workout_attrs(%{
+          started_at: started_at,
+          notes: "Quick Log: #{Date.utc_today()}"
+        })
+      )
+      |> Ecto.Changeset.put_change(:user_id, user.id)
+
+    Ecto.Multi.new()
+    |> Ecto.Multi.insert(:workout, workout_changeset)
+    |> Ecto.Multi.insert(:workout_set, fn %{workout: workout} ->
+      workout_set_changeset(workout, set_attrs)
+    end)
+    |> Ecto.Multi.update(:completed_workout, fn %{workout: workout} ->
+      Ecto.Changeset.change(workout,
+        lifecycle_state: completed_state,
+        completed_at: completed_at,
+        discarded_at: nil
+      )
+    end)
+    |> Repo.transaction()
+    |> case do
+      {:ok, %{workout_set: workout_set}} -> preload_workout_set({:ok, workout_set})
+      {:error, _step, reason, _changes} -> {:error, reason}
     end
   end
 
@@ -2891,10 +3177,11 @@ defmodule Fittrack.Training do
   Returns workout dates for a given month for the current user.
   """
   def workout_dates_in_month(%Scope{user: user}, start_date, end_date) do
+    completed_state = Workout.completed_state()
+
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
       where:
-        w.user_id == ^user.id and
+        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
           fragment("DATE(?)", w.started_at) >= ^start_date and
           fragment("DATE(?)", w.started_at) <= ^end_date,
       select: fragment("DATE(?)", w.started_at)
@@ -2908,10 +3195,11 @@ defmodule Fittrack.Training do
   Returns workout dates and session counts for a given month.
   """
   def workout_dates_in_month_with_counts(%Scope{user: user}, start_date, end_date) do
+    completed_state = Workout.completed_state()
+
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
       where:
-        w.user_id == ^user.id and
+        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
           fragment("DATE(?)", w.started_at) >= ^start_date and
           fragment("DATE(?)", w.started_at) <= ^end_date,
       group_by: fragment("DATE(?)", w.started_at),
@@ -2960,10 +3248,11 @@ defmodule Fittrack.Training do
   Returns completed workout dates and session counts for a given date range.
   """
   def completed_workout_dates_with_counts(%Scope{user: user}, start_date, end_date) do
+    completed_state = Workout.completed_state()
+
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
       where:
-        w.user_id == ^user.id and
+        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
           fragment("DATE(?)", w.started_at) >= ^start_date and
           fragment("DATE(?)", w.started_at) <= ^end_date,
       group_by: fragment("DATE(?)", w.started_at),
@@ -2982,13 +3271,13 @@ defmodule Fittrack.Training do
         %Date{} = start_date,
         %Date{} = end_date
       ) do
+    completed_state = Workout.completed_state()
+
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
       where:
-        w.user_id == ^user.id and
+        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
           fragment("DATE(?)", w.started_at) >= ^start_date and
           fragment("DATE(?)", w.started_at) <= ^end_date,
-      distinct: w.id,
       order_by: [desc: w.started_at],
       preload: [workout_sets: :exercise]
     )
@@ -3001,9 +3290,10 @@ defmodule Fittrack.Training do
   Returns distinct completed workout dates for the current user.
   """
   def list_completed_workout_dates(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
     from(w in Workout,
-      join: ws in assoc(w, :workout_sets),
-      where: w.user_id == ^user.id,
+      where: w.user_id == ^user.id and w.lifecycle_state == ^completed_state,
       distinct: true,
       select: fragment("DATE(?)", w.started_at),
       order_by: [desc: fragment("DATE(?)", w.started_at)]

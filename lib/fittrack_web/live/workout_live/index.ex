@@ -3,6 +3,7 @@ defmodule FittrackWeb.WorkoutLive.Index do
 
   alias Decimal
   alias Fittrack.Training
+  alias Fittrack.Training.Workout
 
   @impl true
   def render(assigns) do
@@ -16,59 +17,75 @@ defmodule FittrackWeb.WorkoutLive.Index do
               Review completed workouts, track performance, and continue workouts in progress.
             </p>
           </div>
-          <.link
-            navigate={~p"/workouts/new"}
-            class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
-          >
-            Start workout
-          </.link>
+          <%= if @open_workout do %>
+            <.link
+              id="workout-index-open-workout-link"
+              navigate={~p"/workouts/#{@open_workout}"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              {open_workout_action(@open_workout)}
+            </.link>
+          <% else %>
+            <.link
+              id="workout-index-start-workout-link"
+              navigate={~p"/workouts/new"}
+              class="inline-flex items-center justify-center rounded-full bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+            >
+              Start workout
+            </.link>
+          <% end %>
         </div>
 
-        <div id="workout-sessions" phx-update="stream" class="space-y-6">
+        <div id="workout-sessions" class="space-y-6">
           <!-- In Progress Section -->
           <div class="space-y-4">
             <h2 class="text-lg font-semibold text-base-content">In Progress</h2>
-            <div class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100 p-6 text-center">
-              <p class="text-sm font-semibold text-base-content">No workouts in progress.</p>
-              <p class="mt-1 text-sm text-base-content/70">
-                Start a workout to see it here.
-              </p>
-            </div>
-            <div
-              :for={{id, workout} <- @streams.in_progress_workouts}
-              id={id}
-              class="group rounded-2xl border border-primary/25 bg-primary/5 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 sm:p-6"
-            >
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div class="flex items-center gap-4 sm:min-w-28">
-                  <div class="flex flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
-                    <p class="text-sm font-medium text-base-content">
-                      {Calendar.strftime(workout.started_at, "%b %d")}
+            <div id="in-progress-workouts" phx-update="stream" class="space-y-4">
+              <div
+                id="in-progress-workouts-empty"
+                class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100 p-6 text-center"
+              >
+                <p class="text-sm font-semibold text-base-content">No workouts in progress.</p>
+                <p class="mt-1 text-sm text-base-content/70">
+                  Start a workout to see it here.
+                </p>
+              </div>
+              <div
+                :for={{id, workout} <- @streams.in_progress_workouts}
+                id={id}
+                class="group rounded-2xl border border-primary/25 bg-primary/5 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 sm:p-6"
+              >
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div class="flex items-center gap-4 sm:min-w-28">
+                    <div class="flex flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
+                      <p class="text-sm font-medium text-base-content">
+                        {Calendar.strftime(workout.started_at, "%b %d")}
+                      </p>
+                      <p class="text-xs text-base-content/60">
+                        {Calendar.strftime(workout.started_at, "%Y")}
+                      </p>
+                    </div>
+                    <div class="hidden h-8 w-px bg-primary/30 sm:block"></div>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium text-base-content">
+                      {open_workout_title(workout)}
                     </p>
-                    <p class="text-xs text-base-content/60">
-                      {Calendar.strftime(workout.started_at, "%Y")}
+                    <p class="text-sm text-base-content/70">
+                      Started {format_started_at(workout.started_at)} • {length(workout.workout_sets)} sets completed
                     </p>
                   </div>
-                  <div class="hidden h-8 w-px bg-primary/30 sm:block"></div>
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-medium text-base-content">
-                    Workout in progress
-                  </p>
-                  <p class="text-sm text-base-content/70">
-                    Started {format_started_at(workout.started_at)} • {length(workout.workout_sets)} sets completed
-                  </p>
-                </div>
-                <div class="flex flex-wrap items-center gap-3 sm:justify-end">
-                  <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                    In Progress
-                  </span>
-                  <.link
-                    navigate={~p"/workouts/#{workout}"}
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
-                  >
-                    Continue workout
-                  </.link>
+                  <div class="flex flex-wrap items-center gap-3 sm:justify-end">
+                    <span class="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                      {open_workout_badge(workout)}
+                    </span>
+                    <.link
+                      navigate={~p"/workouts/#{workout}"}
+                      class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90"
+                    >
+                      {open_workout_action(workout)}
+                    </.link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -77,49 +94,54 @@ defmodule FittrackWeb.WorkoutLive.Index do
     <!-- Workout History Section -->
           <div class="space-y-4">
             <h2 class="text-lg font-semibold text-base-content">Workout History</h2>
-            <div class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100 p-6 text-center">
-              <p class="text-sm font-semibold text-base-content">No completed workouts yet.</p>
-              <p class="mt-1 text-sm text-base-content/70">
-                Your completed workouts will appear here.
-              </p>
-            </div>
-            <div
-              :for={{id, workout} <- @streams.completed_workouts}
-              id={id}
-              class="group rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:p-6"
-            >
-              <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
-                <div class="flex items-center gap-4 sm:min-w-28">
-                  <div class="flex flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
-                    <p class="text-sm font-medium text-base-content">
-                      {Calendar.strftime(workout.started_at, "%b %d")}
+            <div id="completed-workouts" phx-update="stream" class="space-y-4">
+              <div
+                id="completed-workouts-empty"
+                class="hidden only:block rounded-2xl border border-dashed border-base-300 bg-base-100 p-6 text-center"
+              >
+                <p class="text-sm font-semibold text-base-content">No completed workouts yet.</p>
+                <p class="mt-1 text-sm text-base-content/70">
+                  Your completed workouts will appear here.
+                </p>
+              </div>
+              <div
+                :for={{id, workout} <- @streams.completed_workouts}
+                id={id}
+                class="group rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md sm:p-6"
+              >
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div class="flex items-center gap-4 sm:min-w-28">
+                    <div class="flex flex-row items-baseline gap-2 sm:flex-col sm:gap-0">
+                      <p class="text-sm font-medium text-base-content">
+                        {Calendar.strftime(workout.started_at, "%b %d")}
+                      </p>
+                      <p class="text-xs text-base-content/60">
+                        {Calendar.strftime(workout.started_at, "%Y")}
+                      </p>
+                    </div>
+                    <div class="hidden h-8 w-px bg-base-300 sm:block"></div>
+                  </div>
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium text-base-content">
+                      Workout on {Calendar.strftime(workout.started_at, "%A")}
                     </p>
-                    <p class="text-xs text-base-content/60">
-                      {Calendar.strftime(workout.started_at, "%Y")}
+                    <p class="text-sm text-base-content/70">
+                      {format_duration(workout)} • {format_volume(workout)} lbs • {length(
+                        workout.workout_sets
+                      )} sets
                     </p>
                   </div>
-                  <div class="hidden h-8 w-px bg-base-300 sm:block"></div>
-                </div>
-                <div class="min-w-0 flex-1">
-                  <p class="font-medium text-base-content">
-                    Workout on {Calendar.strftime(workout.started_at, "%A")}
-                  </p>
-                  <p class="text-sm text-base-content/70">
-                    {format_duration(workout)} • {format_volume(workout)} lbs • {length(
-                      workout.workout_sets
-                    )} sets
-                  </p>
-                </div>
-                <div class="flex flex-wrap items-center gap-3 sm:justify-end">
-                  <span class="inline-flex items-center rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
-                    Completed
-                  </span>
-                  <.link
-                    navigate={~p"/workouts/#{workout}"}
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-3 py-1.5 text-sm font-medium text-base-content transition hover:border-primary hover:text-primary"
-                  >
-                    View details
-                  </.link>
+                  <div class="flex flex-wrap items-center gap-3 sm:justify-end">
+                    <span class="inline-flex items-center rounded-full border border-success/20 bg-success/10 px-2.5 py-1 text-xs font-semibold text-success">
+                      Completed
+                    </span>
+                    <.link
+                      navigate={~p"/workouts/#{workout}"}
+                      class="inline-flex items-center justify-center gap-2 rounded-full border border-base-300 px-3 py-1.5 text-sm font-medium text-base-content transition hover:border-primary hover:text-primary"
+                    >
+                      View details
+                    </.link>
+                  </div>
                 </div>
               </div>
             </div>
@@ -134,16 +156,34 @@ defmodule FittrackWeb.WorkoutLive.Index do
   def mount(_params, _session, socket) do
     workouts = Training.list_workouts(socket.assigns.current_scope)
 
-    {in_progress, completed} =
-      Enum.split_with(workouts, fn workout ->
-        session_status(workout) == "Planned"
+    in_progress =
+      Enum.filter(workouts, fn workout ->
+        workout.lifecycle_state in Workout.open_lifecycle_states()
+      end)
+
+    completed =
+      Enum.filter(workouts, fn workout ->
+        workout.lifecycle_state == Workout.completed_state()
       end)
 
     {:ok,
      socket
      |> assign(:page_title, "Workout History")
+     |> assign(:open_workout, List.first(in_progress))
      |> stream(:in_progress_workouts, in_progress)
      |> stream(:completed_workouts, completed)}
+  end
+
+  defp open_workout_title(%Workout{lifecycle_state: state}) do
+    if state == Workout.draft_state(), do: "Draft workout", else: "Workout in progress"
+  end
+
+  defp open_workout_badge(%Workout{lifecycle_state: state}) do
+    if state == Workout.draft_state(), do: "Draft", else: "In Progress"
+  end
+
+  defp open_workout_action(%Workout{lifecycle_state: state}) do
+    if state == Workout.draft_state(), do: "Start workout", else: "Continue workout"
   end
 
   defp format_started_at(datetime) do
@@ -176,13 +216,5 @@ defmodule FittrackWeb.WorkoutLive.Index do
       |> Decimal.add(Decimal.mult(weight, Decimal.new(reps)))
     end)
     |> Decimal.to_string(:normal)
-  end
-
-  defp session_status(session) do
-    if Enum.any?(session_sets(session)) do
-      "Completed"
-    else
-      "Planned"
-    end
   end
 end

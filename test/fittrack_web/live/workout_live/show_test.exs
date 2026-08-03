@@ -8,6 +8,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
   alias Fittrack.Training
   alias Fittrack.Training.ExerciseMedia
   alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.Workout
 
   test "shows recently used and most logged exercise shortcuts", %{conn: conn} do
     user = Fittrack.AccountsFixtures.user_fixture()
@@ -23,6 +24,7 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     {:ok, _set} = workout_set_fixture(scope, historical_workout, squat)
     {:ok, _set} = workout_set_fixture(scope, historical_workout, bench)
     {:ok, _set} = workout_set_fixture(scope, historical_workout, bench)
+    {:ok, _historical_workout} = Training.complete_workout(scope, historical_workout)
 
     {:ok, workout} =
       Training.create_workout(scope, %{
@@ -34,6 +36,8 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
 
     assert html =~ "Recently used"
     assert html =~ "Most logged"
+    assert has_element?(view, "#finish-workout-button")
+    assert has_element?(view, "#discard-workout-button")
     assert has_element?(view, "#recent-shortcut-exercise-#{bench.id}")
 
     view
@@ -267,6 +271,73 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
     assert html =~ "No form reference available"
   end
 
+  test "finishes an active workout from the show page", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+    workout = active_workout_fixture(scope)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workouts/#{workout}")
+
+    view
+    |> element("#finish-workout-button")
+    |> render_click()
+
+    assert_redirect(view, ~p"/workout-history")
+    reloaded = Training.get_workout!(scope, workout.id)
+    assert reloaded.lifecycle_state == Workout.completed_state()
+    assert reloaded.completed_at
+    assert Training.get_active_workout(scope) == nil
+  end
+
+  test "discards an active workout from the show page", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+    workout = active_workout_fixture(scope)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workouts/#{workout}")
+
+    view
+    |> element("#discard-workout-button")
+    |> render_click()
+
+    assert_redirect(view, ~p"/workout-history")
+    reloaded = Training.get_workout!(scope, workout.id)
+    assert reloaded.lifecycle_state == Workout.discarded_state()
+    assert reloaded.discarded_at
+    assert Training.get_active_workout(scope) == nil
+  end
+
+  test "starts a draft workout from the show page", %{conn: conn} do
+    user = Fittrack.AccountsFixtures.user_fixture()
+    scope = %Scope{user: user}
+    exercise = exercise_fixture(scope, %{name: "Goblet Squat", primary_muscle: "Quads"})
+
+    draft =
+      draft_workout_fixture(
+        scope,
+        DateTime.utc_now() |> DateTime.add(-3600, :second) |> DateTime.truncate(:second)
+      )
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workouts/#{draft}?exercise_id=#{exercise.id}")
+
+    assert has_element?(view, "#start-workout-button")
+    assert has_element?(view, "#workout-set-form")
+    refute has_element?(view, "#finish-workout-button")
+
+    view
+    |> element("#start-workout-button")
+    |> render_click()
+
+    assert has_element?(view, "#finish-workout-button")
+    refute has_element?(view, "#start-workout-button")
+
+    reloaded = Training.get_workout!(scope, draft.id)
+    assert reloaded.lifecycle_state == Workout.active_state()
+  end
+
   defp exercise_fixture(scope, attrs) do
     attrs =
       Map.merge(
@@ -294,6 +365,16 @@ defmodule FittrackWeb.WorkoutLive.ShowTest do
       })
 
     workout
+  end
+
+  defp draft_workout_fixture(scope, started_at) do
+    %Workout{}
+    |> Workout.lifecycle_changeset(%{
+      started_at: started_at,
+      lifecycle_state: Workout.draft_state()
+    })
+    |> Ecto.Changeset.put_change(:user_id, scope.user.id)
+    |> Repo.insert!()
   end
 
   defp template_fixture(attrs) do

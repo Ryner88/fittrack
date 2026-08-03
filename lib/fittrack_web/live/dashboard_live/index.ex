@@ -255,7 +255,7 @@ defmodule FittrackWeb.DashboardLive.Index do
     {:ok,
      socket
      |> assign(:page_title, "Dashboard")
-     |> assign(:active_workout, Training.get_active_workout(current_scope))
+     |> assign(:active_workout, Training.get_open_workout(current_scope))
      |> assign(:stats, load_stats(current_scope))
      |> assign(:exercises, exercises)
      |> assign(:selected_exercise_id, selected_exercise_id)

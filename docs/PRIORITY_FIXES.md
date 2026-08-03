@@ -25,12 +25,10 @@ No active priority item is queued.
 
 Recently reconciled items were moved to `FIXED_WORK.md`:
 
+- workout lifecycle states
 - mobile authenticated navigation blockers
 - historical local migration drift
 - category/tag normalization decision
 - public category and muscle routes
 - variation/substitution metadata
 - trainer-shared exercise behavior decision
-
-Promote the next concrete delivery item from `FUTURE_TASKS.md` when work starts
-and assign its branch here before implementation.

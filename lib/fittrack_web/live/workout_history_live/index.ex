@@ -282,7 +282,7 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
      |> assign(:current_month, current_month)
      |> assign(:selected_date, nil)
      |> assign(:selected_date_workouts, [])
-     |> assign(:active_workout, Training.get_active_workout(socket.assigns.current_scope))
+     |> assign(:active_workout, Training.get_open_workout(socket.assigns.current_scope))
      |> assign(:summary_stats, summary_stats(socket.assigns.current_scope))
      |> load_month(socket.assigns.current_scope, current_month)}
   end

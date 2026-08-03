@@ -21,6 +21,11 @@ application entry points.
 - `AI_WORKOUT_GENERATOR.md`: AI workout generator behavior and setup.
 - `IMPLEMENTATION_SUMMARY.md`: implementation summary for shipped workflows.
 
+## Design Documents
+
+- `design/WORKOUT_LIFECYCLE_AND_HISTORY.md`: planned workout lifecycle,
+  plan-origin snapshots, muscle aggregation, and design for advanced History filters.
+
 ## Diagrams
 
 - `diagrams/ARCHITECTURE.puml`: PlantUML source for system, routing, domain,
