@@ -22,9 +22,12 @@ defmodule Fittrack.Training do
   alias Fittrack.Training.Normalizer
   alias Fittrack.Training.OpenAIWorkoutParserClient
   alias Fittrack.Training.Workout
-  alias Fittrack.Training.WorkoutSet
+  alias Fittrack.Training.WorkoutOriginExerciseSnapshot
+  alias Fittrack.Training.WorkoutOriginMuscleSnapshot
+  alias Fittrack.Training.WorkoutOriginSnapshot
   alias Fittrack.Training.WorkoutPlan
   alias Fittrack.Training.WorkoutPlanExercise
+  alias Fittrack.Training.WorkoutSet
 
   @goal_preferences ~w(strength hypertrophy endurance fat_loss general)
   @training_style_preferences ~w(cardio strength hypertrophy isometric speed power plyometric mobility conditioning core balance functional bodybuilding calisthenics)
@@ -2913,12 +2916,300 @@ defmodule Fittrack.Training do
   Creates a workout from a workout plan.
   """
   def create_workout_from_plan(%Scope{user: user}, workout_plan_id) do
-    workout_plan = get_workout_plan!(%Scope{user: user}, workout_plan_id)
+    started_at = DateTime.utc_now() |> DateTime.truncate(:second)
 
-    create_workout(%Scope{user: user}, %{
-      started_at: DateTime.utc_now() |> DateTime.truncate(:second),
-      notes: "Started from plan: #{workout_plan.name}"
+    Repo.transaction(fn ->
+      with {:ok, workout_plan} <- lock_workout_plan_for_snapshot(user.id, workout_plan_id),
+           :ok <- ensure_no_open_workout(user.id),
+           {:ok, workout} <- insert_plan_started_workout(user.id, workout_plan, started_at),
+           {:ok, _snapshot} <- insert_workout_origin_snapshot(workout, workout_plan, started_at) do
+        workout
+      else
+        {:error, reason} -> Repo.rollback(reason)
+      end
+    end)
+    |> case do
+      {:ok, workout} -> {:ok, workout}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def create_workout_from_plan(_, _), do: {:error, :unauthorized}
+
+  @doc """
+  Gets a workout origin snapshot for the current user, including ordered entries.
+  """
+  def get_workout_origin_snapshot(%Scope{user: user}, %Workout{} = workout) do
+    if workout.user_id == user.id do
+      get_workout_origin_snapshot_for_workout(workout.id)
+    else
+      nil
+    end
+  end
+
+  def get_workout_origin_snapshot(_, _), do: nil
+
+  defp get_workout_origin_snapshot_for_workout(workout_id) do
+    WorkoutOriginSnapshot
+    |> where([snapshot], snapshot.workout_session_id == ^workout_id)
+    |> Repo.one()
+    |> case do
+      %WorkoutOriginSnapshot{} = snapshot -> preload_origin_snapshot(snapshot)
+      nil -> nil
+    end
+  end
+
+  defp lock_workout_plan_for_snapshot(user_id, workout_plan_id) do
+    WorkoutPlan
+    |> where([plan], plan.id == ^workout_plan_id and plan.user_id == ^user_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+    |> case do
+      %WorkoutPlan{} = workout_plan ->
+        {:ok, preload_workout_plan_for_snapshot(workout_plan)}
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  defp preload_workout_plan_for_snapshot(%WorkoutPlan{} = workout_plan) do
+    plan_exercises_query =
+      from plan_exercise in WorkoutPlanExercise,
+        order_by: [asc: plan_exercise.position, asc: plan_exercise.id],
+        lock: "FOR UPDATE"
+
+    exercises_query = from exercise in Exercise, lock: "FOR UPDATE"
+    source_templates_query = from template in ExerciseTemplate, lock: "FOR UPDATE"
+
+    template_muscles_query =
+      from template_muscle in ExerciseTemplateMuscle,
+        order_by: [
+          asc: template_muscle.role,
+          asc: template_muscle.position,
+          asc: template_muscle.id
+        ],
+        lock: "FOR UPDATE"
+
+    muscles_query = from muscle in ExerciseMuscle, lock: "FOR UPDATE"
+
+    Repo.preload(workout_plan,
+      workout_plan_exercises:
+        {plan_exercises_query,
+         [
+           exercise:
+             {exercises_query,
+              [
+                source_template:
+                  {source_templates_query,
+                   [
+                     template_muscles: {template_muscles_query, [exercise_muscle: muscles_query]}
+                   ]}
+              ]}
+         ]}
+    )
+  end
+
+  defp ensure_no_open_workout(user_id) do
+    user_id
+    |> open_workout_query()
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+    |> case do
+      %Workout{} -> {:error, open_workout_changeset(%{})}
+      nil -> :ok
+    end
+  end
+
+  defp insert_plan_started_workout(user_id, %WorkoutPlan{} = workout_plan, started_at) do
+    %Workout{}
+    |> Workout.lifecycle_changeset(
+      start_workout_attrs(%{
+        started_at: started_at,
+        notes: "Started from plan: #{workout_plan.name}"
+      })
+    )
+    |> Ecto.Changeset.put_change(:user_id, user_id)
+    |> Repo.insert()
+  end
+
+  defp insert_workout_origin_snapshot(
+         %Workout{} = workout,
+         %WorkoutPlan{} = workout_plan,
+         captured_at
+       ) do
+    with {:ok, snapshot} <- insert_origin_snapshot(workout, workout_plan, captured_at),
+         :ok <- insert_origin_exercise_snapshots(snapshot, workout_plan.workout_plan_exercises) do
+      {:ok, preload_origin_snapshot(snapshot)}
+    end
+  end
+
+  defp insert_origin_snapshot(%Workout{} = workout, %WorkoutPlan{} = workout_plan, captured_at) do
+    %WorkoutOriginSnapshot{}
+    |> WorkoutOriginSnapshot.changeset(%{
+      workout_session_id: workout.id,
+      source_workout_plan_id: workout_plan.id,
+      schema_version: WorkoutOriginSnapshot.schema_version(),
+      captured_at: captured_at,
+      plan_name: workout_plan.name,
+      plan_description: workout_plan.description,
+      plan_goal: workout_plan.goal,
+      plan_primary_style: workout_plan.primary_style,
+      plan_secondary_style_tags: workout_plan.secondary_style_tags || [],
+      plan_primary_goal: workout_plan.primary_goal,
+      plan_secondary_goal: workout_plan.secondary_goal,
+      plan_tertiary_goal: workout_plan.tertiary_goal,
+      plan_additional_goal: workout_plan.additional_goal,
+      plan_training_styles: workout_plan.training_styles || [],
+      plan_training_split: workout_plan.training_split || [],
+      plan_difficulty: workout_plan.difficulty,
+      plan_estimated_duration_minutes: workout_plan.estimated_duration_minutes
     })
+    |> Repo.insert()
+  end
+
+  defp insert_origin_exercise_snapshots(%WorkoutOriginSnapshot{} = snapshot, plan_exercises) do
+    Enum.reduce_while(plan_exercises, :ok, fn plan_exercise, :ok ->
+      case insert_origin_exercise_snapshot(snapshot, plan_exercise) do
+        {:ok, _exercise_snapshot} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp insert_origin_exercise_snapshot(
+         %WorkoutOriginSnapshot{} = snapshot,
+         %WorkoutPlanExercise{} = plan_exercise
+       ) do
+    exercise = plan_exercise.exercise
+    source_template = source_template_for_snapshot(exercise)
+
+    with {:ok, exercise_snapshot} <-
+           %WorkoutOriginExerciseSnapshot{}
+           |> WorkoutOriginExerciseSnapshot.changeset(
+             origin_exercise_snapshot_attrs(snapshot, plan_exercise, exercise, source_template)
+           )
+           |> Repo.insert(),
+         :ok <- insert_origin_muscle_snapshots(exercise_snapshot, source_template) do
+      {:ok, exercise_snapshot}
+    end
+  end
+
+  defp origin_exercise_snapshot_attrs(snapshot, plan_exercise, exercise, source_template) do
+    Map.merge(
+      %{
+        workout_origin_snapshot_id: snapshot.id,
+        source_workout_plan_exercise_id: plan_exercise.id,
+        source_exercise_id: exercise.id,
+        source_template_id: source_template && source_template.id,
+        position: plan_exercise.position,
+        scheduled_day: plan_exercise.scheduled_day,
+        target_sets: plan_exercise.target_sets,
+        target_reps_min: plan_exercise.target_reps_min,
+        target_reps_max: plan_exercise.target_reps_max,
+        rest_seconds: plan_exercise.rest_seconds,
+        target_kind: plan_exercise.target_kind,
+        notes: plan_exercise.notes,
+        exercise_name: exercise.name,
+        exercise_slug: exercise.slug,
+        exercise_primary_muscle: exercise.primary_muscle,
+        exercise_secondary_muscles: exercise.secondary_muscles || [],
+        exercise_equipment: exercise.equipment,
+        exercise_movement_pattern: exercise.movement_pattern,
+        exercise_category: exercise.exercise_category,
+        exercise_training_style_tags: exercise.training_style_tags || []
+      },
+      source_template_snapshot_attrs(source_template)
+    )
+  end
+
+  defp source_template_snapshot_attrs(%ExerciseTemplate{} = source_template) do
+    %{
+      template_name: source_template.name,
+      template_canonical_slug: source_template.canonical_slug,
+      template_primary_muscle: source_template.primary_muscle,
+      template_secondary_muscles: source_template.secondary_muscles || [],
+      template_equipment: source_template.equipment,
+      template_movement_pattern: source_template.movement_pattern,
+      template_exercise_category: source_template.exercise_category,
+      template_training_style_tags: source_template.training_style_tags || []
+    }
+  end
+
+  defp source_template_snapshot_attrs(_), do: %{}
+
+  defp insert_origin_muscle_snapshots(%WorkoutOriginExerciseSnapshot{}, nil) do
+    :ok
+  end
+
+  defp insert_origin_muscle_snapshots(
+         %WorkoutOriginExerciseSnapshot{} = exercise_snapshot,
+         %ExerciseTemplate{} = source_template
+       ) do
+    source_template.template_muscles
+    |> Enum.sort_by(fn template_muscle ->
+      {muscle_role_order(template_muscle.role), template_muscle.position || 0,
+       template_muscle.exercise_muscle_id || 0}
+    end)
+    |> Enum.reduce_while(:ok, fn template_muscle, :ok ->
+      attrs =
+        origin_muscle_snapshot_attrs(
+          exercise_snapshot,
+          template_muscle,
+          template_muscle.exercise_muscle
+        )
+
+      case %WorkoutOriginMuscleSnapshot{}
+           |> WorkoutOriginMuscleSnapshot.changeset(attrs)
+           |> Repo.insert() do
+        {:ok, _muscle_snapshot} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp origin_muscle_snapshot_attrs(exercise_snapshot, template_muscle, exercise_muscle) do
+    %{
+      workout_origin_exercise_snapshot_id: exercise_snapshot.id,
+      source_exercise_muscle_id: exercise_muscle.id,
+      muscle_name: exercise_muscle.name,
+      muscle_normalized_name: exercise_muscle.normalized_name,
+      muscle_region: exercise_muscle.region,
+      role: template_muscle.role,
+      position: template_muscle.position || 0
+    }
+  end
+
+  defp source_template_for_snapshot(%Exercise{
+         source_template: %ExerciseTemplate{} = source_template
+       }) do
+    source_template
+  end
+
+  defp source_template_for_snapshot(_), do: nil
+
+  defp muscle_role_order("primary"), do: 0
+  defp muscle_role_order("secondary"), do: 1
+  defp muscle_role_order(_), do: 2
+
+  defp preload_origin_snapshot(%WorkoutOriginSnapshot{} = snapshot) do
+    muscle_snapshots_query =
+      from muscle_snapshot in WorkoutOriginMuscleSnapshot,
+        order_by: [
+          asc: muscle_snapshot.role,
+          asc: muscle_snapshot.position,
+          asc: muscle_snapshot.source_exercise_muscle_id
+        ]
+
+    exercise_snapshots_query =
+      from exercise_snapshot in WorkoutOriginExerciseSnapshot,
+        order_by: [
+          asc: exercise_snapshot.position,
+          asc: exercise_snapshot.source_workout_plan_exercise_id
+        ],
+        preload: [muscle_snapshots: ^muscle_snapshots_query]
+
+    Repo.preload(snapshot, exercise_snapshots: exercise_snapshots_query)
   end
 
   @doc """
