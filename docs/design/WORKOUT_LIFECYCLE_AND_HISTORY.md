@@ -1,22 +1,23 @@
 # Workout Lifecycle And History Design
 
-This design covers the promoted `feature/workout-lifecycle-states` work and the
-dependent history roadmap items that should stay in `FUTURE_TASKS.md` until the
-lifecycle branch merges.
+This design records the shipped workout lifecycle contract and the dependency
+sequence for stable workout History. `feature/workout-origin-snapshots` is the
+current active delivery item.
 
 ## Delivery Sequence
 
-1. `feature/workout-lifecycle-states`
-2. `feature/workout-origin-snapshots`
+1. `feature/workout-lifecycle-states` — complete
+2. `feature/workout-origin-snapshots` — active
 3. `feature/workout-completion-muscle-aggregation`
 4. `feature/workout-history-advanced-filters`
 
-Only the lifecycle item should be active in `PRIORITY_FIXES.md` at a time.
+Only the first incomplete item should be active in `PRIORITY_FIXES.md` at a
+time.
 
 ## Lifecycle States
 
-Workouts should gain an explicit lifecycle state instead of deriving status from
-whether sets exist.
+Workouts use an explicit lifecycle state instead of deriving status from whether
+sets exist.
 
 Allowed states:
 
@@ -101,21 +102,93 @@ should be serialization-ready for mobile/API clients:
 - keep discarded workouts out of default list endpoints unless explicitly
   requested by a future admin/audit flow
 
-## Origin Snapshots
+## Origin Snapshot Contract
 
-After lifecycle states ship, starting from a saved plan should persist:
+### Creation Boundary
 
-- originating `workout_plan_id`
-- immutable planned exercise/template snapshot
-- target sets
-- target rep ranges
-- rest periods
-- set kind
-- ordering
-- notes
+`Training.create_workout_from_plan/2` is the only creation boundary for a
+plan-origin snapshot. It must:
 
-Snapshots keep History stable when reusable plans or shared templates are edited
-later.
+1. authorize and load the user-owned plan through `current_scope`
+2. preload ordered plan exercises, user exercises, source templates, and
+   normalized template muscles
+3. create the active workout and its complete snapshot in one
+   `Repo.transaction/1`
+4. roll back the workout if any snapshot record is invalid or cannot be inserted
+
+The capture time is the instant the plan-started workout is created. A manual
+workout has no origin snapshot. Existing workouts also remain snapshot-free:
+the legacy `"Started from plan: ..."` notes value is display text and is not a
+safe source for reconstruction.
+
+### Persisted Shape
+
+Use one immutable workout-level origin record and ordered immutable exercise
+entries. The exact Ecto module names may follow project conventions, but the
+version-1 data contract is:
+
+Workout-level origin:
+
+- unique owning `workout_session_id`
+- `source_workout_plan_id` copied as a historical scalar, not as the sole source
+  of truth for a live association
+- `schema_version: 1`
+- `captured_at`
+- copied plan context:
+  - name and description
+  - legacy goal
+  - primary style and secondary style tags
+  - primary, secondary, tertiary, and additional goals
+  - training styles and training split
+  - difficulty and estimated duration
+
+Each ordered exercise entry:
+
+- source `workout_plan_exercise_id`, `exercise_id`, and optional
+  `source_template_id` copied as historical scalars
+- `position` and `scheduled_day`
+- `target_sets`, `target_reps_min`, `target_reps_max`, `rest_seconds`,
+  `target_kind`, and plan-exercise notes
+- copied user-exercise context: name, slug, primary muscle, secondary muscles,
+  equipment, movement pattern, exercise category, and training-style tags
+- copied source-template context when present: name, canonical slug, primary
+  muscle, secondary muscles, equipment, movement pattern, exercise category,
+  and training-style tags
+- copied normalized template muscles ordered deterministically, including
+  historical muscle id, name, normalized name, region, role, and position
+
+Do not snapshot media URLs, cache paths, or timestamps from mutable source rows.
+They are not required to reconstruct the planned workout or to support the
+dependent muscle aggregate.
+
+### Immutability And Deletion
+
+Snapshot content is append-once domain data:
+
+- expose a create path only; do not add public update or delete context functions
+- do not include snapshot fields in generic workout changesets
+- lifecycle transitions, set logging, and completion must never rewrite a
+  snapshot
+- edits to or deletion of a plan, plan exercise, user exercise, source template,
+  or normalized muscle must not cascade into or null captured scalar/context
+  values
+- snapshot rows may be removed only when their owning workout is physically
+  deleted under the existing user/workout retention behavior
+
+A live plan association may be added for navigation, but it is optional and must
+not replace `source_workout_plan_id` or copied plan context. History must still
+render the captured plan name after the live plan disappears.
+
+### Read And Dependency Contract
+
+History reads use copied snapshot values, never current plan/template values.
+The later linked-plan filter may use `source_workout_plan_id`; completion-time
+muscle aggregation may use the copied normalized template muscles and fall back
+to copied user-exercise muscle strings.
+
+Plan-exercise entries must be serialized in deterministic `position`, then
+source-id order. Snapshot absence is a supported state for manual and legacy
+workouts and must not prevent listing, completing, discarding, or viewing them.
 
 ## Completion Muscle Aggregation
 
