@@ -104,17 +104,53 @@ should be serialization-ready for mobile/API clients:
 
 ## Origin Snapshot Contract
 
+### UML Design
+
+The source PlantUML file is `docs/diagrams/ARCHITECTURE.puml`. The active
+origin-snapshot implementation should be designed against these named diagrams:
+
+- `Fittrack_Workout_Origin_Snapshot_Domain`: class model for the immutable
+  workout-level origin, ordered exercise entries, and copied normalized muscle
+  rows.
+- `Fittrack_Workout_Origin_Snapshot_Transaction`: sequence diagram for
+  `Training.create_workout_from_plan/2`, including transaction-scoped
+  authorization and preloading, rollback behavior, the no-template fallback
+  path, and the manual/legacy workout exclusions.
+
+Design decisions represented by the UML:
+
+- use one workout-level origin row and many ordered exercise-entry rows instead
+  of adding snapshot fields directly to `workout_sessions`
+- use `Workout 1 -> 0..1 WorkoutOriginSnapshot`,
+  `WorkoutOriginSnapshot 1 -> many WorkoutOriginExerciseSnapshot`, and
+  `WorkoutOriginExerciseSnapshot 1 -> many WorkoutOriginMuscleSnapshot`
+- copy historical scalar/display data from `WorkoutPlan`,
+  `WorkoutPlanExercise`, `Exercise`, `ExerciseTemplate`, and normalized template
+  muscle rows
+- keep `source_*_id` values as historical references, not as the source of
+  History display truth
+- make snapshot capture part of the same transaction as the active workout
+  creation, including source plan authorization and loading, so partial
+  plan-start workouts cannot survive failed capture and plan edits cannot land
+  between preload and capture
+- allow snapshot absence for manual and legacy workouts
+- allow user-created exercises without source templates to produce exercise
+  snapshots from fallback exercise muscle strings and zero normalized-muscle
+  snapshot rows
+
 ### Creation Boundary
 
 `Training.create_workout_from_plan/2` is the only creation boundary for a
 plan-origin snapshot. It must:
 
-1. authorize and load the user-owned plan through `current_scope`
-2. preload ordered plan exercises, user exercises, source templates, and
-   normalized template muscles
-3. create the active workout and its complete snapshot in one
-   `Repo.transaction/1`
-4. roll back the workout if any snapshot record is invalid or cannot be inserted
+1. open a `Repo.transaction/1`
+2. authorize and load the user-owned plan through `current_scope` inside the
+   transaction
+3. preload ordered plan exercises, user exercises, source templates, and
+   normalized template muscles inside the transaction
+4. create the active workout and its complete snapshot inside the same
+   transaction
+5. roll back the workout if authorization, loading, or any snapshot insert fails
 
 The capture time is the instant the plan-started workout is created. A manual
 workout has no origin snapshot. Existing workouts also remain snapshot-free:
@@ -157,9 +193,29 @@ Each ordered exercise entry:
 - copied normalized template muscles ordered deterministically, including
   historical muscle id, name, normalized name, region, role, and position
 
+When an exercise has no source template, the exercise snapshot is still valid.
+It should keep copied user-exercise muscle strings for fallback display and
+future aggregation, and it should have zero normalized-muscle snapshot rows.
+
 Do not snapshot media URLs, cache paths, or timestamps from mutable source rows.
 They are not required to reconstruct the planned workout or to support the
 dependent muscle aggregate.
+
+### Database Constraints
+
+Persist the immutable snapshot with constraints that enforce the contract:
+
+- one unique snapshot per owning workout
+- owning workout foreign key cascades deletion to the snapshot, exercise
+  snapshots, and muscle snapshots
+- copied plan, plan-exercise, user-exercise, source-template, and normalized
+  muscle IDs are stored as scalar historical values without live foreign keys
+- valid `schema_version` constraint for supported snapshot versions, starting
+  with `1`
+- deterministic exercise ordering by snapshot, `position`, then copied
+  source plan-exercise id
+- deterministic muscle ordering by exercise snapshot, `role`, `position`, then
+  copied source muscle id
 
 ### Immutability And Deletion
 

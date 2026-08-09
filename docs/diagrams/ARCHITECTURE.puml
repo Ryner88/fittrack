@@ -449,16 +449,20 @@ source_template_id preserves its shared-template origin.
 end note
 @enduml
 
-@startuml Fittrack_Workout_History_Planned_Domain
-title Fittrack - Planned Workout History Domain
+@startuml Fittrack_Workout_Origin_Snapshot_Domain
+title Fittrack - Workout Origin Snapshot Domain
 
 skinparam classAttributeIconSize 0
 skinparam shadowing false
 
-class Workout <<planned>> {
+class User {
+  id
+  email
+}
+
+class Workout {
   id
   user_id
-  workout_plan_id
   lifecycle_state
   started_at
   completed_at
@@ -466,12 +470,28 @@ class Workout <<planned>> {
   notes
 }
 
-class WorkoutOriginSnapshot <<planned>> {
+class WorkoutPlan {
   id
-  workout_id
+  user_id
+  name
+  description
+  goal
+  primary_style
+  secondary_style_tags
+  primary_goal
+  secondary_goal
+  tertiary_goal
+  additional_goal
+  training_styles
+  training_split
+  difficulty
+  estimated_duration_minutes
+}
+
+class WorkoutPlanExercise {
+  id
   workout_plan_id
   exercise_id
-  exercise_template_id
   position
   scheduled_day
   target_sets
@@ -482,55 +502,225 @@ class WorkoutOriginSnapshot <<planned>> {
   notes
 }
 
-class WorkoutMuscleSummary <<planned>> {
-  id
-  workout_id
-  muscle_token
-  muscle_label
-  role
-  set_count
-  rep_count
-  volume
-}
-
-class WorkoutPlan {
+class Exercise {
   id
   user_id
+  source_template_id
   name
+  slug
+  primary_muscle
+  secondary_muscles
+  equipment
+  movement_pattern
+  exercise_category
+  training_style_tags
 }
 
-class WorkoutSet {
+class ExerciseTemplate {
+  id
+  name
+  canonical_slug
+  primary_muscle
+  secondary_muscles
+  equipment
+  movement_pattern
+  exercise_category
+  training_style_tags
+}
+
+class ExerciseTemplateMuscle {
+  id
+  exercise_template_id
+  exercise_muscle_id
+  role
+  position
+}
+
+class ExerciseMuscle {
+  id
+  name
+  normalized_name
+  region
+}
+
+class WorkoutOriginSnapshot {
   id
   workout_session_id
-  exercise_id
+  source_workout_plan_id
+  schema_version
+  captured_at
+  plan_name
+  plan_description
+  plan_goal
+  plan_primary_style
+  plan_secondary_style_tags
+  plan_primary_goal
+  plan_secondary_goal
+  plan_tertiary_goal
+  plan_additional_goal
+  plan_training_styles
+  plan_training_split
+  plan_difficulty
+  plan_estimated_duration_minutes
 }
 
-WorkoutPlan "1" --> "*" Workout : origin
-Workout "1" --> "*" WorkoutOriginSnapshot
-Workout "1" --> "*" WorkoutMuscleSummary
-Workout "1" --> "*" WorkoutSet
+class WorkoutOriginExerciseSnapshot {
+  id
+  workout_origin_snapshot_id
+  source_workout_plan_exercise_id
+  source_exercise_id
+  source_template_id
+  position
+  scheduled_day
+  target_sets
+  target_reps_min
+  target_reps_max
+  rest_seconds
+  target_kind
+  notes
+  exercise_name
+  exercise_slug
+  exercise_primary_muscle
+  exercise_secondary_muscles
+  exercise_equipment
+  exercise_movement_pattern
+  exercise_category
+  exercise_training_style_tags
+  template_name
+  template_canonical_slug
+  template_primary_muscle
+  template_secondary_muscles
+  template_equipment
+  template_movement_pattern
+  template_exercise_category
+  template_training_style_tags
+}
 
-note right of Workout
-Allowed lifecycle transitions:
-- draft -> active
-- active -> completed
-- draft/active -> discarded
+class WorkoutOriginMuscleSnapshot {
+  id
+  workout_origin_exercise_snapshot_id
+  source_exercise_muscle_id
+  muscle_name
+  muscle_normalized_name
+  muscle_region
+  role
+  position
+}
 
-completed and discarded are terminal
-for the first lifecycle delivery.
+User "1" --> "*" Workout
+User "1" --> "*" WorkoutPlan
+WorkoutPlan "1" --> "*" WorkoutPlanExercise
+WorkoutPlanExercise "*" --> "1" Exercise
+Exercise "*" --> "0..1" ExerciseTemplate : source_template
+ExerciseTemplate "1" --> "*" ExerciseTemplateMuscle
+ExerciseTemplateMuscle "*" --> "1" ExerciseMuscle
+
+Workout "1" *-- "0..1" WorkoutOriginSnapshot : immutable origin
+WorkoutOriginSnapshot "1" *-- "*" WorkoutOriginExerciseSnapshot : ordered entries
+WorkoutOriginExerciseSnapshot "1" *-- "*" WorkoutOriginMuscleSnapshot : copied normalized muscles
+
+WorkoutOriginSnapshot ..> WorkoutPlan : copies scalar plan identity\nand display metadata
+WorkoutOriginExerciseSnapshot ..> WorkoutPlanExercise : copies targets, ordering,\nkind, and notes
+WorkoutOriginExerciseSnapshot ..> Exercise : copies user-exercise display\nand fallback muscle context
+WorkoutOriginExerciseSnapshot ..> ExerciseTemplate : copies source-template\ncontext when present
+WorkoutOriginMuscleSnapshot ..> ExerciseMuscle : copies normalized muscle\nlabels and roles
+
+note right of WorkoutOriginSnapshot
+One row per plan-started workout.
+Manual and legacy workouts have no origin.
+
+source_workout_plan_id is historical scalar data;
+History must render from copied plan_* fields.
 end note
 
-note bottom of WorkoutOriginSnapshot
-Snapshots preserve plan exercise order,
-targets, rest, kind, and notes so
-History remains stable after plan or
-template edits.
+note bottom of WorkoutOriginExerciseSnapshot
+Entries are immutable after capture and are read in:
+1. position
+2. source_workout_plan_exercise_id
+order for deterministic History rendering.
 end note
 
-note bottom of WorkoutMuscleSummary
-Persist at completion from normalized
-template muscles, plan snapshots, and
-fallback user exercise strings.
+note bottom of WorkoutOriginMuscleSnapshot
+Future completion aggregation can read these copied
+muscle rows without querying mutable template links.
+end note
+
+note left of WorkoutOriginSnapshot
+Database constraints:
+- unique workout_session_id
+- workout_session_id references workouts with deletion cascade
+- schema_version must be valid for supported versions
+- copied source_workout_plan_id has no live foreign key
+end note
+
+note left of WorkoutOriginExerciseSnapshot
+Database constraints:
+- workout_origin_snapshot_id references parent with deletion cascade
+- copied source_workout_plan_exercise_id, source_exercise_id,
+  and source_template_id have no live foreign keys
+- deterministic unique ordering by parent, position, source id
+end note
+
+note left of WorkoutOriginMuscleSnapshot
+Database constraints:
+- workout_origin_exercise_snapshot_id references parent with deletion cascade
+- copied source_exercise_muscle_id has no live foreign key
+- deterministic unique ordering by exercise snapshot, role, position, source id
+end note
+@enduml
+
+@startuml Fittrack_Workout_Origin_Snapshot_Transaction
+title Fittrack - Plan Start Origin Snapshot Transaction
+
+skinparam shadowing false
+
+actor User
+participant "WorkoutPlanLive" as PlanLive
+participant "Training context" as Training
+participant "Repo.transaction" as Tx
+database "PostgreSQL" as DB
+
+User -> PlanLive : Start saved plan
+PlanLive -> Training : create_workout_from_plan(current_scope, plan_id)
+Training -> Tx : begin
+Tx -> DB : Load plan by current_scope.user\nwith ordered exercises, exercises,\nsource templates, template muscles
+
+alt plan belongs to current user
+  Tx -> DB : Insert active workout
+  Tx -> DB : Insert workout_origin_snapshot\nschema_version = 1, captured_at
+  loop each ordered WorkoutPlanExercise
+    Tx -> DB : Insert workout_origin_exercise_snapshot\nwith copied targets and exercise context
+    alt source template has normalized muscles
+      Tx -> DB : Insert workout_origin_muscle_snapshots\nordered by role, position, source id
+    else user-created exercise has no source template
+      Tx -> DB : Store fallback exercise muscle strings\nand insert zero normalized-muscle rows
+    end
+  end
+
+  alt all inserts valid
+    Tx -> DB : commit
+    Training --> PlanLive : {:ok, workout}
+    PlanLive --> User : Navigate to workout logger
+  else snapshot insert fails
+    Tx -> DB : rollback workout and snapshot rows
+    Training --> PlanLive : {:error, changeset_or_reason}
+    PlanLive --> User : Keep plan screen with error
+  end
+else missing or unauthorized plan
+  Tx -> DB : rollback
+  Training --> PlanLive : {:error, :not_found}
+  PlanLive --> User : Show not found/unauthorized state
+end
+
+note right of Training
+The open-workout invariant remains database-enforced
+inside the same transaction as snapshot capture.
+end note
+
+note over DB
+Do not infer snapshots from legacy notes.
+Do not create snapshots for manual workouts.
+Do not update snapshots during lifecycle or set logging.
 end note
 @enduml
 
