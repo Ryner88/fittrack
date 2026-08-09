@@ -54,23 +54,14 @@ Roadmap items are organized below. Promote only the active next item into
 
 ## Next
 
-Keep the dependent workout-history work here until each item becomes active
+`feature/workout-origin-snapshots` is active in `PRIORITY_FIXES.md`. Keep the
+remaining dependent workout-history work here until each item becomes active
 delivery work:
 
-1. `feature/workout-origin-snapshots`
-2. `feature/workout-completion-muscle-aggregation`
-3. `feature/workout-history-advanced-filters`
+1. `feature/workout-completion-muscle-aggregation`
+2. `feature/workout-history-advanced-filters`
 
 ### Exercise Library / Media Follow-ups
-
-- Persist workout origin snapshots after lifecycle states exist.
-  Scope:
-  - store the originating workout plan when a workout starts from a plan
-  - snapshot planned exercise/template context so history remains stable if
-    templates change
-  - preserve target sets, rep ranges, rest periods, set kind, ordering, and notes
-    from `WorkoutPlanExercise`
-  - keep snapshots immutable after the workout starts
 
 - Add completion-time workout muscle aggregation after origin snapshots exist.
   Scope:
