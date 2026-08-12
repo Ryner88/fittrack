@@ -54,22 +54,13 @@ Roadmap items are organized below. Promote only the active next item into
 
 ## Next
 
-`feature/workout-origin-snapshots` is active in `PRIORITY_FIXES.md`. Keep the
-remaining dependent workout-history work here until each item becomes active
-delivery work:
+`feature/workout-completion-muscle-aggregation` is active in
+`PRIORITY_FIXES.md`. Keep the remaining dependent workout-history work here
+until it becomes active delivery work:
 
-1. `feature/workout-completion-muscle-aggregation`
-2. `feature/workout-history-advanced-filters`
+1. `feature/workout-history-advanced-filters`
 
 ### Exercise Library / Media Follow-ups
-
-- Add completion-time workout muscle aggregation after origin snapshots exist.
-  Scope:
-  - aggregate completed-session muscles from linked exercise templates
-  - reconcile normalized template muscles with fallback string fields on user
-    exercises
-  - persist the aggregate when a workout is completed
-  - expose reliable data for filters, summaries, badges, and charts
 
 - Add advanced Workout History filters after lifecycle, origin snapshots, and
   muscle aggregation are available.

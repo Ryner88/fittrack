@@ -22,6 +22,7 @@ defmodule Fittrack.Training do
   alias Fittrack.Training.Normalizer
   alias Fittrack.Training.OpenAIWorkoutParserClient
   alias Fittrack.Training.Workout
+  alias Fittrack.Training.WorkoutMuscleSummary
   alias Fittrack.Training.WorkoutOriginExerciseSnapshot
   alias Fittrack.Training.WorkoutOriginMuscleSnapshot
   alias Fittrack.Training.WorkoutOriginSnapshot
@@ -1142,16 +1143,19 @@ defmodule Fittrack.Training do
           workout
 
         %Workout{lifecycle_state: ^active_state} = workout ->
-          workout
-          |> Ecto.Changeset.change(
-            lifecycle_state: completed_state,
-            completed_at: completed_at,
-            discarded_at: nil
-          )
-          |> Repo.update()
-          |> case do
-            {:ok, workout} -> workout
-            {:error, changeset} -> Repo.rollback(changeset)
+          case workout
+               |> Ecto.Changeset.change(
+                 lifecycle_state: completed_state,
+                 completed_at: completed_at,
+                 discarded_at: nil
+               )
+               |> Repo.update() do
+            {:ok, workout} ->
+              rebuild_workout_muscle_summaries(workout)
+              workout
+
+            {:error, reason} ->
+              Repo.rollback(reason)
           end
 
         %Workout{} ->
@@ -1168,6 +1172,239 @@ defmodule Fittrack.Training do
   end
 
   def complete_workout(_, _), do: {:error, :unauthorized}
+
+  @doc """
+  Lists persisted muscle summaries for a workout owned by the current user.
+  """
+  def list_workout_muscle_summaries(%Scope{user: user}, %Workout{} = workout) do
+    case lock_free_user_workout(user.id, workout.id) do
+      %Workout{} ->
+        WorkoutMuscleSummary
+        |> where([summary], summary.workout_session_id == ^workout.id)
+        |> order_by([summary], asc: summary.role, desc: summary.volume, asc: summary.muscle_name)
+        |> Repo.all()
+
+      nil ->
+        []
+    end
+  end
+
+  def list_workout_muscle_summaries(_, _), do: []
+
+  defp lock_free_user_workout(user_id, workout_id) do
+    Workout
+    |> where([workout], workout.id == ^workout_id and workout.user_id == ^user_id)
+    |> Repo.one()
+  end
+
+  defp rebuild_workout_muscle_summaries(%Workout{} = workout) do
+    workout_id = workout.id
+
+    Repo.delete_all(
+      from summary in WorkoutMuscleSummary,
+        where: summary.workout_session_id == ^workout_id
+    )
+
+    summaries =
+      workout_id
+      |> workout_sets_for_muscle_summary()
+      |> summarize_workout_sets(origin_muscle_refs_by_exercise(workout_id))
+
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    entries =
+      Enum.map(summaries, fn {{muscle_token, role}, summary} ->
+        %{
+          workout_session_id: workout_id,
+          muscle_token: muscle_token,
+          muscle_name: summary.muscle_name,
+          muscle_normalized_name: summary.muscle_normalized_name,
+          role: role,
+          sets: summary.sets,
+          reps: summary.reps,
+          volume: summary.volume,
+          inserted_at: now,
+          updated_at: now
+        }
+      end)
+
+    case Repo.insert_all(WorkoutMuscleSummary, entries) do
+      {_count, _rows} -> :ok
+    end
+  end
+
+  defp workout_sets_for_muscle_summary(workout_id) do
+    WorkoutSet
+    |> where([set], set.workout_session_id == ^workout_id)
+    |> order_by([set], asc: set.id)
+    |> preload(
+      exercise: [
+        source_template: [
+          template_muscles: :exercise_muscle
+        ]
+      ]
+    )
+    |> Repo.all()
+  end
+
+  defp summarize_workout_sets(workout_sets, origin_refs_by_exercise) do
+    Enum.reduce(workout_sets, %{}, fn workout_set, summaries ->
+      workout_set
+      |> muscle_refs_for_set(origin_refs_by_exercise)
+      |> Enum.reduce(summaries, &add_set_to_muscle_summary(&2, &1, workout_set))
+    end)
+  end
+
+  defp muscle_refs_for_set(%WorkoutSet{} = workout_set, origin_refs_by_exercise) do
+    origin_refs = Map.get(origin_refs_by_exercise, workout_set.exercise_id, [])
+
+    refs =
+      if origin_refs == [] do
+        live_muscle_refs(workout_set.exercise)
+      else
+        origin_refs
+      end
+
+    Enum.uniq_by(refs, &{&1.muscle_token, &1.role})
+  end
+
+  defp add_set_to_muscle_summary(summaries, muscle_ref, workout_set) do
+    key = {muscle_ref.muscle_token, muscle_ref.role}
+    reps = workout_set.reps || 0
+    volume = set_volume(workout_set)
+
+    Map.update(
+      summaries,
+      key,
+      %{
+        muscle_name: muscle_ref.muscle_name,
+        muscle_normalized_name: muscle_ref.muscle_normalized_name,
+        sets: 1,
+        reps: reps,
+        volume: volume
+      },
+      fn summary ->
+        %{
+          summary
+          | sets: summary.sets + 1,
+            reps: summary.reps + reps,
+            volume: Decimal.add(summary.volume, volume)
+        }
+      end
+    )
+  end
+
+  defp set_volume(%WorkoutSet{weight: %Decimal{} = weight, reps: reps}) when is_integer(reps) do
+    Decimal.mult(weight, Decimal.new(reps))
+  end
+
+  defp set_volume(_), do: Decimal.new(0)
+
+  defp origin_muscle_refs_by_exercise(workout_id) do
+    case get_workout_origin_snapshot_for_workout(workout_id) do
+      %WorkoutOriginSnapshot{} = snapshot ->
+        snapshot.exercise_snapshots
+        |> Enum.flat_map(&origin_muscle_refs/1)
+        |> Enum.group_by(& &1.source_exercise_id)
+
+      nil ->
+        %{}
+    end
+  end
+
+  defp origin_muscle_refs(%WorkoutOriginExerciseSnapshot{} = exercise_snapshot) do
+    refs =
+      exercise_snapshot.muscle_snapshots
+      |> Enum.map(fn muscle_snapshot ->
+        muscle_ref(
+          muscle_snapshot.muscle_name,
+          muscle_snapshot.role,
+          muscle_snapshot.muscle_normalized_name
+        )
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map(&Map.put(&1, :source_exercise_id, exercise_snapshot.source_exercise_id))
+
+    if refs == [] do
+      exercise_snapshot
+      |> snapshot_string_muscle_refs()
+      |> Enum.map(&Map.put(&1, :source_exercise_id, exercise_snapshot.source_exercise_id))
+    else
+      refs
+    end
+  end
+
+  defp snapshot_string_muscle_refs(%WorkoutOriginExerciseSnapshot{} = exercise_snapshot) do
+    primary =
+      exercise_snapshot.template_primary_muscle ||
+        exercise_snapshot.exercise_primary_muscle
+
+    secondary =
+      case exercise_snapshot.template_secondary_muscles do
+        [] -> exercise_snapshot.exercise_secondary_muscles || []
+        muscles -> muscles
+      end
+
+    string_muscle_refs(primary, secondary)
+  end
+
+  defp live_muscle_refs(%Exercise{source_template: %ExerciseTemplate{} = source_template}) do
+    refs =
+      source_template.template_muscles
+      |> Enum.sort_by(fn template_muscle ->
+        {muscle_role_order(template_muscle.role), template_muscle.position || 0,
+         template_muscle.id || 0}
+      end)
+      |> Enum.map(fn template_muscle ->
+        muscle_ref(
+          template_muscle.exercise_muscle.name,
+          template_muscle.role,
+          template_muscle.exercise_muscle.normalized_name
+        )
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    if refs == [] do
+      string_muscle_refs(source_template.primary_muscle, source_template.secondary_muscles || [])
+    else
+      refs
+    end
+  end
+
+  defp live_muscle_refs(%Exercise{} = exercise) do
+    string_muscle_refs(exercise.primary_muscle, exercise.secondary_muscles || [])
+  end
+
+  defp live_muscle_refs(_), do: []
+
+  defp string_muscle_refs(primary, secondary) do
+    primary_refs =
+      primary
+      |> List.wrap()
+      |> Enum.map(&muscle_ref(&1, "primary"))
+
+    secondary_refs =
+      secondary
+      |> List.wrap()
+      |> Enum.map(&muscle_ref(&1, "secondary"))
+
+    Enum.reject(primary_refs ++ secondary_refs, &is_nil/1)
+  end
+
+  defp muscle_ref(name, role, normalized_name \\ nil)
+  defp muscle_ref(nil, _role, _normalized_name), do: nil
+  defp muscle_ref("", _role, _normalized_name), do: nil
+
+  defp muscle_ref(name, role, normalized_name) do
+    normalized_name = normalized_name || Normalizer.normalize_text(name)
+
+    %{
+      muscle_token: normalized_name,
+      muscle_name: name,
+      muscle_normalized_name: normalized_name,
+      role: role
+    }
+  end
 
   @doc """
   Starts a draft workout for the current user.
@@ -3456,6 +3693,10 @@ defmodule Fittrack.Training do
         completed_at: completed_at,
         discarded_at: nil
       )
+    end)
+    |> Ecto.Multi.run(:muscle_summaries, fn _repo, %{completed_workout: workout} ->
+      rebuild_workout_muscle_summaries(workout)
+      {:ok, :rebuilt}
     end)
     |> Repo.transaction()
     |> case do
