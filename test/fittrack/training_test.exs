@@ -3,7 +3,11 @@ defmodule Fittrack.TrainingTest do
 
   alias Fittrack.Repo
   alias Fittrack.Training
+  alias Fittrack.Training.ExerciseMuscle
+  alias Fittrack.Training.ExerciseTemplate
+  alias Fittrack.Training.ExerciseTemplateMuscle
   alias Fittrack.Training.Workout
+  alias Fittrack.Training.WorkoutOriginSnapshot
 
   describe "exercises" do
     alias Fittrack.Training.Exercise
@@ -541,6 +545,197 @@ defmodule Fittrack.TrainingTest do
       assert "cannot start another workout while one is already open" in errors_on(changeset).started_at
     end
 
+    test "create_workout_from_plan/2 captures immutable ordered plan origin snapshots", %{
+      scope: scope
+    } do
+      template = exercise_template_fixture()
+      chest = exercise_muscle_fixture("Chest", "upper")
+      triceps = exercise_muscle_fixture("Triceps", "arms")
+      link_template_muscle(template, chest, "primary", 0)
+      link_template_muscle(template, triceps, "secondary", 1)
+
+      exercise =
+        exercise_fixture(scope, %{
+          name: "User Bench Press",
+          slug: "user-bench-press",
+          primary_muscle: "Chest",
+          secondary_muscles: ["Triceps"],
+          equipment: "Barbell",
+          movement_pattern: "push",
+          exercise_category: "compound",
+          training_style_tags: ["strength"],
+          source_template_id: template.id
+        })
+
+      {:ok, plan} =
+        Training.create_workout_plan(scope, %{
+          "name" => "Snapshot Strength Plan",
+          "description" => "Original description",
+          "goal" => "strength",
+          "primary_style" => "powerlifting",
+          "secondary_style_tags" => ["strength"],
+          "primary_goal" => "strength",
+          "training_styles" => ["strength"],
+          "training_split" => ["upper_lower"],
+          "difficulty" => "intermediate",
+          "estimated_duration_minutes" => 50,
+          "workout_plan_exercises" => [
+            %{
+              "position" => 2,
+              "exercise_id" => exercise.id,
+              "target_sets" => 4,
+              "target_reps_min" => 3,
+              "target_reps_max" => 5,
+              "rest_seconds" => 180,
+              "target_kind" => "top_set",
+              "scheduled_day" => "Thursday",
+              "notes" => "Heavy"
+            },
+            %{
+              "position" => 1,
+              "exercise_id" => exercise.id,
+              "target_sets" => 3,
+              "target_reps_min" => 6,
+              "target_reps_max" => 8,
+              "rest_seconds" => 120,
+              "target_kind" => "normal",
+              "scheduled_day" => "Monday",
+              "notes" => "Volume"
+            }
+          ]
+        })
+
+      assert {:ok, workout} = Training.create_workout_from_plan(scope, plan.id)
+      snapshot = Training.get_workout_origin_snapshot(scope, workout)
+
+      assert %WorkoutOriginSnapshot{} = snapshot
+      assert snapshot.workout_session_id == workout.id
+      assert snapshot.source_workout_plan_id == plan.id
+      assert snapshot.schema_version == 1
+      assert snapshot.plan_name == "Snapshot Strength Plan"
+      assert snapshot.plan_primary_style == "powerlifting"
+      assert snapshot.plan_training_split == ["upper_lower"]
+
+      assert [first, second] = snapshot.exercise_snapshots
+      assert Enum.map(snapshot.exercise_snapshots, & &1.position) == [1, 2]
+      assert first.target_reps_min == 6
+      assert first.target_reps_max == 8
+      assert first.exercise_name == "User Bench Press"
+      assert first.exercise_secondary_muscles == ["Triceps"]
+      assert first.template_name == "Template Bench Press"
+      assert first.template_canonical_slug == "template-bench-press"
+
+      assert Enum.map(first.muscle_snapshots, & &1.muscle_name) == ["Chest", "Triceps"]
+      assert Enum.map(first.muscle_snapshots, & &1.role) == ["primary", "secondary"]
+
+      assert second.target_kind == "top_set"
+      assert second.notes == "Heavy"
+    end
+
+    test "create_workout_from_plan/2 snapshots user exercises without source templates", %{
+      scope: scope
+    } do
+      exercise =
+        exercise_fixture(scope, %{
+          name: "Custom Sled Push",
+          primary_muscle: "Quads",
+          secondary_muscles: ["Glutes", "Calves"],
+          equipment: "Sled"
+        })
+
+      plan = workout_plan_fixture(scope, %{"workout_plan_exercises" => plan_entries(exercise)})
+
+      assert {:ok, workout} = Training.create_workout_from_plan(scope, plan.id)
+      snapshot = Training.get_workout_origin_snapshot(scope, workout)
+      assert [exercise_snapshot | _] = snapshot.exercise_snapshots
+
+      assert exercise_snapshot.source_template_id == nil
+      assert exercise_snapshot.exercise_name == "Custom Sled Push"
+      assert exercise_snapshot.exercise_primary_muscle == "Quads"
+      assert exercise_snapshot.exercise_secondary_muscles == ["Glutes", "Calves"]
+      assert exercise_snapshot.template_name == nil
+      assert exercise_snapshot.muscle_snapshots == []
+    end
+
+    test "create_workout_from_plan/2 keeps manual workouts snapshot-free", %{scope: scope} do
+      assert {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+      assert Training.get_workout_origin_snapshot(scope, workout) == nil
+
+      assert {:ok, completed} = Training.complete_workout(scope, workout)
+      assert Training.get_workout_origin_snapshot(scope, completed) == nil
+    end
+
+    test "create_workout_from_plan/2 hides other users plans and creates no snapshot" do
+      owner_scope = user_scope_fixture()
+      other_scope = user_scope_fixture()
+      plan = workout_plan_fixture(owner_scope)
+
+      assert {:error, :not_found} = Training.create_workout_from_plan(other_scope, plan.id)
+      assert Training.get_open_workout(other_scope) == nil
+      assert Repo.aggregate(WorkoutOriginSnapshot, :count, :id) == 0
+    end
+
+    test "create_workout_from_plan/2 rolls back workout when snapshot capture fails", %{
+      scope: scope
+    } do
+      exercise = exercise_fixture(scope, %{name: "Rollback Press", equipment: "Cable"})
+      plan = workout_plan_fixture(scope, %{"workout_plan_exercises" => plan_entries(exercise)})
+
+      Repo.update_all(
+        from(exercise in Fittrack.Training.Exercise, where: exercise.id == ^exercise.id),
+        set: [name: nil]
+      )
+
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Training.create_workout_from_plan(scope, plan.id)
+
+      assert "can't be blank" in errors_on(changeset).exercise_name
+      assert Training.get_open_workout(scope) == nil
+      assert Repo.aggregate(WorkoutOriginSnapshot, :count, :id) == 0
+    end
+
+    test "origin snapshots do not change after source records are edited or deleted", %{
+      scope: scope
+    } do
+      template = exercise_template_fixture()
+
+      exercise =
+        exercise_fixture(scope, %{
+          name: "Original Snapshot Exercise",
+          primary_muscle: "Chest",
+          equipment: "Barbell",
+          source_template_id: template.id
+        })
+
+      plan = workout_plan_fixture(scope, %{"workout_plan_exercises" => plan_entries(exercise)})
+
+      assert {:ok, workout} = Training.create_workout_from_plan(scope, plan.id)
+      snapshot = Training.get_workout_origin_snapshot(scope, workout)
+      assert [exercise_snapshot] = snapshot.exercise_snapshots
+      assert snapshot.plan_name == plan.name
+      assert exercise_snapshot.exercise_name == "Original Snapshot Exercise"
+      assert exercise_snapshot.template_name == "Template Bench Press"
+
+      assert {:ok, _plan} = Training.update_workout_plan(scope, plan, %{name: "Changed Plan"})
+
+      assert {:ok, _exercise} =
+               Training.update_exercise(scope, exercise, %{name: "Changed Exercise"})
+
+      {:ok, _template} =
+        template
+        |> ExerciseTemplate.changeset(%{name: "Changed Template"})
+        |> Repo.update()
+
+      assert {:ok, _deleted_plan} = Training.delete_workout_plan(scope, plan)
+
+      reloaded_snapshot = Training.get_workout_origin_snapshot(scope, workout)
+      assert [reloaded_exercise_snapshot] = reloaded_snapshot.exercise_snapshots
+
+      assert reloaded_snapshot.plan_name == snapshot.plan_name
+      assert reloaded_exercise_snapshot.exercise_name == exercise_snapshot.exercise_name
+      assert reloaded_exercise_snapshot.template_name == exercise_snapshot.template_name
+    end
+
     test "create_workout_set/3 supports advanced set types", %{scope: scope} do
       {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
       exercise = exercise_fixture(scope)
@@ -813,6 +1008,61 @@ defmodule Fittrack.TrainingTest do
       assert {:error, "Each goal must be unique."} =
                Training.generate_ai_workout_plan(scope, params)
     end
+  end
+
+  defp exercise_template_fixture do
+    {:ok, template} =
+      %ExerciseTemplate{}
+      |> ExerciseTemplate.changeset(%{
+        name: "Template Bench Press",
+        canonical_slug: "template-bench-press",
+        primary_muscle: "Chest",
+        secondary_muscles: ["Triceps"],
+        equipment: "Barbell",
+        movement_pattern: "push",
+        exercise_category: "compound",
+        training_style_tags: ["strength"]
+      })
+      |> Repo.insert()
+
+    template
+  end
+
+  defp exercise_muscle_fixture(name, region) do
+    {:ok, muscle} =
+      %ExerciseMuscle{}
+      |> ExerciseMuscle.changeset(%{name: name, region: region, source: "test"})
+      |> Repo.insert()
+
+    muscle
+  end
+
+  defp link_template_muscle(template, muscle, role, position) do
+    {:ok, template_muscle} =
+      %ExerciseTemplateMuscle{}
+      |> ExerciseTemplateMuscle.changeset(%{
+        exercise_template_id: template.id,
+        exercise_muscle_id: muscle.id,
+        role: role,
+        position: position
+      })
+      |> Repo.insert()
+
+    template_muscle
+  end
+
+  defp plan_entries(exercise) do
+    [
+      %{
+        "position" => 1,
+        "exercise_id" => exercise.id,
+        "target_sets" => 3,
+        "target_reps_min" => 8,
+        "target_reps_max" => 10,
+        "rest_seconds" => 90,
+        "scheduled_day" => "Monday"
+      }
+    ]
   end
 
   defp draft_workout_fixture(scope, started_at) do

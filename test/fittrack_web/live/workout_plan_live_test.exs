@@ -53,8 +53,14 @@ defmodule FittrackWeb.WorkoutPlanLiveTest do
       |> render_click()
       |> follow_redirect(conn)
 
-    assert Training.get_active_workout(scope).notes == "Started from plan: #{plan.name}"
-    assert Training.get_active_workout(scope).workout_sets == []
+    active_workout = Training.get_active_workout(scope)
+    snapshot = Training.get_workout_origin_snapshot(scope, active_workout)
+
+    assert active_workout.notes == "Started from plan: #{plan.name}"
+    assert active_workout.workout_sets == []
+    assert snapshot.source_workout_plan_id == plan.id
+    assert snapshot.plan_name == plan.name
+    assert Enum.map(snapshot.exercise_snapshots, & &1.position) == [1, 2]
     assert Training.count_workouts(scope) == 0
   end
 

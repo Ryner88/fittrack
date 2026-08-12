@@ -5,11 +5,20 @@ It contains named PlantUML blocks so one command can export every diagram.
 
 Workout-history planning is represented separately from deployed architecture in:
 
-- `Fittrack_Workout_History_Planned_Domain`: proposed lifecycle, origin snapshot,
-  and muscle summary model
+- `Fittrack_Workout_Origin_Snapshot_Domain`: detailed immutable origin snapshot
+  class model for the active branch. Generated PNG:
+  `docs/architecture/Fittrack_Workout_Origin_Snapshot_Domain.png`.
+- `Fittrack_Workout_Origin_Snapshot_Transaction`: plan-start transaction and
+  rollback sequence for snapshot capture. Generated PNG:
+  `docs/architecture/Fittrack_Workout_Origin_Snapshot_Transaction.png`.
 - `Fittrack_Workout_History_Planning_Flow`: planned lifecycle transitions,
   plan snapshots, completion-time muscle aggregation, and advanced History
   filters
+
+`Fittrack_Workout_History_Planned_Domain` was removed because its older generic
+`Workout -> many WorkoutOriginSnapshot` model contradicted the implementation
+contract. Use `Fittrack_Workout_Origin_Snapshot_Domain` for origin snapshot
+design and implementation.
 
 ## PlantUML Export
 

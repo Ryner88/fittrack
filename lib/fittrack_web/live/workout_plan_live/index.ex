@@ -100,6 +100,9 @@ defmodule FittrackWeb.WorkoutPlanLive.Index do
              |> put_flash(:error, "You already have an open workout.")
              |> push_navigate(to: ~p"/workouts/#{workout}")}
         end
+
+      {:error, _reason} ->
+        {:noreply, put_flash(socket, :error, "Unable to start this workout plan.")}
     end
   end
 
