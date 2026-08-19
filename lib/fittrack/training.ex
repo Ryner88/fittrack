@@ -1335,20 +1335,15 @@ defmodule Fittrack.Training do
   end
 
   defp snapshot_string_muscle_refs(%WorkoutOriginExerciseSnapshot{} = exercise_snapshot) do
-    primary =
-      exercise_snapshot.template_primary_muscle ||
-        exercise_snapshot.exercise_primary_muscle
-
-    secondary =
-      case exercise_snapshot.template_secondary_muscles do
-        [] -> exercise_snapshot.exercise_secondary_muscles || []
-        muscles -> muscles
-      end
-
-    string_muscle_refs(primary, secondary)
+    string_muscle_refs(
+      exercise_snapshot.exercise_primary_muscle,
+      exercise_snapshot.exercise_secondary_muscles || []
+    )
   end
 
-  defp live_muscle_refs(%Exercise{source_template: %ExerciseTemplate{} = source_template}) do
+  defp live_muscle_refs(
+         %Exercise{source_template: %ExerciseTemplate{} = source_template} = exercise
+       ) do
     refs =
       source_template.template_muscles
       |> Enum.sort_by(fn template_muscle ->
@@ -1365,7 +1360,7 @@ defmodule Fittrack.Training do
       |> Enum.reject(&is_nil/1)
 
     if refs == [] do
-      string_muscle_refs(source_template.primary_muscle, source_template.secondary_muscles || [])
+      string_muscle_refs(exercise.primary_muscle, exercise.secondary_muscles || [])
     else
       refs
     end

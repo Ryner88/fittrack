@@ -22,7 +22,6 @@ defmodule Fittrack.Training.WorkoutMuscleSummary do
   def changeset(summary, attrs) do
     summary
     |> cast(attrs, [
-      :workout_session_id,
       :muscle_token,
       :muscle_name,
       :muscle_normalized_name,

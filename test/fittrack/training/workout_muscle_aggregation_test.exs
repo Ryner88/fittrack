@@ -63,6 +63,39 @@ defmodule Fittrack.Training.WorkoutMuscleAggregationTest do
     assert summary_stats(summaries, "secondary", "calves") == {"Calves", 1, 10, "400"}
   end
 
+  test "linked template without normalized muscles falls back to exercise muscle strings", %{
+    scope: scope
+  } do
+    template =
+      exercise_template_fixture(%{
+        name: "Unlinked Template",
+        primary_muscle: "",
+        secondary_muscles: ["Stale Template Arms"]
+      })
+
+    exercise =
+      exercise_fixture(scope, %{
+        name: "Current User Press",
+        primary_muscle: "Current Chest",
+        secondary_muscles: ["Current Triceps"],
+        equipment: "Dumbbell",
+        source_template_id: template.id
+      })
+
+    {:ok, workout} = Training.create_workout(scope, %{started_at: DateTime.utc_now()})
+    {:ok, _set} = create_set(scope, workout, exercise, "50", 6)
+
+    assert {:ok, completed} = Training.complete_workout(scope, workout)
+
+    summaries = summaries_by_role(scope, completed)
+    assert summary_stats(summaries, "primary", "current chest") == {"Current Chest", 1, 6, "300"}
+
+    assert summary_stats(summaries, "secondary", "current triceps") ==
+             {"Current Triceps", 1, 6, "300"}
+
+    refute Map.has_key?(summaries, {"secondary", "stale template arms"})
+  end
+
   test "origin snapshot muscles take precedence over changed live source muscles", %{scope: scope} do
     template =
       exercise_template_fixture(%{name: "Snapshot Bench", primary_muscle: "Template Chest"})
@@ -97,6 +130,43 @@ defmodule Fittrack.Training.WorkoutMuscleAggregationTest do
              {"Snapshot Chest", 1, 5, "500"}
 
     refute Map.has_key?(summaries, {"primary", "changed chest"})
+  end
+
+  test "origin snapshot without muscle rows falls back to captured exercise strings", %{
+    scope: scope
+  } do
+    template =
+      exercise_template_fixture(%{
+        name: "Snapshot No Links",
+        primary_muscle: "Template Chest",
+        secondary_muscles: ["Template Triceps"]
+      })
+
+    exercise =
+      exercise_fixture(scope, %{
+        name: "Snapshot User Press",
+        primary_muscle: "Exercise Chest",
+        secondary_muscles: ["Exercise Triceps"],
+        equipment: "Barbell",
+        source_template_id: template.id
+      })
+
+    plan = workout_plan_fixture(scope, %{"workout_plan_exercises" => [plan_entry(exercise)]})
+    {:ok, workout} = Training.create_workout_from_plan(scope, plan.id)
+
+    {:ok, _set} = create_set(scope, workout, exercise, "100", 5)
+    assert {:ok, completed} = Training.complete_workout(scope, workout)
+
+    summaries = summaries_by_role(scope, completed)
+
+    assert summary_stats(summaries, "primary", "exercise chest") ==
+             {"Exercise Chest", 1, 5, "500"}
+
+    assert summary_stats(summaries, "secondary", "exercise triceps") ==
+             {"Exercise Triceps", 1, 5, "500"}
+
+    refute Map.has_key?(summaries, {"primary", "template chest"})
+    refute Map.has_key?(summaries, {"secondary", "template triceps"})
   end
 
   test "origin summaries remain stable when source template is deleted before completion", %{
@@ -188,6 +258,23 @@ defmodule Fittrack.Training.WorkoutMuscleAggregationTest do
 
     Repo.delete!(completed)
     assert Repo.aggregate(WorkoutMuscleSummary, :count, :id) == 0
+  end
+
+  test "changeset does not cast workout ownership" do
+    changeset =
+      %WorkoutMuscleSummary{workout_session_id: 123}
+      |> WorkoutMuscleSummary.changeset(%{
+        workout_session_id: 456,
+        muscle_token: "chest",
+        muscle_name: "Chest",
+        role: "primary",
+        sets: 1,
+        reps: 10,
+        volume: 100
+      })
+
+    assert Ecto.Changeset.get_field(changeset, :workout_session_id) == 123
+    refute Map.has_key?(changeset.changes, :workout_session_id)
   end
 
   defp create_set(scope, workout, exercise, weight, reps) do
