@@ -3,6 +3,7 @@ defmodule Fittrack.Training.Workout do
   import Ecto.Changeset
 
   alias Fittrack.Accounts.User
+  alias Fittrack.Training.WorkoutMuscleSummary
   alias Fittrack.Training.WorkoutOriginSnapshot
   alias Fittrack.Training.WorkoutSet
 
@@ -22,6 +23,7 @@ defmodule Fittrack.Training.Workout do
 
     belongs_to :user, User
     has_many :workout_sets, WorkoutSet, foreign_key: :workout_session_id
+    has_many :muscle_summaries, WorkoutMuscleSummary, foreign_key: :workout_session_id
     has_one :origin_snapshot, WorkoutOriginSnapshot, foreign_key: :workout_session_id
 
     timestamps(type: :utc_datetime)

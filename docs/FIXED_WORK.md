@@ -12,6 +12,19 @@ or materially addressed on the recent branches.
 
 ## Now
 
+### Workout Origin Snapshots
+
+- Added immutable origin snapshots for workouts started from saved plans.
+- Captured plan metadata, ordered planned exercises, user-exercise display
+  fields, source-template display fields, and normalized source muscles in the
+  same transaction that creates the plan-started workout.
+- Kept manual workouts snapshot-free and legacy completed workouts valid without
+  backfilled snapshots.
+- Preserved completed History context when reusable plans, user exercises,
+  source templates, or normalized source rows are edited or deleted later.
+- Added ownership, ordering, rollback, immutability, deletion-stability, and
+  snapshot-free regression coverage.
+
 ### Workout Lifecycle States
 
 - Reintroduced the workout lifecycle implementation in PR #24 after PR #23

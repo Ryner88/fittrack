@@ -21,50 +21,49 @@ This file is the execution queue for the highest-priority work.
 
 ## Now
 
-### [IN-PROGRESS] Preserve workout-plan origin snapshots
+### [IN-PROGRESS] Persist completed-workout muscle aggregation
 
-Branch: `feature/workout-origin-snapshots`
+Branch: `feature/workout-completion-muscle-aggregation`
 
-Dependency: explicit workout lifecycle states are complete.
+Dependency: `feature/workout-origin-snapshots` is complete and this branch is
+stacked on top of it.
 
 Goal:
 
-Preserve the plan and planned-exercise context that existed when a user started a
-workout from a saved plan. Completed History must not change when the reusable
-plan, user exercise, or source exercise template is edited or deleted later.
+Persist per-workout muscle summaries when a workout becomes completed so
+History, filters, badges, and charts can use stable completed-session muscle
+data instead of recomputing from mutable exercise sources.
 
 Scope:
 
-- Capture one versioned origin snapshot in the same transaction that creates the
-  plan-started workout.
-- Preserve the originating plan identity and display metadata.
-- Preserve ordered `WorkoutPlanExercise` targets: exercise, position, scheduled
-  day, target sets, minimum/maximum reps, rest seconds, target kind, and notes.
-- Preserve user-exercise and source-template display/muscle context needed by
-  stable History and the dependent completion-time muscle aggregate.
-- Keep manually created workouts snapshot-free.
-- Treat the snapshot as immutable domain data. Later plan, exercise, template,
-  lifecycle, and set changes must not rewrite it.
-- Keep existing workouts without snapshots valid; do not infer historical
-  snapshots from the legacy notes string.
+- Add persisted per-workout muscle summary rows with a stable token, display
+  name, role, sets, reps, and volume.
+- Rebuild summaries transactionally when an active workout is completed.
+- Include quick-log workouts in the same aggregate path.
+- Prefer immutable origin-snapshot muscles for plan-started workouts.
+- Fall back to live normalized template muscles, then user-exercise muscle
+  strings when no origin snapshot muscle data exists.
+- Keep repeated completion calls idempotent.
+- Preserve completed summary rows if source templates or normalized source rows
+  are deleted later.
+- Cascade summaries with their owning workout.
 
 Acceptance:
 
-- The plan-start flow authorizes the plan through `current_scope`, then creates
-  the workout and complete snapshot atomically.
-- A snapshot failure rolls back the workout; the one-open-workout lifecycle
-  invariant remains enforced.
-- Plan, exercise, and template edits or deletion do not change captured content.
-- Snapshot rows have no public update path and are removed only with their owning
-  workout under existing retention behavior.
-- Context and LiveView tests cover capture, ordering, ownership, atomic rollback,
-  immutability, manual workouts, and legacy snapshot-free workouts.
+- Completion and quick-log aggregation happen inside their existing write
+  transactions.
+- Context reads are scoped by workout ownership.
+- Aggregates include normalized/live muscles, origin snapshot muscles, string
+  fallbacks, multi-muscle secondary work, empty completed workouts, and
+  idempotent recompletion behavior.
+- Database constraints enforce ownership link, role values, non-negative metrics,
+  uniqueness, and cascade deletion.
+- Focused regression tests cover all acceptance cases.
 - `mix precommit` passes.
 
 Contract: `docs/design/WORKOUT_LIFECYCLE_AND_HISTORY.md`.
 
 Out of scope for this branch:
 
-- completion-time workout muscle aggregation
 - advanced Workout History filters
 - retroactive snapshot reconstruction
