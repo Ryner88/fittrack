@@ -10,10 +10,11 @@ defmodule FittrackWeb.ExerciseLiveTest do
   alias Fittrack.Training.ExerciseTemplate
 
   @create_attrs %{
-    name: "some name",
-    primary_muscle: "some primary_muscle",
-    equipment: "some equipment",
-    notes: "some notes"
+    "name" => "new secondary exercise",
+    "primary_muscle" => "some primary_muscle",
+    "secondary_muscles" => ["Glutes", "Calves"],
+    "equipment" => "some equipment",
+    "notes" => "some notes"
   }
   @update_attrs %{
     name: "some updated name",
@@ -21,7 +22,13 @@ defmodule FittrackWeb.ExerciseLiveTest do
     equipment: "some updated equipment",
     notes: "some updated notes"
   }
-  @invalid_attrs %{name: nil, primary_muscle: nil, equipment: nil, notes: nil}
+  @invalid_attrs %{
+    "name" => nil,
+    "primary_muscle" => nil,
+    "secondary_muscles" => [],
+    "equipment" => nil,
+    "notes" => nil
+  }
   defp create_exercise(_) do
     user = Fittrack.AccountsFixtures.user_fixture()
     scope = %Fittrack.Accounts.Scope{user: user}
@@ -130,6 +137,7 @@ defmodule FittrackWeb.ExerciseLiveTest do
       {:ok, form_live, _html} = live(conn, ~p"/my-exercises/new")
 
       assert render(form_live) =~ "New Exercise"
+      assert has_element?(form_live, ~s(select[name="exercise[secondary_muscles][]"][multiple]))
 
       assert form_live
              |> form("#exercise-form", exercise: @invalid_attrs)
@@ -140,12 +148,16 @@ defmodule FittrackWeb.ExerciseLiveTest do
       |> render_submit()
 
       scope = %Fittrack.Accounts.Scope{user: user}
-      assert Enum.any?(Fittrack.Training.list_exercises(scope), &(&1.name == "some name"))
+
+      exercise =
+        Enum.find(Fittrack.Training.list_exercises(scope), &(&1.name == "new secondary exercise"))
+
+      assert exercise.secondary_muscles == ["Glutes", "Calves"]
 
       {:ok, index_live, _html} = live(conn, ~p"/my-exercises")
 
       html = render(index_live)
-      assert html =~ "some name"
+      assert html =~ "new secondary exercise"
     end
 
     test "updates exercise in listing", %{conn: conn, exercise: exercise, user: user} do
