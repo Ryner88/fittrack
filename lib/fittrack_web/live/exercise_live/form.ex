@@ -4,6 +4,24 @@ defmodule FittrackWeb.ExerciseLive.Form do
   alias Fittrack.Training
   alias Fittrack.Training.Exercise
 
+  @muscle_options [
+    "Back",
+    "Biceps",
+    "Calves",
+    "Cardio",
+    "Chest",
+    "Core",
+    "Forearms",
+    "Glutes",
+    "Hamstrings",
+    "Hip Flexors",
+    "Obliques",
+    "Posterior Chain",
+    "Quads",
+    "Shoulders",
+    "Triceps"
+  ]
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -16,6 +34,14 @@ defmodule FittrackWeb.ExerciseLive.Form do
       <.form for={@form} id="exercise-form" phx-change="validate" phx-submit="save">
         <.input field={@form[:name]} type="text" label="Name" />
         <.input field={@form[:primary_muscle]} type="text" label="Primary muscle" />
+        <.input
+          field={@form[:secondary_muscles]}
+          type="select"
+          label="Secondary muscles"
+          options={@muscle_options}
+          multiple
+          size="6"
+        />
         <.input field={@form[:equipment]} type="text" label="Equipment" />
         <.input field={@form[:notes]} type="textarea" label="Notes (optional)" />
         <footer>
@@ -32,6 +58,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
     {:ok,
      socket
      |> assign(:return_to, return_to(params["return_to"]))
+     |> assign(:muscle_options, @muscle_options)
      |> apply_action(socket.assigns.live_action, params)}
   end
 

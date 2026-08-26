@@ -39,7 +39,7 @@ defmodule Fittrack.Training.Exercise do
   @doc false
   def changeset(exercise, attrs) do
     exercise
-    |> cast(attrs, [
+    |> cast(normalize_attrs(attrs), [
       :name,
       :primary_muscle,
       :secondary_muscles,
@@ -70,6 +70,40 @@ defmodule Fittrack.Training.Exercise do
     |> unique_constraint([:user_id, :normalized_name, :normalized_equipment])
     |> unique_constraint([:user_id, :slug])
   end
+
+  defp normalize_attrs(attrs) when is_map(attrs) do
+    attrs
+    |> maybe_normalize_muscles("secondary_muscles")
+    |> maybe_normalize_muscles(:secondary_muscles)
+  end
+
+  defp normalize_attrs(attrs), do: attrs
+
+  defp maybe_normalize_muscles(attrs, key) do
+    if Map.has_key?(attrs, key) do
+      Map.update!(attrs, key, &normalize_muscles/1)
+    else
+      attrs
+    end
+  end
+
+  defp normalize_muscles(value) when is_binary(value) do
+    value
+    |> String.split([",", "\n"])
+    |> normalize_muscles()
+  end
+
+  defp normalize_muscles(value) when is_list(value) do
+    value
+    |> Enum.map(fn
+      muscle when is_binary(muscle) -> String.trim(muscle)
+      muscle -> muscle
+    end)
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.uniq()
+  end
+
+  defp normalize_muscles(_value), do: []
 
   defp normalize_fields(changeset) do
     normalized_name = Normalizer.normalize_text(get_field(changeset, :name))

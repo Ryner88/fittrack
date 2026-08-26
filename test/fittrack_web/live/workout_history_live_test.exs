@@ -192,6 +192,89 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(view, "#history-selected-day", "500 lbs")
   end
 
+  test "custom exercise secondary muscles flow into completed workout history", %{conn: conn} do
+    user = user_fixture()
+    conn = log_in_user(conn, user)
+    today = Date.utc_today()
+
+    {:ok, exercise_view, _html} = live(conn, ~p"/my-exercises/new")
+
+    exercise_view
+    |> form("#exercise-form",
+      exercise: %{
+        "name" => "Goblet Squat",
+        "primary_muscle" => "Quads",
+        "secondary_muscles" => ["Glutes", "Calves"],
+        "equipment" => "Kettlebell",
+        "notes" => "Full flow regression coverage"
+      }
+    )
+    |> render_submit()
+
+    assert_redirect(exercise_view, ~p"/my-exercises")
+
+    scope = %Scope{user: user}
+    exercise = Enum.find(Training.list_exercises(scope), &(&1.name == "Goblet Squat"))
+    assert exercise.secondary_muscles == ["Glutes", "Calves"]
+
+    {:ok, new_workout_view, _html} = live(conn, ~p"/workouts/new")
+
+    new_workout_view
+    |> form("#workout-form",
+      workout: %{
+        "started_at" => "#{Date.to_iso8601(today)}T12:30",
+        "notes" => "Custom exercise regression"
+      }
+    )
+    |> render_submit()
+
+    workout = Training.get_active_workout(scope)
+    assert_redirect(new_workout_view, ~p"/workouts/#{workout}")
+
+    {:ok, workout_view, _html} = live(conn, ~p"/workouts/#{workout}")
+
+    workout_view
+    |> form("#workout-set-form",
+      workout_set: %{
+        "exercise_id" => exercise.id,
+        "kind" => "normal",
+        "weight" => "40",
+        "reps" => "10"
+      }
+    )
+    |> render_submit()
+
+    assert has_element?(workout_view, "#workout-sets", "Goblet Squat")
+    assert has_element?(workout_view, "#performed-set-summary", "1")
+    assert has_element?(workout_view, "#performed-volume-summary", "400 lbs")
+
+    workout_view
+    |> element("#finish-workout-button")
+    |> render_click()
+
+    assert_redirect(workout_view, ~p"/workout-history")
+
+    completed_workout = Training.get_workout!(scope, workout.id)
+    assert completed_workout.lifecycle_state == Workout.completed_state()
+
+    summaries = Training.list_workout_muscle_summaries(scope, completed_workout)
+    assert length(summaries) == 3
+    assert muscle_summary(summaries, "primary", "quads") == {"Quads", 1, 10, "400"}
+    assert muscle_summary(summaries, "secondary", "glutes") == {"Glutes", 1, 10, "400"}
+    assert muscle_summary(summaries, "secondary", "calves") == {"Calves", 1, 10, "400"}
+
+    {:ok, history_view, _html} = live(conn, ~p"/workout-history")
+
+    history_view
+    |> element(~s(button[phx-value-date="#{Date.to_iso8601(today)}"]))
+    |> render_click()
+
+    assert has_element?(history_view, "#history-workout-#{completed_workout.id}")
+    assert has_element?(history_view, "#history-selected-day", "1 sets")
+    assert has_element?(history_view, "#history-selected-day", "10 reps")
+    assert has_element?(history_view, "#history-selected-day", "400 lbs")
+  end
+
   defp draft_workout_fixture(scope, started_at) do
     %Workout{}
     |> Workout.lifecycle_changeset(%{
@@ -200,5 +283,11 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     })
     |> Ecto.Changeset.put_change(:user_id, scope.user.id)
     |> Repo.insert!()
+  end
+
+  defp muscle_summary(summaries, role, token) do
+    summary = Enum.find(summaries, &(&1.role == role and &1.muscle_token == token))
+    volume = summary.volume |> Decimal.normalize() |> Decimal.to_string(:normal)
+    {summary.muscle_name, summary.sets, summary.reps, volume}
   end
 end

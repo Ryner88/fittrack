@@ -48,18 +48,18 @@ defmodule FittrackWeb.Layouts do
 
       <div class="relative">
         <header class="border-b border-base-200 bg-base-100/80 backdrop-blur">
-          <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-            <div class="flex items-center gap-3">
-              <.link navigate={~p"/"} class="flex items-center gap-3 text-base-content">
+          <div class="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
+            <div class="flex min-w-0 items-center gap-3">
+              <.link navigate={~p"/"} class="flex min-w-0 items-center gap-3 text-base-content">
                 <img src="/images/logo.svg" width="36" alt="Fittrack logo" />
-                <div>
+                <div class="min-w-0">
                   <p class="text-sm font-semibold">Fittrack</p>
                   <p class="text-xs text-base-content/60">Training tracker</p>
                 </div>
               </.link>
             </div>
 
-            <nav class="hidden items-center gap-2 text-sm font-semibold text-base-content md:flex">
+            <nav class="hidden items-center gap-2 text-sm font-semibold text-base-content xl:flex">
               <%= if @current_scope && @current_scope.user do %>
                 <.link
                   navigate={~p"/dashboard"}
@@ -113,9 +113,9 @@ defmodule FittrackWeb.Layouts do
               <% end %>
             </nav>
 
-            <div class="flex items-center gap-2 sm:gap-3">
+            <div class="flex shrink-0 items-center gap-2 sm:gap-3">
               <%= if @current_scope && @current_scope.user do %>
-                <details class="group relative md:hidden">
+                <details class="group relative xl:hidden">
                   <summary
                     id="mobile-menu-button"
                     class="flex cursor-pointer list-none items-center justify-center rounded-full border border-base-300 p-2.5 text-base-content transition hover:border-primary hover:text-primary"
@@ -202,7 +202,7 @@ defmodule FittrackWeb.Layouts do
                   id="command-bar-open"
                   type="button"
                   data-command-open
-                  class="hidden items-center gap-2 rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary lg:inline-flex"
+                  class="hidden items-center gap-2 rounded-full border border-base-300 px-3 py-2 text-xs font-semibold text-base-content transition hover:border-primary hover:text-primary xl:inline-flex"
                 >
                   <.icon name="hero-magnifying-glass" class="h-4 w-4" />
                   <span>Search</span>
@@ -289,7 +289,7 @@ defmodule FittrackWeb.Layouts do
 
   attr :class, :string,
     default:
-      "hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 sm:inline-flex"
+      "hidden items-center justify-center rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-primary/90 xl:inline-flex"
 
   defp workout_cta(assigns) do
     ~H"""
