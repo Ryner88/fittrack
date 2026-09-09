@@ -34,6 +34,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
       <.form for={@form} id="exercise-form" phx-change="validate" phx-submit="save">
         <.input field={@form[:name]} type="text" label="Name" />
         <.input field={@form[:primary_muscle]} type="text" label="Primary muscle" />
+        <input type="hidden" name="exercise[secondary_muscles][]" value="" />
         <.input
           field={@form[:secondary_muscles]}
           type="select"
@@ -58,7 +59,6 @@ defmodule FittrackWeb.ExerciseLive.Form do
     {:ok,
      socket
      |> assign(:return_to, return_to(params["return_to"]))
-     |> assign(:muscle_options, @muscle_options)
      |> apply_action(socket.assigns.live_action, params)}
   end
 
@@ -71,6 +71,7 @@ defmodule FittrackWeb.ExerciseLive.Form do
     socket
     |> assign(:page_title, "Edit Exercise")
     |> assign(:exercise, exercise)
+    |> assign(:muscle_options, muscle_options(exercise))
     |> assign(:form, to_form(Training.change_exercise(exercise)))
   end
 
@@ -80,7 +81,12 @@ defmodule FittrackWeb.ExerciseLive.Form do
     socket
     |> assign(:page_title, "New Exercise")
     |> assign(:exercise, exercise)
+    |> assign(:muscle_options, muscle_options(exercise))
     |> assign(:form, to_form(Training.change_exercise(exercise)))
+  end
+
+  defp muscle_options(exercise) do
+    Enum.uniq(@muscle_options ++ (exercise.secondary_muscles || []))
   end
 
   @impl true

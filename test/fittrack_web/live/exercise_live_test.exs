@@ -187,6 +187,77 @@ defmodule FittrackWeb.ExerciseLiveTest do
       assert html =~ "some updated name"
     end
 
+    test "preserves existing secondary muscles outside the standard options", %{
+      conn: conn,
+      exercise: exercise,
+      user: user
+    } do
+      scope = %Fittrack.Accounts.Scope{user: user}
+
+      {:ok, exercise} =
+        Training.update_exercise(scope, exercise, %{
+          secondary_muscles: ["Serratus Anterior"]
+        })
+
+      conn = log_in_user(conn, user)
+      {:ok, form_live, _html} = live(conn, ~p"/my-exercises/#{exercise}/edit")
+
+      assert has_element?(
+               form_live,
+               ~s(option[value="Serratus Anterior"][selected])
+             )
+
+      form_live
+      |> form("#exercise-form",
+        exercise: %{
+          "name" => "updated exercise",
+          "primary_muscle" => exercise.primary_muscle,
+          "secondary_muscles" => ["", "Serratus Anterior"],
+          "equipment" => exercise.equipment,
+          "notes" => exercise.notes
+        }
+      )
+      |> render_submit()
+
+      assert Training.get_exercise!(scope, exercise.id).secondary_muscles ==
+               ["Serratus Anterior"]
+    end
+
+    test "can clear every secondary muscle", %{
+      conn: conn,
+      exercise: exercise,
+      user: user
+    } do
+      scope = %Fittrack.Accounts.Scope{user: user}
+
+      {:ok, exercise} =
+        Training.update_exercise(scope, exercise, %{
+          secondary_muscles: ["Glutes", "Calves"]
+        })
+
+      conn = log_in_user(conn, user)
+      {:ok, form_live, _html} = live(conn, ~p"/my-exercises/#{exercise}/edit")
+
+      assert has_element?(
+               form_live,
+               ~s(input[type="hidden"][name="exercise[secondary_muscles][]"][value=""])
+             )
+
+      form_live
+      |> form("#exercise-form",
+        exercise: %{
+          "name" => exercise.name,
+          "primary_muscle" => exercise.primary_muscle,
+          "secondary_muscles" => [""],
+          "equipment" => exercise.equipment,
+          "notes" => exercise.notes
+        }
+      )
+      |> render_submit()
+
+      assert Training.get_exercise!(scope, exercise.id).secondary_muscles == []
+    end
+
     test "deletes exercise in listing", %{conn: conn, exercise: exercise, user: user} do
       conn = log_in_user(conn, user)
       {:ok, index_live, _html} = live(conn, ~p"/my-exercises")
