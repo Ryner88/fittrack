@@ -36,13 +36,12 @@ filter.
 
 Scope:
 
-- Add linked-plan filtering for completed workouts using the immutable captured
-  plan origin data.
-- Add trained-muscle filtering using persisted workout muscle summaries.
-- Keep date/calendar selection behavior as the primary filter. Linked-plan and
-  muscle filters refine only the selected-day workout list.
-- Keep calendar workout counts, monthly statistics, and global summary
-  statistics unfiltered.
+- Add linked-plan filtering from captured workout origin data.
+- Add trained-muscle filtering from persisted workout muscle summaries.
+- Keep the calendar date as the primary boundary. Plan and muscle filters only
+  refine the selected-day workout list.
+- Leave calendar counts, monthly statistics, and global summary statistics
+  unfiltered.
 - Preserve ownership-scoped context reads by passing `current_scope` and
   filtering through `current_scope.user`.
 - Keep manual workouts, legacy workouts without snapshots, and workouts without
@@ -53,51 +52,43 @@ Scope:
 
 Filter semantics:
 
-- The selected calendar date is the primary result boundary.
-- Linked-plan and muscle filters refine only the selected-day workout list.
-- Calendar counts, monthly statistics, and global summary statistics remain
-  unfiltered.
-- Filters combine using `date AND linked_plan_id AND muscle_token` semantics.
-- Blank plan or muscle values mean "all", not `NULL`.
-- Plan identity comes from captured `source_workout_plan_id`, not the live plan
-  association.
-- Plan options are derived from user-owned completed workout origin snapshots.
-- Plan option labels use the most recently captured `plan_name` for each
-  `source_workout_plan_id`.
-- Selecting a plan ID matches all historical snapshots for that plan ID,
-  including snapshots captured under earlier names.
-- Deleted plans remain selectable because options do not depend on the live plan
-  table.
-- Manual or legacy workouts without snapshots do not match a selected plan
-  filter.
-- Muscle identity comes from persisted `muscle_token`, not display name.
-- A workout matches a muscle filter if any persisted summary has the selected
-  token; primary and secondary roles both qualify.
-- Multiple summary rows for the same token do not duplicate a workout.
-- Muscle option display names come from persisted summaries.
-- Workouts without muscle summaries do not match a selected muscle filter.
+- Selected-day results use `date AND linked_plan_id AND muscle_token`. Blank
+  plan or muscle values mean "all", not `NULL`.
+- The plan filter uses captured `source_workout_plan_id`, not the live plan
+  association. Options come from the user's completed workout origin snapshots.
+- Each plan ID appears once. Its label is the most recently captured
+  `plan_name`.
+- A selected plan ID matches all historical snapshots for that ID, including
+  workouts captured under older plan names. Deleted plans remain selectable
+  because the options do not read from the live plan table.
+- Manual and legacy workouts without origin snapshots do not match a selected
+  plan.
+- The muscle filter uses persisted `muscle_token`, not display name. A workout
+  matches when any summary row has the selected token, whether the role is
+  primary or secondary.
+- Duplicate summary rows for the same token must not duplicate the workout.
+  Muscle labels come from persisted summaries. Workouts without summaries do not
+  match a selected muscle.
 - Invalid or stale plan and muscle values fall back to "all".
-- Month navigation clears the selected date and selected-day results, but
-  preserves advanced-filter selections.
-- Clearing either advanced filter immediately reloads selected-day results when
+- Month navigation clears the selected date and selected-day results, but keeps
+  the advanced-filter selections.
+- Clearing either advanced filter reloads selected-day results immediately when
   a date is selected.
 
 Acceptance:
 
 - Filter queries only return `completed` workouts owned by the current user.
-- Plan filters match workouts by captured source plan identity or copied plan
-  context and continue working after the live reusable plan is renamed or
-  deleted.
+- Plan filters continue working after the source plan is renamed or deleted.
 - Muscle filters match persisted primary and secondary muscle summary rows.
-- Combining date, linked-plan, and muscle filters produces the expected
-  intersection without changing the existing calendar UX.
+- Combining date, linked-plan, and muscle filters returns the expected
+  intersection without changing the calendar UX.
 - Empty filtered states are explicit and covered by LiveView tests using stable
   selectors.
 - Selected-day filtering uses stable DOM IDs:
   `#history-plan-filter`, `#history-muscle-filter`, `#history-clear-filters`,
   `#history-no-date-selected`, and `#history-no-filtered-results`.
-- Filtered-empty state says no workouts match the selected filters, distinct
-  from the no-completed-workouts-on-date state.
+- The filtered-empty state says no workouts match the selected filters. It is
+  distinct from the no-completed-workouts-on-date state.
 - Completed matching workouts are returned.
 - Active, draft, and discarded matching workouts are excluded.
 - Another user's matching workouts and filter options are excluded.
@@ -110,8 +101,7 @@ Acceptance:
 - Clearing plan or muscle restores selected-day results.
 - Month navigation clears the selected date/results and preserves selected
   advanced filters.
-- Existing calendar counts and summary statistics retain their unfiltered
-  behavior.
+- Existing calendar counts and summary statistics stay unfiltered.
 - Context APIs use scoped option-list queries and date-range options:
   `Training.list_history_plan_options(scope)`,
   `Training.list_history_muscle_options(scope)`, and
