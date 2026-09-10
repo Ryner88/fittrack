@@ -275,6 +275,100 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(history_view, "#history-selected-day", "400 lbs")
   end
 
+  test "advanced filters refine selected day while calendar counts stay unfiltered", %{conn: conn} do
+    user = user_fixture()
+    scope = %Scope{user: user}
+    today = Date.utc_today()
+
+    chest = exercise_fixture(scope, %{name: "History Chest Press", primary_muscle: "Chest"})
+    back = exercise_fixture(scope, %{name: "History Cable Row", primary_muscle: "Back"})
+
+    chest_plan = history_plan(scope, "Chest History Plan", chest)
+    back_plan = history_plan(scope, "Back History Plan", back)
+
+    {:ok, chest_workout} = Training.create_workout_from_plan(scope, chest_plan.id)
+    {:ok, _set} = create_history_set(scope, chest_workout, chest)
+    {:ok, chest_workout} = Training.complete_workout(scope, chest_workout)
+
+    {:ok, back_workout} = Training.create_workout_from_plan(scope, back_plan.id)
+    {:ok, _set} = create_history_set(scope, back_workout, back)
+    {:ok, back_workout} = Training.complete_workout(scope, back_workout)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workout-history")
+
+    assert has_element?(view, "#history-plan-filter")
+    assert has_element?(view, "#history-muscle-filter")
+    assert has_element?(view, "#history-clear-filters")
+    assert has_element?(view, "#history-no-date-selected")
+    assert has_element?(view, ~s(button[phx-value-date="#{Date.to_iso8601(today)}"]), "2 done")
+
+    view
+    |> form("#history-filters", filters: %{"plan_id" => chest_plan.id, "muscle_token" => ""})
+    |> render_change()
+
+    assert has_element?(view, "#history-no-date-selected")
+    refute has_element?(view, "#history-workout-#{chest_workout.id}")
+
+    view
+    |> element(~s(button[phx-value-date="#{Date.to_iso8601(today)}"]))
+    |> render_click()
+
+    assert has_element?(view, "#history-workout-#{chest_workout.id}")
+    refute has_element?(view, "#history-workout-#{back_workout.id}")
+    assert has_element?(view, "#history-selected-day", "1 completed")
+    assert has_element?(view, ~s(button[phx-value-date="#{Date.to_iso8601(today)}"]), "2 done")
+
+    view
+    |> form("#history-filters", filters: %{"plan_id" => chest_plan.id, "muscle_token" => "back"})
+    |> render_change()
+
+    assert has_element?(view, "#history-no-filtered-results")
+    refute has_element?(view, "#history-no-date-selected")
+
+    view
+    |> element("#history-clear-filters")
+    |> render_click()
+
+    assert has_element?(view, "#history-workout-#{chest_workout.id}")
+    assert has_element?(view, "#history-workout-#{back_workout.id}")
+    assert has_element?(view, "#history-selected-day", "2 completed")
+  end
+
+  test "month navigation clears selected date but preserves advanced filters", %{conn: conn} do
+    user = user_fixture()
+    scope = %Scope{user: user}
+    today = Date.utc_today()
+    exercise = exercise_fixture(scope, %{name: "Month Nav Press", primary_muscle: "Chest"})
+
+    plan = history_plan(scope, "Month Nav Plan", exercise)
+
+    {:ok, workout} = Training.create_workout_from_plan(scope, plan.id)
+    {:ok, _set} = create_history_set(scope, workout, exercise)
+    {:ok, _workout} = Training.complete_workout(scope, workout)
+
+    conn = log_in_user(conn, user)
+    {:ok, view, _html} = live(conn, ~p"/workout-history")
+
+    view
+    |> form("#history-filters", filters: %{"plan_id" => plan.id, "muscle_token" => "chest"})
+    |> render_change()
+
+    view
+    |> element(~s(button[phx-value-date="#{Date.to_iso8601(today)}"]))
+    |> render_click()
+
+    refute has_element?(view, "#history-no-date-selected")
+
+    view
+    |> element("#history-next-month")
+    |> render_click()
+
+    assert has_element?(view, "#history-no-date-selected")
+    assert has_element?(view, ~s(#history-plan-filter option[value="#{plan.id}"][selected]))
+    assert has_element?(view, ~s(#history-muscle-filter option[value="chest"][selected]))
+  end
+
   defp draft_workout_fixture(scope, started_at) do
     %Workout{}
     |> Workout.lifecycle_changeset(%{
@@ -289,5 +383,40 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     summary = Enum.find(summaries, &(&1.role == role and &1.muscle_token == token))
     volume = summary.volume |> Decimal.normalize() |> Decimal.to_string(:normal)
     {summary.muscle_name, summary.sets, summary.reps, volume}
+  end
+
+  defp plan_entries(exercise) do
+    [
+      %{
+        "position" => 1,
+        "exercise_id" => exercise.id,
+        "target_sets" => 3,
+        "target_reps_min" => 8,
+        "target_reps_max" => 10,
+        "rest_seconds" => 90,
+        "scheduled_day" => "Monday"
+      }
+    ]
+  end
+
+  defp history_plan(scope, name, exercise) do
+    {:ok, plan} =
+      Training.create_workout_plan(scope, %{
+        "name" => name,
+        "goal" => "strength",
+        "primary_style" => "strength",
+        "workout_plan_exercises" => plan_entries(exercise)
+      })
+
+    plan
+  end
+
+  defp create_history_set(scope, workout, exercise) do
+    Training.create_workout_set(scope, workout, %{
+      exercise_id: exercise.id,
+      weight: "100",
+      reps: "5",
+      kind: "normal"
+    })
   end
 end

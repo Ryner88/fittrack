@@ -204,14 +204,60 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
                 <% end %>
               </div>
 
+              <.form
+                for={@filter_form}
+                id="history-filters"
+                phx-change="filter_history"
+                class="mt-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+              >
+                <.input
+                  id="history-plan-filter"
+                  field={@filter_form[:plan_id]}
+                  type="select"
+                  label="Linked plan"
+                  prompt="All linked plans"
+                  options={plan_filter_options(@history_plan_options)}
+                />
+                <.input
+                  id="history-muscle-filter"
+                  field={@filter_form[:muscle_token]}
+                  type="select"
+                  label="Muscle"
+                  prompt="All muscles"
+                  options={muscle_filter_options(@history_muscle_options)}
+                />
+                <button
+                  id="history-clear-filters"
+                  type="button"
+                  phx-click="clear_history_filters"
+                  class="self-end rounded-full border border-base-300 px-4 py-2.5 text-sm font-semibold text-base-content transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!history_filters_active?(@selected_plan_id, @selected_muscle_token)}
+                >
+                  Clear filters
+                </button>
+              </.form>
+
               <div class="mt-5 space-y-3">
                 <%= cond do %>
                   <% is_nil(@selected_date) -> %>
-                    <div class="rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center text-sm text-base-content/70">
+                    <div
+                      id="history-no-date-selected"
+                      class="rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center text-sm text-base-content/70"
+                    >
                       Select a date from the calendar to inspect completed workouts.
                     </div>
+                  <% Enum.empty?(@selected_date_workouts) and history_filters_active?(@selected_plan_id, @selected_muscle_token) -> %>
+                    <div
+                      id="history-no-filtered-results"
+                      class="rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center text-sm text-base-content/70"
+                    >
+                      No workouts match the selected filters.
+                    </div>
                   <% Enum.empty?(@selected_date_workouts) -> %>
-                    <div class="rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center text-sm text-base-content/70">
+                    <div
+                      id="history-no-completed-workouts"
+                      class="rounded-2xl border border-dashed border-base-300 px-4 py-8 text-center text-sm text-base-content/70"
+                    >
                       No completed workouts on this date.
                     </div>
                   <% true -> %>
@@ -282,6 +328,17 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
      |> assign(:current_month, current_month)
      |> assign(:selected_date, nil)
      |> assign(:selected_date_workouts, [])
+     |> assign(:selected_plan_id, nil)
+     |> assign(:selected_muscle_token, nil)
+     |> assign(
+       :history_plan_options,
+       Training.list_history_plan_options(socket.assigns.current_scope)
+     )
+     |> assign(
+       :history_muscle_options,
+       Training.list_history_muscle_options(socket.assigns.current_scope)
+     )
+     |> assign(:filter_form, history_filter_form(nil, nil))
      |> assign(:active_workout, Training.get_open_workout(socket.assigns.current_scope))
      |> assign(:summary_stats, summary_stats(socket.assigns.current_scope))
      |> load_month(socket.assigns.current_scope, current_month)}
@@ -318,10 +375,41 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
     {:noreply,
      socket
      |> assign(:selected_date, selected_date)
-     |> assign(
-       :selected_date_workouts,
-       load_workouts_for_date(socket.assigns.current_scope, selected_date)
-     )}
+     |> reload_selected_date_workouts()}
+  end
+
+  @impl true
+  def handle_event("filter_history", %{"filters" => filter_params}, socket) do
+    selected_plan_id =
+      filter_params
+      |> Map.get("plan_id")
+      |> normalize_plan_filter(socket.assigns.history_plan_options)
+
+    selected_muscle_token =
+      filter_params
+      |> Map.get("muscle_token")
+      |> normalize_muscle_filter(socket.assigns.history_muscle_options)
+
+    {:noreply,
+     socket
+     |> assign(:selected_plan_id, selected_plan_id)
+     |> assign(:selected_muscle_token, selected_muscle_token)
+     |> assign(:filter_form, history_filter_form(selected_plan_id, selected_muscle_token))
+     |> reload_selected_date_workouts()}
+  end
+
+  def handle_event("filter_history", _params, socket) do
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("clear_history_filters", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:selected_plan_id, nil)
+     |> assign(:selected_muscle_token, nil)
+     |> assign(:filter_form, history_filter_form(nil, nil))
+     |> reload_selected_date_workouts()}
   end
 
   defp load_month(socket, scope, current_month) do
@@ -413,8 +501,27 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
     )
   end
 
-  defp load_workouts_for_date(scope, date) do
-    Training.list_completed_workouts_in_date_range(scope, date, date)
+  defp reload_selected_date_workouts(%{assigns: %{selected_date: nil}} = socket) do
+    assign(socket, :selected_date_workouts, [])
+  end
+
+  defp reload_selected_date_workouts(socket) do
+    workouts =
+      load_workouts_for_date(
+        socket.assigns.current_scope,
+        socket.assigns.selected_date,
+        socket.assigns.selected_plan_id,
+        socket.assigns.selected_muscle_token
+      )
+
+    assign(socket, :selected_date_workouts, workouts)
+  end
+
+  defp load_workouts_for_date(scope, date, plan_id, muscle_token) do
+    Training.list_completed_workouts_in_date_range(scope, date, date,
+      plan_id: plan_id,
+      muscle_token: muscle_token
+    )
   end
 
   defp shift_month(date, amount) do
@@ -427,7 +534,69 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
 
   defp workout_name(workout), do: "Workout on #{Calendar.strftime(workout.started_at, "%A")}"
 
+  defp linked_plan_name(%{origin_snapshot: %{plan_name: plan_name}})
+       when plan_name not in [nil, ""] do
+    plan_name
+  end
+
   defp linked_plan_name(_workout), do: "Not linked"
+
+  defp plan_filter_options(plan_options) do
+    Enum.map(plan_options, &{&1.name, Integer.to_string(&1.id)})
+  end
+
+  defp muscle_filter_options(muscle_options) do
+    Enum.map(muscle_options, &{&1.name, &1.token})
+  end
+
+  defp history_filter_form(plan_id, muscle_token) do
+    to_form(
+      %{
+        "plan_id" => if(plan_id, do: Integer.to_string(plan_id), else: ""),
+        "muscle_token" => muscle_token || ""
+      },
+      as: :filters
+    )
+  end
+
+  defp history_filters_active?(plan_id, muscle_token) do
+    not is_nil(plan_id) or muscle_token not in [nil, ""]
+  end
+
+  defp normalize_plan_filter(value, plan_options) do
+    plan_id = parse_filter_integer(value)
+
+    if Enum.any?(plan_options, &(&1.id == plan_id)) do
+      plan_id
+    end
+  end
+
+  defp normalize_muscle_filter(value, muscle_options) do
+    token = normalize_filter_text(value)
+
+    if Enum.any?(muscle_options, &(&1.token == token)) do
+      token
+    end
+  end
+
+  defp parse_filter_integer(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {integer, ""} when integer > 0 -> integer
+      _ -> nil
+    end
+  end
+
+  defp parse_filter_integer(value) when is_integer(value) and value > 0, do: value
+  defp parse_filter_integer(_value), do: nil
+
+  defp normalize_filter_text(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      text -> text
+    end
+  end
+
+  defp normalize_filter_text(_value), do: nil
 
   defp workout_exercise_count(workout) do
     workout.workout_sets
