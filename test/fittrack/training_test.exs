@@ -784,6 +784,221 @@ defmodule Fittrack.TrainingTest do
       assert workout.id == completed_workout.id
     end
 
+    test "completed workout history filters exclude non-completed lifecycle states", %{
+      scope: scope
+    } do
+      today = Date.utc_today()
+      started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
+
+      {:ok, completed_workout} = Training.create_workout(scope, %{started_at: started_at})
+      assert {:ok, completed_workout} = Training.complete_workout(scope, completed_workout)
+
+      draft =
+        draft_workout_fixture(scope, DateTime.add(started_at, 3600, :second))
+
+      assert [workout] = Training.list_completed_workouts_in_date_range(scope, today, today)
+      assert workout.id == completed_workout.id
+      refute workout.id == draft.id
+
+      Repo.delete!(draft)
+
+      {:ok, active_workout} =
+        Training.create_workout(scope, %{started_at: DateTime.add(started_at, 7200, :second)})
+
+      assert [workout] = Training.list_completed_workouts_in_date_range(scope, today, today)
+      assert workout.id == completed_workout.id
+      refute workout.id == active_workout.id
+
+      assert {:ok, discarded_workout} = Training.discard_workout(scope, active_workout)
+
+      assert [workout] = Training.list_completed_workouts_in_date_range(scope, today, today)
+      assert workout.id == completed_workout.id
+      refute workout.id == discarded_workout.id
+    end
+
+    test "history plan filters use captured plan identity after rename and delete", %{
+      scope: scope
+    } do
+      today = Date.utc_today()
+      exercise = exercise_fixture(scope, %{name: "History Plan Press", equipment: "Barbell"})
+
+      {:ok, plan} =
+        Training.create_workout_plan(scope, %{
+          "name" => "Original History Plan",
+          "goal" => "strength",
+          "primary_style" => "strength",
+          "workout_plan_exercises" => plan_entries(exercise)
+        })
+
+      {:ok, first_workout} = Training.create_workout_from_plan(scope, plan.id)
+      {:ok, first_workout} = Training.complete_workout(scope, first_workout)
+
+      assert {:ok, renamed_plan} =
+               Training.update_workout_plan(scope, plan, %{name: "Renamed History Plan"})
+
+      {:ok, second_workout} = Training.create_workout_from_plan(scope, renamed_plan.id)
+      {:ok, second_workout} = Training.complete_workout(scope, second_workout)
+
+      assert [
+               %{id: plan_id, name: "Renamed History Plan"}
+             ] = Training.list_history_plan_options(scope)
+
+      assert plan_id == plan.id
+
+      assert [newer, older] =
+               Training.list_completed_workouts_in_date_range(scope, today, today,
+                 plan_id: plan.id
+               )
+
+      assert newer.id == second_workout.id
+      assert older.id == first_workout.id
+
+      assert {:ok, _deleted_plan} = Training.delete_workout_plan(scope, renamed_plan)
+
+      assert [
+               %{id: ^plan_id, name: "Renamed History Plan"}
+             ] = Training.list_history_plan_options(scope)
+
+      assert [_, _] =
+               Training.list_completed_workouts_in_date_range(scope, today, today,
+                 plan_id: plan.id
+               )
+    end
+
+    test "history muscle filters match primary and secondary summaries without duplicates", %{
+      scope: scope
+    } do
+      today = Date.utc_today()
+      started_at = DateTime.new!(today, ~T[12:00:00], "Etc/UTC")
+
+      exercise =
+        exercise_fixture(scope, %{
+          name: "Chest Duplicate Summary",
+          primary_muscle: "Chest",
+          secondary_muscles: ["Chest"],
+          equipment: "Dumbbell"
+        })
+
+      {:ok, workout} = Training.create_workout(scope, %{started_at: started_at})
+
+      {:ok, _set} =
+        Training.create_workout_set(scope, workout, %{
+          exercise_id: exercise.id,
+          weight: "100",
+          reps: "5",
+          kind: "normal"
+        })
+
+      assert {:ok, workout} = Training.complete_workout(scope, workout)
+
+      other_scope = user_scope_fixture()
+      other_exercise = exercise_fixture(other_scope, %{primary_muscle: "Chest"})
+      {:ok, other_workout} = Training.create_workout(other_scope, %{started_at: started_at})
+
+      {:ok, _set} =
+        Training.create_workout_set(other_scope, other_workout, %{
+          exercise_id: other_exercise.id,
+          weight: "100",
+          reps: "5",
+          kind: "normal"
+        })
+
+      assert {:ok, _other_workout} = Training.complete_workout(other_scope, other_workout)
+
+      assert [%{token: "chest", name: "Chest"}] = Training.list_history_muscle_options(scope)
+
+      assert [filtered_workout] =
+               Training.list_completed_workouts_in_date_range(scope, today, today,
+                 muscle_token: "chest"
+               )
+
+      assert filtered_workout.id == workout.id
+    end
+
+    test "history filter options use deterministic case-insensitive ordering", %{
+      scope: scope
+    } do
+      started_at = DateTime.utc_now() |> DateTime.truncate(:second)
+      back = exercise_fixture(scope, %{name: "Ordering Row", primary_muscle: "Back"})
+      chest = exercise_fixture(scope, %{name: "Ordering Press", primary_muscle: "Chest"})
+      zulu_plan = history_plan(scope, "Zulu Plan", back)
+      alpha_plan = history_plan(scope, "alpha Plan", chest)
+
+      {:ok, zulu_workout} = Training.create_workout_from_plan(scope, zulu_plan.id)
+      {:ok, _set} = history_set(scope, zulu_workout, back)
+      {:ok, _zulu_workout} = Training.complete_workout(scope, zulu_workout)
+
+      {:ok, alpha_workout} = Training.create_workout_from_plan(scope, alpha_plan.id)
+      {:ok, _set} = history_set(scope, alpha_workout, chest)
+      {:ok, _alpha_workout} = Training.complete_workout(scope, alpha_workout)
+
+      {:ok, manual_workout} = Training.create_workout(scope, %{started_at: started_at})
+      {:ok, _set} = history_set(scope, manual_workout, chest)
+      {:ok, _manual_workout} = Training.complete_workout(scope, manual_workout)
+
+      assert Enum.map(Training.list_history_plan_options(scope), & &1.name) == [
+               "alpha Plan",
+               "Zulu Plan"
+             ]
+
+      assert Enum.map(Training.list_history_muscle_options(scope), & &1.name) == [
+               "Back",
+               "Chest"
+             ]
+    end
+
+    test "history filters combine date plan and muscle with all semantics for blanks", %{
+      scope: scope
+    } do
+      today = Date.utc_today()
+      yesterday = Date.add(today, -1)
+      chest = exercise_fixture(scope, %{primary_muscle: "Chest", equipment: "Dumbbell"})
+      back = exercise_fixture(scope, %{name: "History Row", primary_muscle: "Back"})
+      plan = history_plan(scope, "AND Chest Plan", chest)
+      other_plan = history_plan(scope, "AND Back Plan", back)
+
+      {:ok, matching} = Training.create_workout_from_plan(scope, plan.id)
+      {:ok, _set} = history_set(scope, matching, chest)
+      {:ok, matching} = Training.complete_workout(scope, matching)
+
+      {:ok, wrong_muscle} = Training.create_workout_from_plan(scope, plan.id)
+      {:ok, _set} = history_set(scope, wrong_muscle, back)
+      {:ok, wrong_muscle} = Training.complete_workout(scope, wrong_muscle)
+
+      {:ok, wrong_plan} = Training.create_workout_from_plan(scope, other_plan.id)
+      {:ok, _set} = history_set(scope, wrong_plan, back)
+      {:ok, wrong_plan} = Training.complete_workout(scope, wrong_plan)
+
+      {:ok, wrong_date} =
+        Training.create_workout(scope, %{
+          started_at: DateTime.new!(yesterday, ~T[12:00:00], "Etc/UTC")
+        })
+
+      {:ok, _set} = history_set(scope, wrong_date, chest)
+      {:ok, wrong_date} = Training.complete_workout(scope, wrong_date)
+
+      assert [workout] =
+               Training.list_completed_workouts_in_date_range(scope, today, today,
+                 plan_id: plan.id,
+                 muscle_token: "chest"
+               )
+
+      assert workout.id == matching.id
+
+      today_ids =
+        scope
+        |> Training.list_completed_workouts_in_date_range(today, today,
+          plan_id: "",
+          muscle_token: ""
+        )
+        |> Enum.map(& &1.id)
+
+      assert matching.id in today_ids
+      assert wrong_muscle.id in today_ids
+      assert wrong_plan.id in today_ids
+      refute wrong_date.id in today_ids
+    end
+
     test "workout counts and calendar dates use completed lifecycle state", %{
       scope: scope
     } do
@@ -1063,6 +1278,27 @@ defmodule Fittrack.TrainingTest do
         "scheduled_day" => "Monday"
       }
     ]
+  end
+
+  defp history_plan(scope, name, exercise) do
+    {:ok, plan} =
+      Training.create_workout_plan(scope, %{
+        "name" => name,
+        "goal" => "strength",
+        "primary_style" => "strength",
+        "workout_plan_exercises" => plan_entries(exercise)
+      })
+
+    plan
+  end
+
+  defp history_set(scope, workout, exercise) do
+    Training.create_workout_set(scope, workout, %{
+      exercise_id: exercise.id,
+      weight: "100",
+      reps: "5",
+      kind: "normal"
+    })
   end
 
   defp draft_workout_fixture(scope, started_at) do

@@ -3793,25 +3793,138 @@ defmodule Fittrack.Training do
   @doc """
   Lists completed workouts for a current user within a date range.
   """
+  def list_completed_workouts_in_date_range(scope, start_date, end_date, opts \\ [])
+
   def list_completed_workouts_in_date_range(
         %Scope{user: user},
         %Date{} = start_date,
-        %Date{} = end_date
+        %Date{} = end_date,
+        opts
       ) do
     completed_state = Workout.completed_state()
+    opts = if is_list(opts), do: Map.new(opts), else: opts || %{}
+    plan_id = opts |> get_option(:plan_id) |> parse_optional_positive_integer()
+    muscle_token = opts |> get_option(:muscle_token) |> normalize_optional_text()
 
-    from(w in Workout,
-      where:
-        w.user_id == ^user.id and w.lifecycle_state == ^completed_state and
-          fragment("DATE(?)", w.started_at) >= ^start_date and
-          fragment("DATE(?)", w.started_at) <= ^end_date,
-      order_by: [desc: w.started_at],
-      preload: [workout_sets: :exercise]
+    Workout
+    |> where(
+      [workout],
+      workout.user_id == ^user.id and workout.lifecycle_state == ^completed_state and
+        fragment("DATE(?)", workout.started_at) >= ^start_date and
+        fragment("DATE(?)", workout.started_at) <= ^end_date
     )
+    |> maybe_filter_completed_workouts_by_plan(plan_id)
+    |> maybe_filter_completed_workouts_by_muscle(muscle_token)
+    |> order_by([workout], desc: workout.started_at, desc: workout.id)
+    |> preload([:origin_snapshot, workout_sets: :exercise])
     |> Repo.all()
   end
 
-  def list_completed_workouts_in_date_range(_, _, _), do: []
+  def list_completed_workouts_in_date_range(_, _, _, _), do: []
+
+  @doc """
+  Lists linked plan filter options from completed workout origin snapshots.
+  """
+  def list_history_plan_options(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
+    WorkoutOriginSnapshot
+    |> join(:inner, [snapshot], workout in assoc(snapshot, :workout))
+    |> where(
+      [snapshot, workout],
+      workout.user_id == ^user.id and workout.lifecycle_state == ^completed_state and
+        not is_nil(snapshot.source_workout_plan_id)
+    )
+    |> order_by([snapshot, _workout],
+      desc: snapshot.captured_at,
+      desc: snapshot.inserted_at,
+      desc: snapshot.id
+    )
+    |> select([snapshot, _workout], %{
+      id: snapshot.source_workout_plan_id,
+      name: snapshot.plan_name
+    })
+    |> Repo.all()
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.sort_by(&{String.downcase(&1.name || ""), &1.id})
+  end
+
+  def list_history_plan_options(_), do: []
+
+  @doc """
+  Lists muscle filter options from completed workout muscle summaries.
+  """
+  def list_history_muscle_options(%Scope{user: user}) do
+    completed_state = Workout.completed_state()
+
+    WorkoutMuscleSummary
+    |> join(:inner, [summary], workout in assoc(summary, :workout))
+    |> where(
+      [summary, workout],
+      workout.user_id == ^user.id and workout.lifecycle_state == ^completed_state
+    )
+    |> select([summary, _workout], %{
+      token: summary.muscle_token,
+      name: summary.muscle_name
+    })
+    |> Repo.all()
+    |> Enum.sort_by(&{String.downcase(&1.name || ""), &1.token})
+    |> Enum.uniq_by(& &1.token)
+  end
+
+  def list_history_muscle_options(_), do: []
+
+  defp maybe_filter_completed_workouts_by_plan(query, nil), do: query
+
+  defp maybe_filter_completed_workouts_by_plan(query, plan_id) do
+    where(
+      query,
+      [workout],
+      fragment(
+        """
+        EXISTS (
+          SELECT 1
+          FROM workout_origin_snapshots AS history_plan_snapshot
+          WHERE history_plan_snapshot.workout_session_id = ?
+            AND history_plan_snapshot.source_workout_plan_id = ?
+        )
+        """,
+        workout.id,
+        ^plan_id
+      )
+    )
+  end
+
+  defp maybe_filter_completed_workouts_by_muscle(query, nil), do: query
+
+  defp maybe_filter_completed_workouts_by_muscle(query, muscle_token) do
+    where(
+      query,
+      [workout],
+      fragment(
+        """
+        EXISTS (
+          SELECT 1
+          FROM workout_muscle_summaries AS history_muscle_summary
+          WHERE history_muscle_summary.workout_session_id = ?
+            AND history_muscle_summary.muscle_token = ?
+        )
+        """,
+        workout.id,
+        ^muscle_token
+      )
+    )
+  end
+
+  defp parse_optional_positive_integer(nil), do: nil
+  defp parse_optional_positive_integer(""), do: nil
+
+  defp parse_optional_positive_integer(value) do
+    case parse_positive_integer(value, nil) do
+      int when is_integer(int) -> int
+      _ -> nil
+    end
+  end
 
   @doc """
   Returns distinct completed workout dates for the current user.
