@@ -275,10 +275,11 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(history_view, "#history-selected-day", "400 lbs")
   end
 
-  test "advanced filters refine selected day while calendar counts stay unfiltered", %{conn: conn} do
+  test "advanced filters refine selected day while aggregate stats stay unfiltered", %{conn: conn} do
     user = user_fixture()
     scope = %Scope{user: user}
     today = Date.utc_today()
+    monthly_average = today |> Date.beginning_of_month() |> expected_average_per_week(2)
 
     chest = exercise_fixture(scope, %{name: "History Chest Press", primary_muscle: "Chest"})
     back = exercise_fixture(scope, %{name: "History Cable Row", primary_muscle: "Back"})
@@ -287,11 +288,11 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     back_plan = history_plan(scope, "Back History Plan", back)
 
     {:ok, chest_workout} = Training.create_workout_from_plan(scope, chest_plan.id)
-    {:ok, _set} = create_history_set(scope, chest_workout, chest)
+    {:ok, _set} = create_history_set(scope, chest_workout, chest, %{weight: "100", reps: "5"})
     {:ok, chest_workout} = Training.complete_workout(scope, chest_workout)
 
     {:ok, back_workout} = Training.create_workout_from_plan(scope, back_plan.id)
-    {:ok, _set} = create_history_set(scope, back_workout, back)
+    {:ok, _set} = create_history_set(scope, back_workout, back, %{weight: "200", reps: "5"})
     {:ok, back_workout} = Training.complete_workout(scope, back_workout)
 
     conn = log_in_user(conn, user)
@@ -302,13 +303,17 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(view, "#history-clear-filters")
     assert has_element?(view, "#history-no-date-selected")
     assert has_element?(view, ~s(button[phx-value-date="#{Date.to_iso8601(today)}"]), "2 done")
+    assert_unfiltered_history_stats(view, monthly_average)
 
     view
-    |> form("#history-filters", filters: %{"plan_id" => chest_plan.id, "muscle_token" => ""})
+    |> form("#history-filters",
+      filters: %{"plan_id" => chest_plan.id, "muscle_token" => "chest"}
+    )
     |> render_change()
 
     assert has_element?(view, "#history-no-date-selected")
     refute has_element?(view, "#history-workout-#{chest_workout.id}")
+    assert_unfiltered_history_stats(view, monthly_average)
 
     view
     |> element(~s(button[phx-value-date="#{Date.to_iso8601(today)}"]))
@@ -318,6 +323,7 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     refute has_element?(view, "#history-workout-#{back_workout.id}")
     assert has_element?(view, "#history-selected-day", "1 completed")
     assert has_element?(view, ~s(button[phx-value-date="#{Date.to_iso8601(today)}"]), "2 done")
+    assert_unfiltered_history_stats(view, monthly_average)
 
     view
     |> form("#history-filters", filters: %{"plan_id" => chest_plan.id, "muscle_token" => "back"})
@@ -333,6 +339,34 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     assert has_element?(view, "#history-workout-#{chest_workout.id}")
     assert has_element?(view, "#history-workout-#{back_workout.id}")
     assert has_element?(view, "#history-selected-day", "2 completed")
+    assert_unfiltered_history_stats(view, monthly_average)
+
+    view
+    |> form("#history-filters",
+      filters: %{"plan_id" => chest_plan.id, "muscle_token" => "chest"}
+    )
+    |> render_change()
+
+    view
+    |> element("#history-next-month")
+    |> render_click()
+
+    assert has_element?(view, "#history-no-date-selected")
+
+    view
+    |> element("#history-previous-month")
+    |> render_click()
+
+    assert has_element?(view, "#history-no-date-selected")
+
+    view
+    |> element(~s(button[phx-value-date="#{Date.to_iso8601(today)}"]))
+    |> render_click()
+
+    assert has_element?(view, "#history-workout-#{chest_workout.id}")
+    refute has_element?(view, "#history-workout-#{back_workout.id}")
+    assert has_element?(view, "#history-selected-day", "1 completed")
+    assert_unfiltered_history_stats(view, monthly_average)
   end
 
   test "month navigation clears selected date but preserves advanced filters", %{conn: conn} do
@@ -411,12 +445,36 @@ defmodule FittrackWeb.WorkoutHistoryLiveTest do
     plan
   end
 
-  defp create_history_set(scope, workout, exercise) do
-    Training.create_workout_set(scope, workout, %{
-      exercise_id: exercise.id,
-      weight: "100",
-      reps: "5",
-      kind: "normal"
-    })
+  defp create_history_set(scope, workout, exercise, attrs \\ %{}) do
+    attrs =
+      Map.merge(
+        %{
+          exercise_id: exercise.id,
+          weight: "100",
+          reps: "5",
+          kind: "normal"
+        },
+        attrs
+      )
+
+    Training.create_workout_set(scope, workout, attrs)
+  end
+
+  defp assert_unfiltered_history_stats(view, monthly_average) do
+    assert has_element?(view, "#history-summary-workouts-this-week", "2")
+    assert has_element?(view, "#history-summary-average-duration", "0m")
+    assert has_element?(view, "#history-summary-total-volume", "1500 lbs")
+    assert has_element?(view, "#history-summary-streak-days", "1 days")
+    assert has_element?(view, "#history-monthly-completed-workouts", "2")
+    assert has_element?(view, "#history-monthly-total-volume", "1500 lbs")
+    assert has_element?(view, "#history-monthly-average-per-week", monthly_average)
+  end
+
+  defp expected_average_per_week(current_month, total_workouts) do
+    current_month
+    |> Date.days_in_month()
+    |> Kernel./(7)
+    |> then(&Float.round(total_workouts / max(&1, 1), 1))
+    |> :erlang.float_to_binary(decimals: 1)
   end
 end

@@ -57,25 +57,37 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
         >
           <div class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm">
             <p class="text-sm text-base-content/60">Workouts this week</p>
-            <p class="mt-2 text-3xl font-semibold text-base-content">
+            <p
+              id="history-summary-workouts-this-week"
+              class="mt-2 text-3xl font-semibold text-base-content"
+            >
               {@summary_stats.workouts_this_week}
             </p>
           </div>
           <div class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm">
             <p class="text-sm text-base-content/60">Average duration</p>
-            <p class="mt-2 text-3xl font-semibold text-base-content">
+            <p
+              id="history-summary-average-duration"
+              class="mt-2 text-3xl font-semibold text-base-content"
+            >
               {@summary_stats.average_duration}
             </p>
           </div>
           <div class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm">
             <p class="text-sm text-base-content/60">Total volume</p>
-            <p class="mt-2 text-3xl font-semibold text-base-content">
+            <p
+              id="history-summary-total-volume"
+              class="mt-2 text-3xl font-semibold text-base-content"
+            >
               {@summary_stats.total_volume} lbs
             </p>
           </div>
           <div class="rounded-2xl border border-base-200 bg-base-100 p-5 shadow-sm">
             <p class="text-sm text-base-content/60">Streak</p>
-            <p class="mt-2 text-3xl font-semibold text-base-content">
+            <p
+              id="history-summary-streak-days"
+              class="mt-2 text-3xl font-semibold text-base-content"
+            >
               {@summary_stats.streak_days} days
             </p>
           </div>
@@ -163,19 +175,28 @@ defmodule FittrackWeb.WorkoutHistoryLive.Index do
               <div class="mt-5 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
                 <div class="rounded-xl bg-base-50 p-4">
                   <p class="text-sm text-base-content/60">Completed workouts</p>
-                  <p class="mt-1 text-2xl font-semibold text-base-content">
+                  <p
+                    id="history-monthly-completed-workouts"
+                    class="mt-1 text-2xl font-semibold text-base-content"
+                  >
                     {@monthly_stats.total_workouts}
                   </p>
                 </div>
                 <div class="rounded-xl bg-base-50 p-4">
                   <p class="text-sm text-base-content/60">Total volume</p>
-                  <p class="mt-1 text-2xl font-semibold text-base-content">
+                  <p
+                    id="history-monthly-total-volume"
+                    class="mt-1 text-2xl font-semibold text-base-content"
+                  >
                     {@monthly_stats.total_volume} lbs
                   </p>
                 </div>
                 <div class="rounded-xl bg-base-50 p-4">
                   <p class="text-sm text-base-content/60">Avg / week</p>
-                  <p class="mt-1 text-2xl font-semibold text-base-content">
+                  <p
+                    id="history-monthly-average-per-week"
+                    class="mt-1 text-2xl font-semibold text-base-content"
+                  >
                     {@monthly_stats.avg_workouts_per_week}
                   </p>
                 </div>
