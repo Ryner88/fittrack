@@ -770,7 +770,7 @@ defmodule Fittrack.Training do
 
   defp admin_template_preloads do
     [
-      :aliases,
+      {:aliases, from(exercise_alias in ExerciseAlias, order_by: [asc: exercise_alias.id])},
       :media,
       :template_sources,
       template_muscles: [:exercise_muscle],
