@@ -89,6 +89,7 @@ Common Phoenix/runtime variables:
 Test database overrides:
 
 - `DB_USER`, `DB_PASSWORD`, `DB_HOST`, and `DB_NAME` are used by `config/test.exs`.
+- When unset, `DB_USER`, `DB_PASSWORD`, and `DB_HOST` fall back to `PGUSER`, `PGPASSWORD`, and `PGHOST`, respectively, then to `postgres`, an empty password, and `localhost`. `DB_NAME` defaults to `fittrack_test`; `MIX_TEST_PARTITION` is appended to the database name.
 - `SKIP_DB_SETUP` skips the test alias database create/migrate steps and runs `mix test --no-start`.
 
 ## Useful Mix Tasks

@@ -9,9 +9,9 @@ config :bcrypt_elixir, :log_rounds, 1
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
 config :fittrack, Fittrack.Repo,
-  username: System.get_env("DB_USER", "samue"),
-  password: System.get_env("DB_PASSWORD", "samue"),
-  hostname: System.get_env("DB_HOST", "localhost"),
+  username: System.get_env("DB_USER") || System.get_env("PGUSER", "postgres"),
+  password: System.get_env("DB_PASSWORD") || System.get_env("PGPASSWORD", ""),
+  hostname: System.get_env("DB_HOST") || System.get_env("PGHOST", "localhost"),
   database:
     System.get_env("DB_NAME", "fittrack_test") <> System.get_env("MIX_TEST_PARTITION", ""),
   pool: Ecto.Adapters.SQL.Sandbox,
