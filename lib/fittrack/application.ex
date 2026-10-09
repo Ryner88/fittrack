@@ -13,7 +13,7 @@ defmodule Fittrack.Application do
       {DNSCluster, query: Application.get_env(:fittrack, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Fittrack.PubSub},
 
-      # Required for Swoosh.ApiClient.Req (Mailgun, etc.)
+      # Required for API-based Swoosh adapters such as Resend
       {Finch, name: Fittrack.Finch},
 
       # Start a worker by calling: Fittrack.Worker.start_link(arg)

@@ -10,7 +10,7 @@ if System.get_env("PHX_SERVER") do
   config :fittrack, FittrackWeb.Endpoint, server: true
 end
 
-# Non-SMTP Swoosh adapters (like Mailgun) need an API client.
+# API-based Swoosh adapters such as Resend need an API client.
 # You already have :req in deps, so use Req.
 config :swoosh, :api_client, Swoosh.ApiClient.Req
 
@@ -68,12 +68,8 @@ if config_env() == :prod do
     ],
     secret_key_base: secret_key_base
 
-  # ---- Mailer (Mailgun) ----
+  # ---- Mailer (Resend) ----
   config :fittrack, Fittrack.Mailer,
-    adapter: Swoosh.Adapters.Mailgun,
-    api_key: System.fetch_env!("MAILGUN_API_KEY"),
-    domain: System.fetch_env!("MAILGUN_DOMAIN")
-
-  # If you use Mailgun EU region, uncomment:
-  # config :fittrack, Fittrack.Mailer, base_url: "https://api.eu.mailgun.net/v3"
+    adapter: Swoosh.Adapters.Resend,
+    api_key: System.fetch_env!("RESEND_API_KEY")
 end

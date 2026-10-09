@@ -9,7 +9,7 @@ defmodule Fittrack.Accounts.UserNotifier do
     email =
       new()
       |> to(recipient)
-      |> from({"Fittrack", "noreply@mg.nextgenbytes.me"})
+      |> from({"Fittrack", "noreply@fittrackweb.cloud"})
       |> subject(subject)
       |> text_body(body)
 

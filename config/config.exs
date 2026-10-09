@@ -40,7 +40,7 @@ config :fittrack, FittrackWeb.Endpoint,
 # In dev, use the "Local" adapter which stores emails locally
 # (viewable at "/dev/mailbox" when dev routes are enabled).
 #
-# In production, configure a real adapter (Mailgun/SMTP/etc.)
+# In production, configure the Resend adapter in runtime.exs
 # in `config/runtime.exs`.
 if config_env() == :dev do
   config :fittrack, Fittrack.Mailer, adapter: Swoosh.Adapters.Local

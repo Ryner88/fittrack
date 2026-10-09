@@ -84,7 +84,7 @@ Common Phoenix/runtime variables:
 - `POOL_SIZE`: production database pool size. Defaults to `10`.
 - `ECTO_IPV6`: set to `true` or `1` to enable IPv6 socket options.
 - `DNS_CLUSTER_QUERY`: optional DNS cluster query for production.
-- `MAILGUN_API_KEY` and `MAILGUN_DOMAIN`: required by the production Mailgun adapter.
+- `RESEND_API_KEY`: required by the production Resend adapter.
 
 Test database overrides:
 
