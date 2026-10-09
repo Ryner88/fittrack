@@ -10,10 +10,6 @@ if System.get_env("PHX_SERVER") do
   config :fittrack, FittrackWeb.Endpoint, server: true
 end
 
-# API-based Swoosh adapters such as Resend need an API client.
-# You already have :req in deps, so use Req.
-config :swoosh, :api_client, Swoosh.ApiClient.Req
-
 # Default HTTP port for all envs (can be overridden/expanded in :prod below)
 config :fittrack, FittrackWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
@@ -69,6 +65,8 @@ if config_env() == :prod do
     secret_key_base: secret_key_base
 
   # ---- Mailer (Resend) ----
+  config :swoosh, :api_client, Swoosh.ApiClient.Req
+
   config :fittrack, Fittrack.Mailer,
     adapter: Swoosh.Adapters.Resend,
     api_key: System.fetch_env!("RESEND_API_KEY")

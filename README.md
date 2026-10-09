@@ -92,6 +92,12 @@ Test database overrides:
 - When unset, `DB_USER`, `DB_PASSWORD`, and `DB_HOST` fall back to `PGUSER`, `PGPASSWORD`, and `PGHOST`, respectively, then to `postgres`, an empty password, and `localhost`. `DB_NAME` defaults to `fittrack_test`; `MIX_TEST_PARTITION` is appended to the database name.
 - `SKIP_DB_SETUP` skips the test alias database create/migrate steps and runs `mix test --no-start`.
 
+## Email Test Coverage Boundary
+
+Automated tests cover FitTrack's email generation, notifier sender and recipients, subjects, generated links, and account flows using `Swoosh.Adapters.Test`. Configuration tests verify that production selects `Swoosh.Adapters.Resend`, reads `RESEND_API_KEY`, and fails clearly when that secret is missing. The test environment keeps the test adapter and disables Swoosh's external API client; normal `mix test` does not call the Resend API.
+
+External Resend API behavior and live email delivery are outside the automated test boundary. Production API credentials, DNS/domain verification, and sender reputation remain operational/integration concerns validated separately. Live production delivery from `noreply@fittrackweb.cloud` was manually verified by the operator; this is separate from automated coverage, not an unverified delivery claim. Any future live smoke test should be opt-in, with separate credentials and execution outside the normal suite.
+
 ## Useful Mix Tasks
 
 Verified project tasks:
