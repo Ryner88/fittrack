@@ -31,7 +31,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="${SCRIPT_DIR}"
 DEPLOY_LOG="${APP_DIR}/deploy.log"
 SERVICE_NAME="fittrack"
-RELEASE_BIN="${APP_DIR}/_build/prod/rel/fittrack/bin/fittrack"
 SKIP_GIT=false
 SKIP_RESTART=false
 START_TIME=$(date +%s)
@@ -158,18 +157,12 @@ step_restart_service() {
         return
     fi
     
-    if [ ! -x "${RELEASE_BIN}" ]; then
-        log_error "Release command not found or not executable at ${RELEASE_BIN}"
+    log_info "Restarting ${SERVICE_NAME} service with systemd..."
+    if ! sudo systemctl restart "${SERVICE_NAME}" >> "${DEPLOY_LOG}" 2>&1; then
+        log_error "Systemd service restart failed"
         exit 1
     fi
 
-    log_info "Restarting ${SERVICE_NAME} service with release command..."
-    if ! "${RELEASE_BIN}" restart >> "${DEPLOY_LOG}" 2>&1; then
-        log_error "Release restart command failed"
-        exit 1
-    fi
-
-    sleep 2
     log_success "Service restarted"
 }
 

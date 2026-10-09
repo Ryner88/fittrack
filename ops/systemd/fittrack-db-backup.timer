@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily FitTrack PostgreSQL backup schedule
+
+[Timer]
+OnCalendar=*-*-* 02:17:00 UTC
+RandomizedDelaySec=15m
+Persistent=true
+Unit=fittrack-db-backup.service
+
+[Install]
+WantedBy=timers.target

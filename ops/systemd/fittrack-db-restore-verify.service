@@ -1,0 +1,17 @@
+[Unit]
+Description=Verify newest FitTrack PostgreSQL backup by restoring to a temporary database
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=atlas
+Group=atlas
+Environment=PATH=/home/atlas/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=FITTRACK_RCLONE_REMOTE=r2
+Environment=FITTRACK_R2_BUCKET=fittrack-backups
+EnvironmentFile=/home/atlas/.config/fittrack/restore-db.env
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ExecStart=/usr/bin/python3 /home/atlas/apps/fittrack/scripts/postgres_backup.py restore-verify
